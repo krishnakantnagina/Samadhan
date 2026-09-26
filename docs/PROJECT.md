@@ -131,7 +131,7 @@ Samadhan is a multilingual, voice-first **AI chatbot website** for citizen griev
 7. Ticket `SMD-xxxx` created. No ward match or confidence < 0.7 → district office + `needs_review`.
 8. Citizen receives complaint ID + office.
 9. Officer updates status / reassigns (logged in `routing_corrections`).
-10. Citizen checks status by complaint ID (status + department only).
+10. Citizen checks status by complaint ID (status, department, `updated_at` only).
 
 ## 8. Architecture
 
@@ -151,7 +151,7 @@ Samadhan is a multilingual, voice-first **AI chatbot website** for citizen griev
                   | needs_review queue | map]  ← [Officer]
 ```
 
-**Contracts** (Lead-owned, frozen 27 Sep): API (`/message`, `/status/{complaint_id}`) and DB schema.
+**Contracts** (Lead-owned, frozen 27 Sep): API (`/api/v1/message`, `/api/v1/status/{complaint_id}`, `/health`; spec `docs/contracts/API_SPEC.md`) and DB schema.
 
 - Website never touches the DB; dashboard never calls core.
 - Statuses: `new`, `in_progress`, `resolved`, `needs_review`.
@@ -208,7 +208,7 @@ Samadhan is a multilingual, voice-first **AI chatbot website** for citizen griev
 - Secrets in `.env` only; service key backend-only; website holds no DB keys.
 - HTTPS; CORS restricted to the website domain.
 - Anonymous citizen sessions (verification method `TBD`).
-- Complaint-ID lookup shows status + department only.
+- Complaint-ID lookup shows status, department and last-updated time only.
 - Officer login; contact details masked.
 - Original audio + transcript preserved.
 - DPDP Act alignment; retention `TBD`.
@@ -287,7 +287,7 @@ Documents run in parallel and must not slip past 29 Sep night.
 | D6 | Officer reassignments logged | Future ML data |
 | D7 | Groq primary, Gemini fallback; Streamlit dashboard | Speed of response and build |
 | D8 | Contracts frozen Day 1, Lead-owned | Parallel work |
-| D9 | `SMD-` DB-sequence IDs; complaint-ID status (status + dept) | No races; privacy |
+| D9 | `SMD-` DB-sequence IDs; complaint-ID status (status + dept + `updated_at`) | No races; privacy |
 | D10 | Bhopal 5-ward pilot, manual offices | Event city; data unavailable |
 | D11 | Team = Lead + 1 Dev | Current team |
 | D12 | Track = PS5 | Direct fit: grievance, voice bots, conversational AI |

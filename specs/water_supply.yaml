@@ -1,0 +1,11 @@
+# Service spec: water_supply (skeleton).
+# Only facts from PROJECT.md are filled in. Fields, rules and questions are TBD:
+# never guess, log gaps in docs/GAPS.md (G-API-6). This file gates the keys in the API `summary`.
+
+service: water_supply
+department: Jal Vibhag        # PROJECT.md §6
+pilot:                        # PROJECT.md §6
+  city: Bhopal
+  wards: 5
+
+fields: []                    # TBD: names, types, validation rules, questions
