@@ -1,36 +1,9 @@
 # SAMADHAN — PROJECT.md
 
-> **Single source of truth** for the team lead, developer, and AI coding agents.
+> **Single source of truth** for the two of us and AI coding agents.
 > Product, milestones, and delivery plan are one project. Contracts, schema, specs, and tickets live in other files (see [§22](#22-related-files--submission-items)).
 >
-> **Unknown items are `TBD`: never guess; log a spec gap in `docs/GAPS.md`.**
-
-## Contents
-
-1. [Purpose, Track & Positioning](#1-purpose-track--positioning)
-2. [Problem (evidence for judges)](#2-problem-evidence-for-judges)
-3. [Users](#3-users)
-4. [Goals — Scored Against the Official Rubric](#4-goals--scored-against-the-official-rubric-technical-track)
-5. [Timeline, Milestones & Gates](#5-timeline-milestones--gates)
-6. [Scope](#6-scope)
-7. [End-to-End Workflow](#7-end-to-end-workflow)
-8. [Architecture](#8-architecture)
-9. [Routing & Jurisdiction](#9-routing--jurisdiction)
-10. [AI Responsibilities & Boundaries](#10-ai-responsibilities--boundaries)
-11. [Tech Stack & Attribution](#11-tech-stack--attribution)
-12. [External Dependencies](#12-external-dependencies)
-13. [Security & Privacy](#13-security--privacy)
-14. [Team & Ownership](#14-team--ownership)
-15. [Development Pipeline](#15-development-pipeline)
-16. [Critical Path](#16-critical-path)
-17. [MVP Acceptance Gate](#17-mvp-acceptance-gate-before-recording-and-submission)
-18. [Risks & Mitigations](#18-risks--mitigations)
-19. [Lead Reminders — Never Lose](#19-lead-reminders--never-lose)
-20. [Decision Log](#20-decision-log)
-21. [Defaults vs Open Items](#21-defaults-vs-open-items)
-22. [Related Files & Submission Items](#22-related-files--submission-items)
-
----
+> **Unknown items are `TBD`: don't guess. Ask each other, and update this file if the answer matters.**
 
 ## 1. Purpose, Track & Positioning
 
@@ -88,15 +61,15 @@ Samadhan is a multilingual, voice-first **AI chatbot website** for citizen griev
 
 | Date | Milestone | Gate |
 |---|---|---|
-| 27 Sep | Setup, contracts frozen, mock API; confirm track + team registration + portal format | Dev building |
+| 27 Sep | Setup, contracts agreed, mock API; confirm track + team registration + portal format | Dev building |
 | 28 Sep | Text flow end to end; draft documents | Text complaint → ticket on dashboard; backup video |
-| 29 Sep | Voice, location, integration, deploy, video; finish documents | 10/10 scenarios; tag `v1-mvp` |
-| 30 Sep | **M1: submit all items by noon** | Submitted (late = not evaluated; exact cutoff `TBD`) |
+| 29 Sep | Voice, location, integration, deploy, video; finish documents | 10/10 scenarios |
+| 30 Sep | **M1: submit all items by noon; tag `v1-mvp`** | Submitted (late = not evaluated; exact cutoff `TBD`) |
 | 1–8 Oct | **M2 prep:** pitch, Q&A, rehearsal, laptop demo setup — **no product changes** | 3 rehearsals done |
 | 9 Oct | Semi-final: demo/presentation to jury (15 technical teams); 5 advance | Selected |
 | 10 Oct | Finale: pitch on stage | Win |
 
-> **Rule: no changes to the project after submission.** The 30 Sep version is the product judged.
+> **Rule (MPOnline rule 2.1 / FAQ 16): no changes to the project after submission until the event ends.** The 30 Sep version is the product judged.
 > Finalists may refine the *presentation* after the Day 1 mentor briefing; the code stays `v1-mvp`.
 
 ## 6. Scope
@@ -151,7 +124,7 @@ Samadhan is a multilingual, voice-first **AI chatbot website** for citizen griev
                   | needs_review queue | map]  ← [Officer]
 ```
 
-**Contracts** (Lead-owned, frozen 27 Sep): API (`/api/v1/message`, `/api/v1/status/{complaint_id}`, `/health`; spec `docs/contracts/API_SPEC.md`) and DB schema.
+**Contracts** (an agreement between us; change any time, just tell each other): API (`/api/v1/message`, `/api/v1/status/{complaint_id}`, `/health`; spec `docs/contracts/API_SPEC.md`) and DB schema.
 
 - Website never touches the DB; dashboard never calls core.
 - Statuses: `new`, `in_progress`, `resolved`, `needs_review`.
@@ -205,7 +178,7 @@ Samadhan is a multilingual, voice-first **AI chatbot website** for citizen griev
 
 ## 13. Security & Privacy
 
-- Secrets in `.env` only; service key backend-only; website holds no DB keys.
+- Secrets in `.env` only, never committed; API keys never in the repo; service key backend-only; website holds no DB keys.
 - HTTPS; CORS restricted to the website domain.
 - Anonymous citizen sessions (verification method `TBD`).
 - Complaint-ID lookup shows status, department and last-updated time only.
@@ -214,27 +187,27 @@ Samadhan is a multilingual, voice-first **AI chatbot website** for citizen griev
 - DPDP Act alignment; retention `TBD`.
 - AI routes; officers decide.
 
-## 14. Team & Ownership
+## 14. Team & Folders
 
-| Role | Owns | Responsibilities |
+| Who | Usually works in | Focus |
 |---|---|---|
-| **Lead** | `/docs`, `/specs`, contracts, `/frontend`, `/dashboard` | Architecture, contracts, office data, website, dashboard core, integration, deploy, **all submission documents**, deck, video, submission |
+| **Lead** | `/docs`, `/specs`, `/frontend`, `/dashboard` | Architecture, contracts, office data, website, dashboard core, integration, deploy, **all submission documents**, deck, video, submission |
 | **Dev** | `/backend` (+ status page, map) | API, Turn Engine, voice, validation, jurisdiction, routing, tickets, fallbacks |
 
+Folders are defaults to avoid Git conflicts, not rules: either of us can change any file and just tells the other.
 Registered team composition is locked by the organizer: **verify it matches the actual team** (`TBD`).
 
-## 15. Development Pipeline
+## 15. Working Together
 
-1. Read `PROJECT.md` → ticket → only the needed specs/contracts. Start only when dependencies are Done.
-2. Contracts change only via Lead. Never invent business rules; log gaps in `GAPS.md`.
-3. Branch per ticket; commit prefix = ticket ID; PR to protected `main`; Lead reviews within 1 hour.
-4. Slash commands before submission: `/start`, `/done`, `/lead-review` only.
-5. **No new features after 28 Sep night. Code frozen at submission; tag `v1-mvp`.**
+1. `git pull` before you start; push when something works.
+2. Each of us mostly works in our own folders (§14).
+3. Unclear rule or spec? Message each other; if the answer matters, update the spec.
+4. Build and change anything until submission (30 Sep noon). After that, nothing changes (§5).
+5. Never commit `.env` or API keys (§13).
 
 ## 16. Critical Path
 
 Contracts → Turn Engine → Validator → Ticket/routing → real `/message` → Voice → Integration → Deploy → Video → Submission.
-
 Documents run in parallel and must not slip past 29 Sep night.
 
 ## 17. MVP Acceptance Gate (before recording and submission)
@@ -259,21 +232,19 @@ Documents run in parallel and must not slip past 29 Sep night.
 | Text flow late (28 Sep) | Cut map/commands first, never voice |
 | Documents rushed | Draft on 28 Sep from this file; final on 29 Sep |
 | Late submission | Submit by noon 30 Sep |
-| Rule violation (post-submission changes, missing attribution) | Code freeze; attribution section |
+| Rule violation (post-submission changes, missing attribution) | No changes after submission; attribution section |
 | Demo failure at venue | Laptop local run, hotspot, backup video |
 | Many PS5 grievance teams | Lead with originality: dialect → ward office |
 | Team mismatch with registration | Confirm with organizer today |
 
-## 19. Lead Reminders — Never Lose
+## 19. Reminders — Never Lose
 
 - [ ] Always have something submittable: backup video after the text flow works.
-- [ ] Every rubric point has an owner; ~60% of the score is documents + pitch.
 - [ ] Judges are MPOnline: speak their language (CM Helpline, CSH, KPIs, Bhopal); respect their systems.
 - [ ] Originality breaks ties: one unforgettable line — "Speak in your language; reach your ward office."
 - [ ] Only claim what works; everything else is the roadmap.
-- [ ] Tag before recording; freeze after submission; demo from your own laptop.
-- [ ] Both members can explain every line of code.
-- [ ] Unblock Dev first at every sync.
+- [ ] Tag `v1-mvp` at submission; nothing changes after; demo from your own laptop.
+- [ ] Unblock each other first.
 
 ## 20. Decision Log
 
@@ -286,7 +257,7 @@ Documents run in parallel and must not slip past 29 Sep night.
 | D5 | Routing in core: spec + jurisdiction + confidence | No labelled data |
 | D6 | Officer reassignments logged | Future ML data |
 | D7 | Groq primary, Gemini fallback; Streamlit dashboard | Speed of response and build |
-| D8 | Contracts frozen Day 1, Lead-owned | Parallel work |
+| D8 | Contracts are a working agreement; either of us can change them by talking | Two friends, fast iteration |
 | D9 | `SMD-` DB-sequence IDs; complaint-ID status (status + dept + `updated_at`) | No races; privacy |
 | D10 | Bhopal 5-ward pilot, manual offices | Event city; data unavailable |
 | D11 | Team = Lead + 1 Dev | Current team |
@@ -308,12 +279,10 @@ Documents run in parallel and must not slip past 29 Sep night.
 
 ## 22. Related Files & Submission Items
 
-### Related files
-
 | File | Content |
 |---|---|
-| `CLAUDE.md`, `docs/TICKETS.md`, `docs/GAPS.md`, `docs/CONTRACT_CHANGELOG.md` | Rules, tickets, gaps, contract history |
-| `docs/contracts/api.py`, `db.sql`, `specs/*.yaml` | API contract, DB schema, service specs |
+| `CLAUDE.md`, `docs/TICKETS.md` | Notes for AI agents, task checklist |
+| `docs/contracts/API_SPEC.md`, `api.py`, `db.sql`, `specs/*.yaml` | API contract, DB schema, service specs |
 
 ### Submission items (`submission/`)
 

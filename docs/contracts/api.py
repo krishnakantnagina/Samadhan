@@ -3,8 +3,8 @@
 Single definition of the request/response shapes between the citizen website and the
 FastAPI core. Spec: docs/contracts/API_SPEC.md (section numbers below refer to it).
 
-Only the Lead changes this file. Every change needs an entry in
-docs/CONTRACT_CHANGELOG.md in the same commit (S01 section 9, rule 7).
+Either of us can change this file. If you do, update docs/contracts/API_SPEC.md and tell
+the other so the mock and tests stay in sync.
 """
 
 from datetime import datetime
@@ -15,7 +15,7 @@ from pydantic import UUID4, BaseModel, ConfigDict, Field, model_validator
 
 CONTRACT_VERSION = "1.0.0"
 
-# --- Limits (S01 sections 3 and 4.1). Audio limits are [Lead confirm]: G-API-1. ---
+# --- Limits (S01 sections 3 and 4.1). Audio limits are still to confirm (G-API-1). ---
 TEXT_MIN_LENGTH = 1
 TEXT_MAX_LENGTH = 1000
 AUDIO_MAX_SECONDS = 60

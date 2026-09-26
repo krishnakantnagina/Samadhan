@@ -1,5 +1,7 @@
 # Plan: Deliver the S01 API Contract (`docs/contracts/API_SPEC.md`)
 
+> **Update (27 Sep):** we dropped the contract freeze, the `contract-v1.0.0` tag, the changelog/gaps requirement and the Lead sign-off (see `PROJECT.md` §15 "Working Together"). Read Phase 3 and the Sign-off section as optional. The build work (`api.py`, mock, contract tests) is unchanged.
+
 ## Context
 
 `docs/contracts/API_SPEC.md` (S01, v1, Draft) now defines the contract between the citizen website and the FastAPI core. On its own it is a document. Nothing yet enforces it: `docs/contracts/api.py` is empty, there is no mock, no contract tests, and the open items are not logged. PROJECT.md §5 and D8 require the contract **frozen on 27 Sep** so the Lead (website) and Dev (`/backend`) can work in parallel, and code freezes at the 30 Sep noon submission.
@@ -125,5 +127,5 @@ Auth/OTP, rate limiting, WhatsApp, dashboard endpoints, TTS audio (all out of sc
 | W7 Mock API | Done: `backend/mock/` |
 | W8 Contract suite | Done: 78 tests green on the mock, in-process and over HTTP |
 | W9 `422` → `400` handler | Done: `backend/mock/errors.py` (real backend should reuse it) |
-| Phase 3 freeze | Pending Lead: answer Phase 0 decisions, commit, tag `contract-v1.0.0` |
+| Phase 3 freeze | Dropped: no freeze or tag; the Phase 0 questions are just chat decisions |
 | Phase 4 integration | Pending: real `/api/v1/message` must pass the suite with `CONTRACT_TARGET=real` |

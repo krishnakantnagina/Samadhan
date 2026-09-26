@@ -1,31 +1,37 @@
 # Samadhan
 
-Guidance for Claude Code when working in this repository.
+Guidance for Claude Code when working in this repository. Product source of truth: `docs/PROJECT.md`.
 
 ## Team
 
-- **Lead:** krishnakantnagina (specs, docs, contracts)
-- **Dev A:** backend
-- **Dev B:** frontend and dashboard
+Two friends building a hackathon project: **Lead** (krishnakantnagina) and **Dev**.
 
-## Repository layout
+## Folders
 
-| Path | Owner | Purpose |
-|------|-------|---------|
-| `backend/` | Dev A | Backend |
-| `frontend/` | Dev B | Frontend |
-| `dashboard/` | Dev B | Dashboard |
+Defaults to avoid Git conflicts, not rules. Either of us can change any file; we just tell each other.
+
+| Path | Usually | Purpose |
+|------|---------|---------|
+| `backend/` | Dev | Backend |
+| `frontend/` | Lead | Website |
+| `dashboard/` | Lead | Officer dashboard |
 | `specs/` | Lead | Service YAMLs |
-| `docs/` | Lead | Project docs |
-| `docs/contracts/` | Lead | `api.py` and `db.sql` |
+| `docs/` | Lead | Docs and contracts (`docs/contracts/`) |
+| `submission/` | Lead | Submission items |
 | `.claude/commands/` | Shared | Slash commands |
 
-Docs: `docs/PROJECT.md`, `docs/TICKETS.md`, `docs/GAPS.md`, `docs/CONTRACT_CHANGELOG.md`.
+Docs: `docs/PROJECT.md` (source of truth), `docs/TICKETS.md` (checklist), `docs/contracts/API_SPEC.md` (API contract).
 
 ## Rules
 
-- Never commit secrets. Keep `.env` local and `.env.example` up to date.
+- Never commit `.env` or API keys. Keep `.env.example` up to date.
+- List every library, API and template in the README (organizer requirement).
+- After the 30 Sep submission nothing in the project changes until the event ends (organizer rule). Tag `v1-mvp` at submission.
+
+## Workflow
+
+`git pull` before starting; push when something works. Unclear rule or spec? Ask each other, and update the spec if the answer matters.
 
 ## Commands
 
-TODO: add build, run, test and lint commands.
+TODO: add build, run, test and lint commands. Backend: see `backend/README.md`.

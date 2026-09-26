@@ -1,14 +1,11 @@
 # Contract Changelog
 
-Every change to a file in `docs/contracts/` needs an entry here, in the same commit (S01 §9, rule 7).
-Only the Lead changes contracts. Newest first.
+Optional notes on contract changes. Not required: we mostly discuss changes in chat.
+Either of us can change a contract; adding a line here is a nice-to-have. Newest first.
 
-Versioning: a compatible addition (new optional response field) bumps the minor version. A rename, removal,
-type change or new required request field is **breaking**, bumps the major version, and is avoided after freeze.
+## v1.0.0 — 2026-09-27
 
-## v1.0.0 — 2026-09-27 — pending freeze
-
-Initial contract (S01). The Lead tags `contract-v1.0.0` on approval. Breaking: n/a (first release).
+Initial contract (S01).
 
 **Endpoints**
 - `POST /api/v1/message` — multipart form; one turn (text, audio, and/or location); returns `MessageResponse`.
