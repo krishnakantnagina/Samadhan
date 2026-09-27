@@ -25,13 +25,13 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | T12 | Turn Engine (Groq JSON + Gemini fallback) | D | T02, T11 | Valid JSON | [x] |
 | T13 | Prompt tests | D | T09, T12 | ≥ 13/15 | [ ] |
 | T14 | Session manager | D | T06, T07 | Users isolated | [x] |
-| T15 | Validator + confirmation | D | T11, T12, T14 | No invalid tickets | [x] |
+| T15 | Validator + confirmation | D | T11, T12, T14 | No invalid tickets | [ ] |
 | T16 | Jurisdiction resolver | D | T05, T06 | Correct ward | [ ] |
 | T17 | Ticket + routing (`needs_review` < 0.7) | D | T15, T16 | `SMD-` ticket with office | [ ] |
 | T18 | Real `/message` | D | T14–T17 | Text → ticket | [ ] |
 | T19 | Real `/status/{id}` | D | T17 | Correct status | [ ] |
 | T20 | Seed 15 tickets | L | T06 | Rows visible | [ ] |
-| T21 | Website chatbot UI (mobile, Hindi-first) | L | T08 | Works on mock | [ ] |
+| T21 | Website chatbot UI (mobile, Hindi-first) | L | T08 | Works on mock | [x] |
 | T22 | Status-check page | **D** | T08, T21 | Shows status | [ ] |
 | T23 | Dashboard: login, list, filters | L | T20 | Tickets listed | [ ] |
 | T24 | Dashboard: detail, status, reassign, review queue | L | T23 | Saves to DB | [ ] |

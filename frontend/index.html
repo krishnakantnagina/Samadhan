@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>समाधान — शिकायत दर्ज करें</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<section id="hero" class="hero">
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <p class="hero-eyebrow reveal" style="animation-delay:.05s">MPOnline Idea &amp; Innovation Hackathon &middot; Problem Statement 5</p>
+      <h1 class="hero-title reveal" style="animation-delay:.15s">Samadhan <span class="hero-title-sub">— Making Citizen Voices Heard</span></h1>
+      <p class="hero-tagline reveal" style="animation-delay:.25s">Your voice matters. Your concerns deserve action.</p>
+      <p class="hero-desc reveal" style="animation-delay:.35s">Speak or type your civic issue, in Hindi or English. Samadhan asks only what&rsquo;s missing, confirms with you, and routes it straight to the right government office.</p>
+      <div class="hero-cta-row reveal" style="animation-delay:.45s">
+        <button id="hero-cta" class="cta-mic" aria-label="Start Conversation">
+          <span class="cta-mic-ring"></span>
+          <span class="cta-mic-ring cta-mic-ring-2"></span>
+          <svg class="cta-mic-icon" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+            <path d="M5 10a7 7 0 0 0 14 0"></path>
+            <line x1="12" y1="19" x2="12" y2="22"></line>
+          </svg>
+        </button>
+        <div class="cta-label-group">
+          <span class="cta-label">Start Conversation</span>
+          <span class="cta-sublabel">Voice or text &middot; takes under a minute</span>
+        </div>
+      </div>
+    </div>
+    <div class="hero-preview reveal" style="animation-delay:.55s" aria-hidden="true">
+      <div class="preview-card">
+        <div class="preview-card-header">
+          <span class="preview-dot"></span><span class="preview-dot"></span><span class="preview-dot"></span>
+          <span class="preview-card-title">समाधान</span>
+        </div>
+        <div class="preview-bubble bot">3 दिन से पानी नहीं आ रहा? कृपया अपना वार्ड बताइए।</div>
+        <div class="preview-bubble citizen">वार्ड 12, मिसरोद</div>
+        <div class="preview-bubble bot preview-bubble-ticket">शिकायत दर्ज: <b>SMD-0042</b> &middot; वार्ड 12 कार्यालय</div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-scroll-cue" aria-hidden="true">&darr;</div>
+</section>
+
+<div id="app" class="app-shell">
+<header class="app-header">
+  <h1>समाधान</h1>
+  <p class="tagline">अपनी पानी की समस्या यहाँ बताइए</p>
+</header>
+
+<main id="chat" class="chat" aria-live="polite" aria-label="बातचीत"></main>
+
+<form id="composer" class="composer">
+  <div class="composer-actions">
+    <button type="button" id="btn-restart" class="chip-btn">फिर से शुरू करें</button>
+    <button type="button" id="btn-cancel" class="chip-btn">रद्द करें</button>
+  </div>
+  <div class="composer-row">
+    <textarea id="input" class="input" placeholder="यहाँ लिखें…" rows="1" required></textarea>
+    <button type="submit" id="btn-send" class="send-btn" aria-label="भेजें">भेजें</button>
+  </div>
+</form>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
