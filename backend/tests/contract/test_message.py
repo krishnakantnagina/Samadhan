@@ -3,7 +3,7 @@
 import re
 
 import pytest
-from api import (
+from app.schemas import (
     ACCEPTED_AUDIO_TYPES,
     AUDIO_MAX_BYTES,
     COMPLAINT_ID_PATTERN,

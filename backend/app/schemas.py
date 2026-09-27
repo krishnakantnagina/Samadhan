@@ -1,9 +1,9 @@
 """S01 — API Contract (Website <-> Core), v1.0.0.
 
 Single definition of the request/response shapes between the citizen website and the
-FastAPI core. Spec: docs/contracts/API_SPEC.md (section numbers below refer to it).
+FastAPI core. Spec: docs/specs/S01-api-contract.md (section numbers below refer to it).
 
-Either of us can change this file. If you do, update docs/contracts/API_SPEC.md and tell
+Either of us can change this file. If you do, update docs/specs/S01-api-contract.md and tell
 the other so the mock and tests stay in sync.
 """
 

@@ -8,7 +8,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 |---|---|---|---|---|---|
 | T00 | Confirm PS5 registered, team size matches registration, portal format + exact cutoff time | L | — | All 3 confirmed | [ ] |
 | T01 | Repo, folders, `CLAUDE.md`, `.gitignore`, `.env.example` | L | — | Dev cloned | [ ] |
-| T02 | API contract (`docs/contracts/API_SPEC.md`, `api.py`): `POST /api/v1/message`, `GET /api/v1/status/{complaint_id}`, `/health` | L | — | Pydantic file pushed | [ ] |
+| T02 | API contract (`docs/specs/S01-api-contract.md`, `backend/app/schemas.py`): `POST /api/v1/message`, `GET /api/v1/status/{complaint_id}`, `/health` | L | — | Pydantic file pushed | [ ] |
 | T03 | DB schema incl. `offices`, statuses, `SMD-` prefix | L | — | SQL pushed | [ ] |
 | T04 | `water_supply.yaml` spec | L | — | Loads cleanly | [ ] |
 | T05 | Office data: 5 Bhopal wards + district fallback | L | T03 | Rows ready | [ ] |

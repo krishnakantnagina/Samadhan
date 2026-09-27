@@ -17,7 +17,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = [".", "../docs/contracts"]
+pythonpath = ["."]
 markers = [
     "mock_only: needs the mock's deterministic triggers; skipped when CONTRACT_TARGET=real",
 ]

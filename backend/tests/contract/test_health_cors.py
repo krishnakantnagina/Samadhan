@@ -2,7 +2,7 @@
 
 import os
 
-from api import HealthResponse
+from app.schemas import HealthResponse
 
 ALLOWED_ORIGIN = os.environ.get("CONTRACT_ALLOWED_ORIGIN", "http://localhost:3000")
 BLOCKED_ORIGIN = "https://evil.example"

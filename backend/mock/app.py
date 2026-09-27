@@ -21,7 +21,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-import api
+from app import schemas as api
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import UUID4

@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Maintained by** | Either of us; tell each other when it changes |
-| **Implements** | T02 (`docs/contracts/api.py`), T08 mock, T18, T19 |
+| **Implements** | T02 (`backend/app/schemas.py`), T08 mock, T18, T19 |
 | **Version** | v1 |
 | **Status** | Draft for review |
 | **Depends on** | S02 DB schema (ticket fields, statuses) · S05 Turn Engine (`action` values) · S11 Status lookup |
@@ -25,7 +25,7 @@
 12. [Open items](#12-open-items)
 13. [Deviations from PROJECT.md](#13-deviations-from-projectmd)
 14. [Out of scope](#14-out-of-scope)
-- [Appendix A — `api.py` model sketch](#appendix-a--apipy-model-sketch)
+- [Appendix A — `schemas.py` model sketch](#appendix-a--schemaspy-model-sketch)
 
 ---
 
@@ -236,7 +236,7 @@ Every non-2xx response has the same JSON body:
 4. CORS allows only origins listed in the `ALLOWED_ORIGINS` env var.
 5. `GET /health` → `{"status":"ok"}`; no auth; no external calls.
 6. The T08 mock must return schema-valid responses for **every** `action` value.
-7. **Changing the contract:** either of us can change it at any time. Update `api.py` and this spec together and tell the other, so the mock and the contract tests stay in sync. Prefer additive changes (a new optional field) so the other side isn't broken mid-way.
+7. **Changing the contract:** either of us can change it at any time. Update `schemas.py` and this spec together and tell the other, so the mock and the contract tests stay in sync. Prefer additive changes (a new optional field) so the other side isn't broken mid-way.
 
 ## 10. Acceptance
 
@@ -314,7 +314,7 @@ Auth/OTP, rate limiting, WhatsApp, dashboard endpoints, TTS audio in the respons
 
 ---
 
-## Appendix A — `api.py` model sketch
+## Appendix A — `schemas.py` model sketch
 
 Illustrative shape for T02. `MessageRequest` documents the form fields; `audio` is an `UploadFile` at the route level.
 

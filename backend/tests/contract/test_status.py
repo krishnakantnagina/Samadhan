@@ -3,7 +3,7 @@
 import os
 
 import pytest
-from api import ComplaintStatus, ErrorCode, StatusResponse
+from app.schemas import ComplaintStatus, ErrorCode, StatusResponse
 from contract_helpers import assert_error, post_message
 
 EXISTING_ID = os.environ.get("CONTRACT_EXISTING_ID", "SMD-0042")

@@ -1,7 +1,7 @@
 # Backend
 
-FastAPI core. Contract: [`docs/contracts/API_SPEC.md`](../docs/contracts/API_SPEC.md) and
-[`docs/contracts/api.py`](../docs/contracts/api.py). Uses `uv`; run everything from this folder.
+FastAPI core. Contract: [`docs/specs/S01-api-contract.md`](../docs/specs/S01-api-contract.md) and
+[`app/schemas.py`](app/schemas.py). Uses `uv`; run everything from this folder.
 
 ## Mock API (T08)
 

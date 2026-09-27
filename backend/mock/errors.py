@@ -2,7 +2,7 @@
 
 import uuid
 
-import api
+from app import schemas as api
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse

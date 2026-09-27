@@ -16,11 +16,11 @@ Defaults to avoid Git conflicts, not rules. Either of us can change any file; we
 | `frontend/` | Lead | Website |
 | `dashboard/` | Lead | Officer dashboard |
 | `specs/` | Lead | Service YAMLs |
-| `docs/` | Lead | Docs and contracts (`docs/contracts/`) |
+| `docs/` | Lead | Docs and specs (`docs/specs/`) |
 | `submission/` | Lead | Submission items |
 | `.claude/commands/` | Shared | Slash commands |
 
-Docs: `docs/PROJECT.md` (source of truth), `docs/TICKETS.md` (checklist), `docs/contracts/API_SPEC.md` (API contract).
+Docs: `docs/PROJECT.md` (source of truth), `docs/TICKETS.md` (checklist), `docs/specs/S01-api-contract.md` (API contract).
 
 ## Rules
 

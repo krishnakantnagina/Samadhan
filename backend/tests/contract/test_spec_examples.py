@@ -1,13 +1,13 @@
-"""Every JSON example in API_SPEC.md must validate against the api.py models."""
+"""Every JSON example in S01-api-contract.md must validate against the schemas.py models."""
 
 import json
 import re
 from pathlib import Path
 
 import pytest
-from api import ErrorResponse, HealthResponse, MessageResponse, StatusResponse
+from app.schemas import ErrorResponse, HealthResponse, MessageResponse, StatusResponse
 
-SPEC = Path(__file__).resolve().parents[3] / "docs" / "contracts" / "API_SPEC.md"
+SPEC = Path(__file__).resolve().parents[3] / "docs" / "specs" / "S01-api-contract.md"
 BLOCKS = re.findall(r"```json\r?\n(.*?)```", SPEC.read_text(encoding="utf-8"), re.DOTALL)
 
 

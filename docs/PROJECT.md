@@ -124,7 +124,7 @@ Samadhan is a multilingual, voice-first **AI chatbot website** for citizen griev
                   | needs_review queue | map]  ← [Officer]
 ```
 
-**Contracts** (an agreement between us; change any time, just tell each other): API (`/api/v1/message`, `/api/v1/status/{complaint_id}`, `/health`; spec `docs/contracts/API_SPEC.md`) and DB schema.
+**Contracts** (an agreement between us; change any time, just tell each other): API (`/api/v1/message`, `/api/v1/status/{complaint_id}`, `/health`; spec `docs/specs/S01-api-contract.md`) and DB schema.
 
 - Website never touches the DB; dashboard never calls core.
 - Statuses: `new`, `in_progress`, `resolved`, `needs_review`.
@@ -282,7 +282,7 @@ Documents run in parallel and must not slip past 29 Sep night.
 | File | Content |
 |---|---|
 | `CLAUDE.md`, `docs/TICKETS.md` | Notes for AI agents, task checklist |
-| `docs/contracts/API_SPEC.md`, `api.py`, `db.sql`, `specs/*.yaml` | API contract, DB schema, service specs |
+| `docs/specs/S01-api-contract.md`, `backend/app/schemas.py`, `database/schema.sql`, `specs/*.yaml` | API contract, DB schema, service specs |
 
 ### Submission items (`submission/`)
 

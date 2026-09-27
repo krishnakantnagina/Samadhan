@@ -1,7 +1,7 @@
-"""Unit tests for api.py itself: models, limits and shared helpers."""
+"""Unit tests for schemas.py itself: models, limits and shared helpers."""
 
 import pytest
-from api import (
+from app.schemas import (
     ERROR_REPLY_TEXT,
     ERROR_STATUS,
     Action,
