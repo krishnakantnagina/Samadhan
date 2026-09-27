@@ -3,6 +3,15 @@
 FastAPI core. Contract: [`docs/specs/S01-api-contract.md`](../docs/specs/S01-api-contract.md) and
 [`app/schemas.py`](app/schemas.py). Uses `uv`; run everything from this folder.
 
+## Real API (T07)
+
+App setup only today — config, CORS, `/health`, startup loading of `specs/*.yaml`. No
+`/message`/`/status` logic yet (T18/T19). Spec: `docs/specs/S04-message-endpoint.md`.
+
+```bash
+uv run uvicorn app.main:app --port 8000
+```
+
 ## Mock API (T08)
 
 Schema-valid canned responses for every `action`, so the website can be built before the real backend exists.

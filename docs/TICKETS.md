@@ -13,7 +13,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | T04 | `water_supply.yaml` spec | L | — | Loads cleanly | [ ] |
 | T05 | Office data: 5 Bhopal wards + district fallback | L | T03 | Rows ready | [ ] |
 | T06 | Supabase: schema, `audio` bucket, offices, share keys | L | T03, T05 | Tables visible | [ ] |
-| T07 | FastAPI skeleton, config, CORS, `/health` | D | T01, T02 | 200 OK | [ ] |
+| T07 | FastAPI skeleton, config, CORS, `/health` | D | T01, T02 | 200 OK | [x] |
 | T08 | Mock `/message` + `/status` | D | T07 | Callable from browser | [ ] |
 | T09 | 15 test sentences + 3 voice samples | L | — | Shared | [ ] |
 | T10 | Screenshots: CM Helpline menu bot (evidence) | L | — | 5 saved | [ ] |

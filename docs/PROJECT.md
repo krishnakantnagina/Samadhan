@@ -85,8 +85,9 @@ Change a contract → update spec + code together and tell the teammate.
 
 ## 7. Commands
 ```powershell
-# backend (mock API today; real API is app.main:app once it exists)
-cd backend; uv sync; uv run uvicorn mock.app:app --reload     # http://localhost:8000/docs
+# backend (real API is app setup only so far, T07; mock is still what the website builds against)
+cd backend; uv sync; uv run uvicorn app.main:app --reload     # http://localhost:8000/docs
+cd backend; uv run uvicorn mock.app:app --reload --port 8001  # mock, side by side
 cd backend; uv run pytest
 cd backend; uv run ruff check .
 # dashboard (entry file TBD in dashboard/src/)
