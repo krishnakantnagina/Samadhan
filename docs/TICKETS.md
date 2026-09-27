@@ -11,7 +11,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | T02 | API contract (`docs/specs/S01-api-contract.md`, `backend/app/schemas.py`): `POST /api/v1/message`, `GET /api/v1/status/{complaint_id}`, `/health` | L | — | Pydantic file pushed | [ ] |
 | T03 | DB schema incl. `offices`, statuses, `SMD-` prefix | L | — | SQL pushed | [x] |
 | T04 | `water_supply.yaml` spec | L | — | Loads cleanly | [ ] |
-| T05 | Office data: 5 Bhopal wards + district fallback | L | T03 | Rows ready | [ ] |
+| T05 | Office data: 5 Bhopal wards + district fallback | L | T03 | Rows ready | [x] |
 | T06 | Supabase: schema, `audio` bucket, offices, share keys | L | T03, T05 | Tables visible | [ ] |
 | T07 | FastAPI skeleton, config, CORS, `/health` | D | T01, T02 | 200 OK | [x] |
 | T08 | Mock `/message` + `/status` | D | T07 | Callable from browser | [ ] |
