@@ -3,6 +3,8 @@
 import re
 
 import pytest
+from contract_helpers import assert_error, new_id, post_message
+
 from app.schemas import (
     ACCEPTED_AUDIO_TYPES,
     AUDIO_MAX_BYTES,
@@ -14,7 +16,6 @@ from app.schemas import (
     MessageResponse,
     OfficeLevel,
 )
-from contract_helpers import assert_error, new_id, post_message
 
 AUDIO = b"\x1aE\xdf\xa3fake-audio"
 

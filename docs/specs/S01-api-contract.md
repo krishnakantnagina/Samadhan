@@ -115,7 +115,7 @@ The dashboard is **not** a client: it reads and writes the database directly and
 |---|---|---|
 | `complaint_id` | string | Matches `SMD-\d{4,}` |
 | `department` | string | Department name from the service spec |
-| `office` | object | `{ "name": string, "level": "ward" \| "zone" \| "municipal_corp" \| "gram_panchayat" \| "block" \| "district" }` |
+| `office` | object | `name` = `offices.office_name` (S02). `{ "name": string, "level": "ward" \| "zone" \| "municipal_corp" \| "gram_panchayat" \| "block" \| "district" }` |
 | `status` | enum | `new`, or `needs_review` when routed to the district fallback (PROJECT.md §7 step 7) |
 
 ### 4.5 Examples
@@ -164,7 +164,7 @@ Ticket submitted (scenario 7):
 }
 ```
 
-> Keys inside `summary` are defined by the service spec. `specs/water_supply.yaml` is still empty (see G-API-6).
+> Keys inside `summary` are the field names in the service spec. For `specs/water_supply.yaml` they are `issue_type`, `location`, and, if the citizen gave them, `duration_days` and `address_detail`.
 
 ## 5. `GET /api/v1/status/{complaint_id}`
 
@@ -294,7 +294,6 @@ Discuss in chat; `docs/GAPS.md` is an optional scratchpad. Unknowns stay `TBD`; 
 | G-API-3 | Should `needs_review` be shown to citizens on the status endpoint? It is an internal triage flag; it is returned as-is today to match PROJECT.md §8 | 28 Sep |
 | G-API-4 | Client timeout and latency budget: ASR ~8 s + LLM ~6 s already reaches ~14 s before any fallback | 28 Sep |
 | G-API-5 | `ALLOWED_ORIGINS` value for the deployed website and the prod base URL (the variable is in `.env.example`; local default `http://localhost:3000`) | Before deploy (29 Sep) |
-| G-API-6 | `specs/water_supply.yaml` is empty; `summary` keys and questions cannot be finalised until it is written (blocks S05) | 27 Sep |
 | G-API-7 | Dialect claims and ASR language codes wait for ASR testing (PROJECT.md §21) | After ASR tests |
 | G-API-8 | The mock cannot check audio duration (≤ 60 s); the real backend needs a way to measure it (e.g. `ffprobe`) and must return `413 AUDIO_TOO_LARGE` | Before voice ticket |
 

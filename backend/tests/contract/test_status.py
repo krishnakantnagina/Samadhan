@@ -3,8 +3,9 @@
 import os
 
 import pytest
-from app.schemas import ComplaintStatus, ErrorCode, StatusResponse
 from contract_helpers import assert_error, post_message
+
+from app.schemas import ComplaintStatus, ErrorCode, StatusResponse
 
 EXISTING_ID = os.environ.get("CONTRACT_EXISTING_ID", "SMD-0042")
 ALLOWED_FIELDS = {"complaint_id", "status", "department", "updated_at"}

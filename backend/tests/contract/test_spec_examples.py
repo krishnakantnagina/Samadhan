@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 import pytest
+
 from app.schemas import ErrorResponse, HealthResponse, MessageResponse, StatusResponse
 
 SPEC = Path(__file__).resolve().parents[3] / "docs" / "specs" / "S01-api-contract.md"

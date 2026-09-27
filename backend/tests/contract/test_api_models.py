@@ -1,6 +1,8 @@
 """Unit tests for schemas.py itself: models, limits and shared helpers."""
 
 import pytest
+from pydantic import ValidationError
+
 from app.schemas import (
     ERROR_REPLY_TEXT,
     ERROR_STATUS,
@@ -12,7 +14,6 @@ from app.schemas import (
     normalise_content_type,
     parse_command,
 )
-from pydantic import ValidationError
 
 SESSION = "b7d0c2f4-5a91-4c1e-8d3a-0e6f1a2b9c77"
 MESSAGE = "3b1f6c1e-8a4e-4d0a-9f55-2f6d1c7a9e10"

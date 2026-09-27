@@ -26,9 +26,9 @@ One schema shared by the core and the dashboard. Stores sessions, messages, tick
 **messages** — every citizen message and its stored reply
 | Column | Type | Rule |
 |---|---|---|
-| id | uuid PK | = `message_id` from S01 → PK guarantees dedupe |
-| session_id | uuid FK → sessions | not null |
-| input_type | text | `text` or `audio` |
+| message_id | uuid | = `message_id` from S01 (client-generated) |
+| session_id | uuid FK → sessions | not null. **PK = (`session_id`, `message_id`)** → dedupe is per session, matching S01 §8 |
+| input_type | text | `text`, `audio` or `location` (location-only turn, S01 D-A8); CHECK constraint |
 | text | text null | citizen text |
 | transcript | text null | ASR output (original, never edited) |
 | audio_path | text null | Storage path |
@@ -57,12 +57,12 @@ One schema shared by the core and the dashboard. Stores sessions, messages, tick
 |---|---|---|
 | id | bigint PK | identity |
 | department | text | must match a department in service specs |
-| level | text | `ward` or `district` |
+| level | text | `ward` · `zone` · `municipal_corp` · `gram_panchayat` · `block` · `district` (same values as S01 `OfficeLevel`; CHECK constraint). Pilot data uses `ward` and `district` only |
 | code | text | ward/district code (LGD code if known) |
-| name | text | official ward/district name |
+| name | text | official jurisdiction (ward/district) name; used for fuzzy match, not returned as the office name |
 | aliases | text[] | spellings/Hindi names for fuzzy match |
 | centroid_lat, centroid_lng | float8 null | used for nearest-ward (pilot) |
-| office_name, officer_name | text | shown on ticket and dashboard |
+| office_name, officer_name | text | shown on ticket and dashboard. `office_name` is returned as `ticket.office.name` in S01 |
 | active | bool | default true |
 Unique: (`department`, `level`, `code`). Exactly one active `district` row per department.
 
@@ -89,7 +89,7 @@ Bucket `audio`, **private**. Path: `{session_id}/{message_id}.{ext}`. Dashboard 
 5. Seed data (T05, T20) lives in `database/seed.sql` so the DB can be rebuilt in one run.
 
 ## ERRORS / EDGE CASES
-Duplicate `message_id` → PK conflict → core returns stored `response`. Missing ward → district office + `needs_review`. Reassign to same office → rejected.
+Duplicate (`session_id`, `message_id`) → PK conflict → core returns stored `response`. Missing ward → district office + `needs_review`. Reassign to same office → rejected.
 
 ## OUT OF SCOPE
 Officer accounts, per-department access, citizen phone/OTP, data retention jobs, analytics tables.
@@ -97,7 +97,7 @@ Officer accounts, per-department access, citizen phone/OTP, data retention jobs,
 ## ACCEPTANCE
 - [ ] `schema.sql` + `seed.sql` run cleanly on a fresh Supabase project
 - [ ] Two tickets created concurrently get different `complaint_id`s; ID 10000 renders as `SMD-10000`
-- [ ] Inserting the same message id twice fails on PK
+- [ ] Inserting the same (`session_id`, `message_id`) twice fails on PK; the same `message_id` under a different session is accepted
 - [ ] Anon key cannot read any table or audio file
 - [ ] Status change updates `updated_at` automatically
 - [ ] Reassignment writes one `routing_corrections` row and changes `tickets.office_id`

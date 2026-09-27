@@ -1,6 +1,7 @@
 import uuid
 
 import httpx
+
 from app.schemas import ErrorCode, ErrorResponse
 
 MESSAGE_PATH = "/api/v1/message"
