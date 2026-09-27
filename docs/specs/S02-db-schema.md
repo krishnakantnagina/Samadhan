@@ -62,7 +62,8 @@ One schema shared by the core and the dashboard. Stores sessions, messages, tick
 | name | text | official jurisdiction (ward/district) name; used for fuzzy match, not returned as the office name |
 | aliases | text[] | spellings/Hindi names for fuzzy match |
 | centroid_lat, centroid_lng | float8 null | used for nearest-ward (pilot) |
-| office_name, officer_name | text | shown on ticket and dashboard. `office_name` is returned as `ticket.office.name` in S01 |
+| office_name | text | shown on ticket and dashboard; returned as `ticket.office.name` in S01 |
+| officer_name | text null | shown on dashboard when known; `NULL` where no verified role exists (S09) — never a placeholder or invented value |
 | active | bool | default true |
 Unique: (`department`, `level`, `code`). Exactly one active `district` row per department.
 
