@@ -1,8 +1,8 @@
-"""T07 config: ALLOWED_ORIGINS parsing (backend/app/config.py)."""
+"""T07/T12 config: ALLOWED_ORIGINS and LLM provider parsing (backend/app/config.py)."""
 
 import pytest
 
-from app.config import get_allowed_origins
+from app.config import get_allowed_origins, get_llm_config
 
 
 def test_missing_raises(monkeypatch):
@@ -20,3 +20,54 @@ def test_blank_raises(monkeypatch):
 def test_parses_and_trims(monkeypatch):
     monkeypatch.setenv("ALLOWED_ORIGINS", "http://a.test, http://b.test ,,")
     assert get_allowed_origins() == ["http://a.test", "http://b.test"]
+
+
+# --- get_llm_config (T12, S05-turn-engine.md) -----------------------------------------------
+
+LLM_ENV = {
+    "GROQ_API_KEY": "groq-key",
+    "GEMINI_API_KEY": "gemini-key",
+    "GROQ_MODEL": "groq-model",
+    "GEMINI_MODEL": "gemini-model",
+}
+
+
+def set_llm_env(monkeypatch, **overrides):
+    for name, value in {**LLM_ENV, **overrides}.items():
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+
+
+@pytest.mark.parametrize(
+    "missing", ["GROQ_API_KEY", "GEMINI_API_KEY", "GROQ_MODEL", "GEMINI_MODEL"]
+)
+def test_llm_config_missing_var_raises(monkeypatch, missing):
+    set_llm_env(monkeypatch, **{missing: None})
+    with pytest.raises(RuntimeError, match=missing):
+        get_llm_config()
+
+
+def test_llm_config_defaults_primary_to_groq(monkeypatch):
+    set_llm_env(monkeypatch)
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    assert get_llm_config().primary == "groq"
+
+
+def test_llm_config_invalid_provider_raises(monkeypatch):
+    set_llm_env(monkeypatch)
+    monkeypatch.setenv("LLM_PROVIDER", "notaprovider")
+    with pytest.raises(RuntimeError, match="LLM_PROVIDER"):
+        get_llm_config()
+
+
+def test_llm_config_parses_valid_env(monkeypatch):
+    set_llm_env(monkeypatch)
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    config = get_llm_config()
+    assert config.primary == "gemini"
+    assert config.groq_api_key == "groq-key"
+    assert config.gemini_api_key == "gemini-key"
+    assert config.groq_model == "groq-model"
+    assert config.gemini_model == "gemini-model"

@@ -22,7 +22,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | ID | Ticket | Owner | Depends on | Done when | Done |
 |---|---|---|---|---|---|
 | T11 | Spec loader | D | T04, T07 | Spec by ID | [x] |
-| T12 | Turn Engine (Groq JSON + Gemini fallback) | D | T02, T11 | Valid JSON | [ ] |
+| T12 | Turn Engine (Groq JSON + Gemini fallback) | D | T02, T11 | Valid JSON | [x] |
 | T13 | Prompt tests | D | T09, T12 | ≥ 13/15 | [ ] |
 | T14 | Session manager | D | T06, T07 | Users isolated | [ ] |
 | T15 | Validator + confirmation | D | T11, T12, T14 | No invalid tickets | [ ] |

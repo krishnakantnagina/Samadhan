@@ -30,6 +30,7 @@ Backend (`backend/pyproject.toml`):
 
 - [FastAPI](https://fastapi.tiangolo.com/), [Pydantic](https://docs.pydantic.dev/), [Uvicorn](https://www.uvicorn.org/), [python-multipart](https://github.com/Kludex/python-multipart)
 - [httpx](https://www.python-httpx.org/), [PyYAML](https://pyyaml.org/) (service spec loader)
+- [Groq API](https://console.groq.com/docs) (Turn Engine LLM, JSON mode, primary), [Google Gemini API](https://ai.google.dev/gemini-api/docs) (Turn Engine LLM fallback) — called via `httpx`, no SDK
 - Dev tools: [pytest](https://pytest.org/), [Ruff](https://docs.astral.sh/ruff/), [uv](https://docs.astral.sh/uv/)
 
 ## Author

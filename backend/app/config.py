@@ -1,11 +1,13 @@
-"""T07 — env config. Spec: docs/specs/S04-message-endpoint.md section 1.
+"""T07/T12 — env config. Spec: docs/specs/S04-message-endpoint.md section 1, S05-turn-engine.md.
 
-Only ALLOWED_ORIGINS is required/enforced today. Other env vars (SUPABASE_*, GROQ_API_KEY,
-GEMINI_API_KEY, SARVAM_API_KEY, LLM_PROVIDER) become required once the ticket that needs them
-lands (T14, T12, T26) and get their own loader here at that point.
+ALLOWED_ORIGINS and the LLM vars (GROQ_API_KEY, GEMINI_API_KEY, GROQ_MODEL, GEMINI_MODEL,
+LLM_PROVIDER) are enforced here. SUPABASE_* and SARVAM_API_KEY become required once the ticket
+that needs them lands (T14, T26) and get their own loader here at that point.
 """
 
 import os
+from dataclasses import dataclass
+from typing import Literal
 
 
 def get_allowed_origins() -> list[str]:
@@ -14,3 +16,37 @@ def get_allowed_origins() -> list[str]:
     if not origins:
         raise RuntimeError("ALLOWED_ORIGINS is not set")
     return origins
+
+
+@dataclass(frozen=True)
+class LLMConfig:
+    """S05 provider config: which of Groq/Gemini is primary, and both providers' credentials."""
+
+    primary: Literal["groq", "gemini"]
+    groq_api_key: str
+    gemini_api_key: str
+    groq_model: str
+    gemini_model: str
+
+
+def _require(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RuntimeError(f"{name} is not set")
+    return value
+
+
+def get_llm_config() -> LLMConfig:
+    """GROQ_API_KEY, GEMINI_API_KEY, GROQ_MODEL, GEMINI_MODEL (required) + LLM_PROVIDER (optional,
+    default "groq" per PROJECT.md section 6: "Groq (JSON mode) -> fallback Gemini Flash").
+    """
+    primary = os.environ.get("LLM_PROVIDER", "groq").strip().lower() or "groq"
+    if primary not in ("groq", "gemini"):
+        raise RuntimeError(f"LLM_PROVIDER must be 'groq' or 'gemini', got {primary!r}")
+    return LLMConfig(
+        primary=primary,  # type: ignore[arg-type]
+        groq_api_key=_require("GROQ_API_KEY"),
+        gemini_api_key=_require("GEMINI_API_KEY"),
+        groq_model=_require("GROQ_MODEL"),
+        gemini_model=_require("GEMINI_MODEL"),
+    )
