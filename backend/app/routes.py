@@ -1,10 +1,11 @@
-"""T18 -- POST /api/v1/message. T19 will add GET /status/{complaint_id} here.
-Spec: docs/specs/S04-message-endpoint.md section 2.
+"""T18 -- POST /api/v1/message. T19 -- GET /status/{complaint_id}.
+Spec: docs/specs/S04-message-endpoint.md section 2, docs/specs/S11-status-lookup.md.
 
-Plain sync `def` route, not `async def` -- every downstream call (S05/S06/S09/S10) is already
+Plain sync `def` routes, not `async def` -- every downstream call (S05/S06/S09/S10) is already
 synchronous, and FastAPI thread-pools a sync route automatically (S04 D-S04-3).
 """
 
+import re
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
@@ -194,3 +195,18 @@ def message(
 
     # Step 9: persist and respond
     return _persist(session_id, message_id, text, response, update)
+
+
+@router.get("/status/{complaint_id}", response_model=api.StatusResponse)
+def status(complaint_id: str) -> api.StatusResponse:
+    if not re.fullmatch(api.COMPLAINT_ID_PATTERN, complaint_id):
+        raise ApiError(api.ErrorCode.INVALID_COMPLAINT_ID, f"Bad complaint_id: {complaint_id!r}.")
+    row = ticketing.get_status(complaint_id)
+    if row is None:
+        raise ApiError(api.ErrorCode.COMPLAINT_NOT_FOUND, f"No ticket {complaint_id}.")
+    return api.StatusResponse(
+        complaint_id=complaint_id,
+        status=row["status"],
+        department=row["department"],
+        updated_at=row["updated_at"],
+    )

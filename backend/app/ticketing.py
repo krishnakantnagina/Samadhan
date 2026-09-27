@@ -1,10 +1,13 @@
 """S10 -- Ticket + routing (T17). Spec: docs/specs/S10-ticket-routing.md.
+Also S11 -- Status lookup (T19). Spec: docs/specs/S11-status-lookup.md.
 
-Only reached once S07 (Validator) returns ready_to_submit (S04 section 2 step 7a). Resolves
-jurisdiction (S09), decides new vs needs_review, and writes the tickets row.
+create_ticket is only reached once S07 (Validator) returns ready_to_submit (S04 section 2 step 7a).
+Resolves jurisdiction (S09), decides new vs needs_review, and writes the tickets row. get_status is
+the read-only counterpart: it lives here rather than a separate module since it's the read half of
+the same tickets table (S11 SCOPE).
 
-Either of us can change this file. If you do, update docs/specs/S10-ticket-routing.md and tell
-the other.
+Either of us can change this file. If you do, update docs/specs/S10-ticket-routing.md /
+docs/specs/S11-status-lookup.md and tell the other.
 """
 
 import uuid
@@ -119,3 +122,16 @@ def create_ticket(
         office=schemas.Office(name=match.office.office_name, level=match.office.level),
         status=status,
     )
+
+
+def get_status(complaint_id: str, *, client: Client | None = None) -> dict[str, Any] | None:
+    """S11: status/department/updated_at only -- never fields, original_text, lat/lng, audio_path
+    (S01 section 5, S11 RULES 2)."""
+    client = client or get_client()
+    rows = (
+        client.table("tickets")
+        .select("status,department,updated_at")
+        .eq("complaint_id", complaint_id)
+        .execute()
+    ).data
+    return rows[0] if rows else None

@@ -1,5 +1,6 @@
 """S10 Ticket + routing (T17): create_ticket against a minimal fake client covering both `offices`
 (for the internal resolve_office call) and `tickets` (with generated complaint_id simulation).
+Also S11 Status lookup (T19): get_status against the same fake.
 """
 
 import uuid
@@ -9,7 +10,7 @@ import pytest
 
 from app.schemas import ComplaintStatus, OfficeLevel
 from app.service_spec import ServiceSpec
-from app.ticketing import TicketingError, create_ticket
+from app.ticketing import TicketingError, create_ticket, get_status
 
 DEPARTMENT = "Jal Vibhag"
 
@@ -107,9 +108,11 @@ class _Query:
         self.filters: dict = {}
         self.op = None
         self.payload = None
+        self.columns: list[str] | None = None
 
-    def select(self, *_cols):
+    def select(self, *cols):
         self.op = "select"
+        self.columns = [c for group in cols for c in group.split(",")]
         return self
 
     def insert(self, row):
@@ -132,6 +135,8 @@ class _Query:
 
         rows = self.fake.tables.get(self.table_name, [])
         matched = [r for r in rows if all(r.get(k) == v for k, v in self.filters.items())]
+        if self.columns:
+            matched = [{c: r[c] for c in self.columns} for r in matched]
         return SimpleNamespace(data=matched)
 
 
@@ -280,3 +285,33 @@ def test_spec_without_location_field_raises():
 
     with pytest.raises(TicketingError):
         call_create_ticket(client, spec=bad_spec, validated_fields={"issue_type": "a"})
+
+
+# --- get_status (T19, S11) ----------------------------------------------------------------------
+
+
+def test_get_status_found():
+    client = FakeClient([DISTRICT])
+    client.tables["tickets"].append(
+        {
+            "complaint_id": "SMD-0001",
+            "status": "in_progress",
+            "department": DEPARTMENT,
+            "updated_at": "2026-09-29T09:15:00Z",
+            "fields": {"issue_type": "no_supply"},
+            "original_text": "secret",
+        }
+    )
+
+    row = get_status("SMD-0001", client=client)
+
+    assert row == {
+        "status": "in_progress",
+        "department": DEPARTMENT,
+        "updated_at": "2026-09-29T09:15:00Z",
+    }
+
+
+def test_get_status_not_found():
+    client = FakeClient([DISTRICT])
+    assert get_status("SMD-9999", client=client) is None

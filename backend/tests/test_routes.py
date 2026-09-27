@@ -294,3 +294,47 @@ def test_turn_engine_unavailable_is_503(test_client, monkeypatch):
 
     assert response.status_code == 503
     assert response.json()["error_code"] == "SERVICE_UNAVAILABLE"
+
+
+# --- GET /status/{complaint_id} (T19, S11) ------------------------------------------------------
+
+
+def test_status_returns_200_for_a_real_ticket(test_client, monkeypatch):
+    monkeypatch.setattr(
+        routes.ticketing,
+        "get_status",
+        lambda complaint_id: {
+            "status": "in_progress",
+            "department": "Jal Vibhag",
+            "updated_at": "2026-09-29T09:15:00Z",
+        },
+    )
+
+    response = test_client.get("/api/v1/status/SMD-0042")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {
+        "complaint_id": "SMD-0042",
+        "status": "in_progress",
+        "department": "Jal Vibhag",
+        "updated_at": "2026-09-29T09:15:00Z",
+    }
+
+
+def test_status_malformed_id_is_400(test_client, monkeypatch):
+    monkeypatch.setattr(routes.ticketing, "get_status", raise_if_called)
+
+    response = test_client.get("/api/v1/status/SMD-ABC")
+
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "INVALID_COMPLAINT_ID"
+
+
+def test_status_unknown_id_is_404(test_client, monkeypatch):
+    monkeypatch.setattr(routes.ticketing, "get_status", lambda complaint_id: None)
+
+    response = test_client.get("/api/v1/status/SMD-9999")
+
+    assert response.status_code == 404
+    assert response.json()["error_code"] == "COMPLAINT_NOT_FOUND"
