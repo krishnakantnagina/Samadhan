@@ -90,8 +90,8 @@ cd backend; uv sync; uv run uvicorn app.main:app --reload     # http://localhost
 cd backend; uv run uvicorn mock.app:app --reload --port 8001  # mock, side by side
 cd backend; uv run pytest
 cd backend; uv run ruff check .
-# dashboard (entry file TBD in dashboard/src/)
-cd dashboard; uv sync; uv run streamlit run src/<entry>.py
+# dashboard
+cd dashboard; uv sync; uv run streamlit run src/dashboard/app.py
 # website
 cd frontend; python -m http.server 5500
 ```
@@ -127,4 +127,4 @@ All 10 scenarios pass:
 
 ## 11. Open (TBD)
 Citizen verification method · officer per-department access · dialects beyond Hindi/Hinglish ·
-dashboard entry file name · custom domain · data retention.
+custom domain · data retention.
