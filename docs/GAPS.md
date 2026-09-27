@@ -14,6 +14,8 @@
 | G-SPEC-1 | water_supply | Dev to confirm `specs/water_supply.yaml`: the 5 `issue_type` values, required fields (`issue_type`, `location`), and the PROPOSED `max_match_distance_km: 5` for GPS-to-ward matching | Dev | 27 Sep |
 | G-API-7 | S01 | Dialect claims and ASR language codes wait for ASR testing (PROJECT.md §21) | Dev | After ASR tests |
 | G-API-8 | S01 | Audio duration (≤ 60 s) cannot be checked by the mock; the real backend needs a way to measure it (e.g. `ffprobe` after FFmpeg conversion) and must return `413 AUDIO_TOO_LARGE` | Dev | Before voice ticket |
+| G-T06-1 | T06 | Free-tier Supabase project pause after 7 days' inactivity (`docs/research/T06-research.md` §5) sits inside the 30 Sep–10 Oct freeze window, when nothing is supposed to touch the product | Lead | Before the freeze (30 Sep) |
+| G-T06-2 | T06 | Max signed-URL `expiresIn` ceiling for the `audio` bucket was never found in Supabase's docs; `60`s works empirically. Whoever builds T24 (dashboard audio playback) should pick a real value and confirm it works, not assume a ceiling | Dev/Lead | Before T24 |
 
 ## Closed
 
@@ -21,3 +23,4 @@
 |---|---|---|
 | G-API-6 | `water_supply.yaml` had no fields, so `summary` keys were undefined | Drafted 27 Sep: fields `issue_type`, `location`, `duration_days`, `address_detail` |
 | G-PROJ-1 | Team roles disagreed between PROJECT.md and `CLAUDE.md` | `CLAUDE.md` now matches PROJECT.md: Lead + Dev |
+| G-T06-0 | T06-research.md Q1: is RLS + no policies alone enough to block anon, or do default grants also need revoking? | Resolved 27 Sep, live-tested against the deployed project: `schema.sql`'s existing `REVOKE ALL ... FROM anon, authenticated` (already written at T03) is what makes it work — confirmed anon gets `401 permission denied`, not a filtered empty result. No spec or code change needed; see `docs/plans/T06-plan.md` build log |

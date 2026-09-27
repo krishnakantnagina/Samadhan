@@ -227,3 +227,54 @@ build-log update; the actual Supabase project has no git representation)
 
 **T03 (schema) → T05 (seed) → T06 (RLS verification, storage bucket, keys).** Each gets its own
 commit; `docs/TICKETS.md` gets T03, T05, and T06 ticked separately, not as one entry.
+
+---
+
+## Build log (27 Sep 2026)
+
+T03/T05 were committed earlier but never actually deployed to the live project — `schema.sql`/
+`seed.sql` existed only as files. Verified directly against `$SUPABASE_URL` before touching
+anything: `offices`, `sessions`, `messages`, `tickets`, `routing_corrections` all returned
+`PGRST205 Could not find the table` (service key, not a permission error — the tables did not
+exist), and `GET /storage/v1/bucket` returned `200 []` (no buckets). Root cause: steps 1–2 below
+(create project, keys into `.env`) were done; steps 3–4 (deploy schema, create bucket) were not.
+
+Closed out T06 in full:
+
+1. `psql "$SUPABASE_DB_URL" -f database/schema.sql` — ran clean (`SUPABASE_DB_URL` added to local
+   `.env`, direct connection, not the pooler; needed percent-encoding the `@` in the password —
+   `%40` — since a literal `@` in a URI password breaks host parsing).
+2. `psql "$SUPABASE_DB_URL" -f database/seed.sql` — `INSERT 0 6`, first run.
+3. Created the `audio` bucket via `POST /storage/v1/bucket {"id":"audio","public":false}` — the
+   dashboard click-path in step 4 below wasn't used; the Storage REST API with the service key
+   does the same thing and is scriptable.
+4. Verification (anon key unless noted):
+   - `select relname, relrowsecurity from pg_class where relname in (...)` (service key, direct
+     `psql`) → **`true`** on all 5 tables.
+   - `GET /rest/v1/offices` (service key) → the 6 seeded rows (5 ward + 1 district; row counts
+     match S09/T05's acceptance exactly).
+   - `GET /rest/v1/offices`, `GET /rest/v1/sessions` → **`401 permission denied`**
+     (`GRANT SELECT ... TO anon` hint), not a `200` with an empty/filtered array. This **resolves
+     T06-research.md Question 1**: the explicit `REVOKE ALL ... FROM anon, authenticated` already
+     written into `schema.sql` (T03) is what makes "RLS + no policies" actually sufficient — RLS
+     alone would not have been (per the research), but T03 already included the revoke, so S02's
+     rule holds as written. No spec change needed.
+   - Storage: `list` on `audio` → `200 []` (RLS-filtered, not a permission error, but still zero
+     visibility); direct `GET` on a known object path → `404 Object not found` (RLS-filtered, not
+     served); `POST` (upload) → `403 new row violates row-level security policy`. All three confirm
+     anon has no read or write access to the bucket, using Supabase Storage's own default
+     `storage.objects` RLS (no custom policies added or needed).
+   - Service key: uploaded a throwaway object, created a signed URL (`expiresIn: 60`) successfully,
+     then deleted the object — round-trip confirmed working, test object removed afterward.
+
+**Not resolved by this pass (still open, see `docs/GAPS.md`):**
+- Free-tier 7-day inactivity pause risk (`T06-research.md` §5) across the 30 Sep–10 Oct freeze —
+  a team decision (upgrade to Pro / scheduled keep-alive query / accept + document the manual
+  restore-from-dashboard step), not something to resolve unilaterally.
+- Max signed-URL `expiresIn` ceiling — still not found in Supabase's docs; `60`s worked in this
+  test, whatever the dashboard's actual playback flow needs (T24) should pick its own value and
+  confirm it works empirically rather than assume a ceiling.
+- `SUPABASE_DB_URL` was a one-time deploy credential for this session, not a runtime var the app
+  itself needs (T14 uses `supabase-py` with `SUPABASE_URL`/`SUPABASE_SERVICE_KEY`, not a raw
+  connection string) — added to `.env.example` as a name-only placeholder anyway, for whoever next
+  needs to run a migration by hand.
