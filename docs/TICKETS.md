@@ -26,7 +26,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | T13 | Prompt tests | D | T09, T12 | ≥ 13/15 | [ ] |
 | T14 | Session manager | D | T06, T07 | Users isolated | [x] |
 | T15 | Validator + confirmation | D | T11, T12, T14 | No invalid tickets | [x] |
-| T16 | Jurisdiction resolver | D | T05, T06 | Correct ward | [ ] |
+| T16 | Jurisdiction resolver | D | T05, T06 | Correct ward | [x] |
 | T17 | Ticket + routing (`needs_review` < 0.7) | D | T15, T16 | `SMD-` ticket with office | [ ] |
 | T18 | Real `/message` | D | T14–T17 | Text → ticket | [ ] |
 | T19 | Real `/status/{id}` | D | T17 | Correct status | [ ] |

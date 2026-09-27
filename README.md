@@ -32,6 +32,7 @@ Backend (`backend/pyproject.toml`):
 - [httpx](https://www.python-httpx.org/), [PyYAML](https://pyyaml.org/) (service spec loader)
 - [Groq API](https://console.groq.com/docs) (Turn Engine LLM, JSON mode, primary), [Google Gemini API](https://ai.google.dev/gemini-api/docs) (Turn Engine LLM fallback) — called via `httpx`, no SDK
 - [Supabase](https://supabase.com/) (Postgres + Storage, via [`supabase-py`](https://github.com/supabase/supabase-py)) — session manager
+- [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz) — fuzzy ward-name matching (jurisdiction resolver)
 - Dev tools: [pytest](https://pytest.org/), [Ruff](https://docs.astral.sh/ruff/), [uv](https://docs.astral.sh/uv/)
 
 ## Author
