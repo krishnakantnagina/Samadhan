@@ -34,7 +34,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | T21 | Website chatbot UI (mobile, Hindi-first) | L | T08 | Works on mock | [x] |
 | T22 | Status-check page | **D** | T08, T21 | Shows status | [ ] |
 | T23 | Dashboard: login, list, filters | L | T20 | Tickets listed | [x] |
-| T24 | Dashboard: detail, status, reassign, review queue | L | T23 | Saves to DB | [ ] |
+| T24 | Dashboard: detail, status, reassign, review queue | L | T23 | Saves to DB | [x] |
 | T25 | Backup video (text flow) | L | T18, T21, T23 | Recorded 28 Sep night | [ ] |
 
 🚦 Target 28 Sep night: text complaint → ticket on dashboard.
