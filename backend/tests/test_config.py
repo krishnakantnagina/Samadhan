@@ -1,8 +1,8 @@
-"""T07/T12 config: ALLOWED_ORIGINS and LLM provider parsing (backend/app/config.py)."""
+"""T07/T12/T14 config: ALLOWED_ORIGINS, LLM provider, and Supabase parsing (backend/app/config.py)."""
 
 import pytest
 
-from app.config import get_allowed_origins, get_llm_config
+from app.config import get_allowed_origins, get_llm_config, get_supabase_config
 
 
 def test_missing_raises(monkeypatch):
@@ -71,3 +71,33 @@ def test_llm_config_parses_valid_env(monkeypatch):
     assert config.gemini_api_key == "gemini-key"
     assert config.groq_model == "groq-model"
     assert config.gemini_model == "gemini-model"
+
+
+# --- get_supabase_config (T14, S06-session-manager.md) --------------------------------------
+
+SUPABASE_ENV = {
+    "SUPABASE_URL": "https://example.supabase.co",
+    "SUPABASE_SERVICE_KEY": "service-key",
+}
+
+
+def set_supabase_env(monkeypatch, **overrides):
+    for name, value in {**SUPABASE_ENV, **overrides}.items():
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+
+
+@pytest.mark.parametrize("missing", ["SUPABASE_URL", "SUPABASE_SERVICE_KEY"])
+def test_supabase_config_missing_var_raises(monkeypatch, missing):
+    set_supabase_env(monkeypatch, **{missing: None})
+    with pytest.raises(RuntimeError, match=missing):
+        get_supabase_config()
+
+
+def test_supabase_config_parses_valid_env(monkeypatch):
+    set_supabase_env(monkeypatch)
+    config = get_supabase_config()
+    assert config.url == "https://example.supabase.co"
+    assert config.service_key == "service-key"

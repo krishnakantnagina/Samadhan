@@ -24,7 +24,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | T11 | Spec loader | D | T04, T07 | Spec by ID | [x] |
 | T12 | Turn Engine (Groq JSON + Gemini fallback) | D | T02, T11 | Valid JSON | [x] |
 | T13 | Prompt tests | D | T09, T12 | ≥ 13/15 | [ ] |
-| T14 | Session manager | D | T06, T07 | Users isolated | [ ] |
+| T14 | Session manager | D | T06, T07 | Users isolated | [x] |
 | T15 | Validator + confirmation | D | T11, T12, T14 | No invalid tickets | [ ] |
 | T16 | Jurisdiction resolver | D | T05, T06 | Correct ward | [ ] |
 | T17 | Ticket + routing (`needs_review` < 0.7) | D | T15, T16 | `SMD-` ticket with office | [ ] |

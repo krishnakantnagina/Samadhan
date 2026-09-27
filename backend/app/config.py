@@ -1,8 +1,10 @@
-"""T07/T12 — env config. Spec: docs/specs/S04-message-endpoint.md section 1, S05-turn-engine.md.
+"""T07/T12/T14 — env config. Spec: docs/specs/S04-message-endpoint.md section 1,
+S05-turn-engine.md, S06-session-manager.md.
 
-ALLOWED_ORIGINS and the LLM vars (GROQ_API_KEY, GEMINI_API_KEY, GROQ_MODEL, GEMINI_MODEL,
-LLM_PROVIDER) are enforced here. SUPABASE_* and SARVAM_API_KEY become required once the ticket
-that needs them lands (T14, T26) and get their own loader here at that point.
+ALLOWED_ORIGINS, the LLM vars (GROQ_API_KEY, GEMINI_API_KEY, GROQ_MODEL, GEMINI_MODEL,
+LLM_PROVIDER), and the Supabase vars (SUPABASE_URL, SUPABASE_SERVICE_KEY) are enforced here.
+SARVAM_API_KEY becomes required once the ticket that needs it lands (T26) and gets its own loader
+here at that point.
 """
 
 import os
@@ -49,4 +51,20 @@ def get_llm_config() -> LLMConfig:
         gemini_api_key=_require("GEMINI_API_KEY"),
         groq_model=_require("GROQ_MODEL"),
         gemini_model=_require("GEMINI_MODEL"),
+    )
+
+
+@dataclass(frozen=True)
+class SupabaseConfig:
+    """S06 Supabase connection config. Service key only -- the core never uses the anon key."""
+
+    url: str
+    service_key: str
+
+
+def get_supabase_config() -> SupabaseConfig:
+    """SUPABASE_URL, SUPABASE_SERVICE_KEY (both required)."""
+    return SupabaseConfig(
+        url=_require("SUPABASE_URL"),
+        service_key=_require("SUPABASE_SERVICE_KEY"),
     )
