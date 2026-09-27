@@ -129,7 +129,7 @@ name=match.office.office_name, level=match.office.level), status=<new|needs_revi
 ## OPEN
 | ID | Item | Needed by |
 |---|---|---|
-| G-S10-1 | Which citizen message becomes `original_text` is not decided anywhere in the repo yet — the last substantive complaint text (not a bare "yes"/"haan" confirmation), the very first message, or something else. T18 (not yet built) must decide and pass the right string in; this module only stores whatever it's handed | Before T18 implementation |
+| G-S10-1 | ~~Which citizen message becomes `original_text`~~ — **Closed:** S04 D-S04-7 builds it from `ValidationResult.summary`'s values (S07's already-computed Hindi confirmation summary) rather than raw message history, since a multi-turn conversation with corrections has no single well-defined "original" message | Closed |
 | G-S10-2 | `_find_location_field` assumes exactly one `type: location` field per spec (true today); S03 doesn't explicitly forbid more than one. Moot until a second, more complex service exists (mirrors S03/S05's existing single-service-instance simplifications) | Whenever a more complex service spec is added |
 
 ## ACCEPTANCE

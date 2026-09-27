@@ -40,7 +40,11 @@ def client():
 
     from fastapi.testclient import TestClient
 
-    from mock.app import app
+    if TARGET == "real":
+        # T18: needs real .env credentials (Groq/Gemini/Supabase) -- nothing is mocked here.
+        from app.main import app
+    else:
+        from mock.app import app
 
     with TestClient(app, raise_server_exceptions=False) as http:
         yield http

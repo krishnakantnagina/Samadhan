@@ -28,7 +28,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | T15 | Validator + confirmation | D | T11, T12, T14 | No invalid tickets | [x] |
 | T16 | Jurisdiction resolver | D | T05, T06 | Correct ward | [x] |
 | T17 | Ticket + routing (`needs_review` < 0.7) | D | T15, T16 | `SMD-` ticket with office | [x] |
-| T18 | Real `/message` | D | T14–T17 | Text → ticket | [ ] |
+| T18 | Real `/message` | D | T14–T17 | Text → ticket | [x] |
 | T19 | Real `/status/{id}` | D | T17 | Correct status | [ ] |
 | T20 | Seed 15 tickets | L | T06 | Rows visible | [ ] |
 | T21 | Website chatbot UI (mobile, Hindi-first) | L | T08 | Works on mock | [x] |
