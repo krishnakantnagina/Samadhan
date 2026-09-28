@@ -126,12 +126,30 @@ fixes that drift).
 
 ## Acceptance
 
-- [ ] Backend unreachable → chat page shows `GENERIC_ERROR` (Hindi), not a raw browser/JS error string.
-- [ ] Real HTTP error responses (`400`/`503`/etc. from the backend) still show their actual
+- [x] Backend unreachable → chat page shows `GENERIC_ERROR` (Hindi), not a raw browser/JS error string.
+- [x] Real HTTP error responses (`400`/`503`/etc. from the backend) still show their actual
       `reply_text` unchanged — no regression to existing error handling.
-- [ ] Existing T21 happy-path behavior (successful message send, `ask`/`confirm`/`submitted`
+- [x] Existing T21 happy-path behavior (successful message send, `ask`/`confirm`/`submitted`
       rendering) unchanged.
-- [ ] `docs/TICKETS.md` T50 ticked `[x]`.
+- [x] `docs/TICKETS.md` T50 ticked `[x]`.
+
+## Fix applied
+
+Mirrored `status.js`'s `fetchStatus()` pattern in `app.js`'s `sendToApi()`: a `GENERIC_ERROR`
+constant, `fetch()` wrapped in its own try/catch (network/CORS/offline → `GENERIC_ERROR`),
+`response.json()` wrapped separately (malformed body → `GENERIC_ERROR`), and `!response.ok`
+still reads `body.reply_text || GENERIC_ERROR` per S01 §7. `send()`'s catch now reuses the same
+constant instead of a second, differently-worded Hindi literal.
+
+Manually verified end-to-end in a real browser (not just read the diff):
+- Backend down entirely → `sendToApi` throws, chat shows `GENERIC_ERROR` (console confirmed the
+  underlying `TypeError: Failed to fetch` was caught, not leaked).
+- Backend up but `ALLOWED_ORIGINS` didn't include the frontend's origin (a real CORS rejection,
+  same failure class as the bug) → same `GENERIC_ERROR`, not leaked.
+- Backend up with correct CORS: `mock:confirm` → summary card renders normally (happy path
+  unaffected); `mock:error` → the mock's actual `reply_text`
+  ("मुझे आपकी बात समझ नहीं आई। कृपया दोबारा बोलें या लिखकर बताएं।") rendered unchanged, confirming
+  real HTTP error bodies still pass through as-is.
 
 ## References
 

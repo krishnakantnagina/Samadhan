@@ -12,6 +12,7 @@ const restartBtn = document.getElementById('btn-restart');
 const cancelBtn = document.getElementById('btn-cancel');
 
 const SESSION_KEY = 'samadhan_session_id';
+const GENERIC_ERROR = 'सर्वर से संपर्क नहीं हो सका। कृपया दोबारा प्रयास करें।';
 
 function getSessionId() {
   let id = sessionStorage.getItem(SESSION_KEY);
@@ -90,15 +91,25 @@ async function sendToApi(text) {
   form.append('message_id', crypto.randomUUID());
   form.append('text', text);
 
-  const response = await fetch(`${API_BASE}/api/v1/message`, {
-    method: 'POST',
-    body: form,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}/api/v1/message`, { method: 'POST', body: form });
+  } catch {
+    // fetch() itself throws on a network/CORS/offline failure with the browser's own English
+    // message -- never let that reach the citizen; always show GENERIC_ERROR.
+    throw new Error(GENERIC_ERROR);
+  }
 
-  const body = await response.json();
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error(GENERIC_ERROR);
+  }
+
   if (!response.ok) {
     // S01 section 7: every non-2xx body carries a citizen-safe reply_text.
-    throw new Error(body.reply_text || 'कुछ गड़बड़ हो गई। कृपया दोबारा प्रयास करें।');
+    throw new Error(body.reply_text || GENERIC_ERROR);
   }
   return body;
 }
@@ -120,7 +131,7 @@ async function send(text) {
       appendTicketCard(botEl, result.ticket);
     }
   } catch (err) {
-    appendMessage('error', err.message || 'सर्वर से संपर्क नहीं हो सका। कृपया दोबारा प्रयास करें।');
+    appendMessage('error', err.message || GENERIC_ERROR);
   } finally {
     setBusy(false);
     inputEl.focus();
