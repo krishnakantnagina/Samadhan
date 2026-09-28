@@ -76,23 +76,6 @@ async function fetchHindiAudio(text) {
   return new Audio(`data:audio/wav;base64,${body.audio_base64}`);
 }
 
-function speakEnglish(text) {
-  // No backend TTS for English exists (S17's /speak is hi-IN fixed; adding a language parameter
-  // is a backend change, out of T52's scope). The browser's own English voice is used instead --
-  // client-side only, no new dependency.
-  return new Promise((resolve, reject) => {
-    if (!('speechSynthesis' in window)) {
-      reject(new Error('speechSynthesis unsupported'));
-      return;
-    }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-IN';
-    utterance.onend = () => resolve();
-    utterance.onerror = () => reject(new Error('speechSynthesis failed'));
-    window.speechSynthesis.speak(utterance);
-  });
-}
-
 async function speakText(text, button) {
   button.disabled = true;
   const original = button.textContent;
@@ -502,19 +485,15 @@ function appendGreeting() {
     'नमस्ते! मैं समाधान हूँ। आप अपनी समस्या हमें बताइए, या किसी भी सरकारी सेवा से जुड़ी जानकारी ' +
     'चाहिए तो बेझिझक पूछिए। आप अपनी बात आवाज़ में बोलकर या लिखकर बता सकते हैं। हम आपकी सहायता ' +
     'करने की पूरी कोशिश करेंगे।';
-  const spokenEn =
-    "Hello! I'm Samadhan. Please tell me about your problem, or ask me if you need information " +
-    "about any government service. You can speak your message or type it. We'll do our best to " +
-    'help you.';
-
   const wrapper = appendMessage('bot', spokenHi);
   wrapper.firstChild.textContent = ''; // clear the auto-created text node's visible content
   wrapper.insertBefore(card, wrapper.firstChild);
 
-  async function playBothLanguages() {
+  // Hindi audio only -- English stays text-only (muted, per Lead's direct instruction). The
+  // English block is still shown in full (brief: "just don't lose either version").
+  async function playGreetingAudio() {
     const audio = await fetchHindiAudio(spokenHi); // throws if this fails -- caller catches
     await audio.play(); // browsers reject this without a prior user gesture (autoplay policy)
-    await speakEnglish(spokenEn).catch(() => {}); // English is a bonus; Hindi already got through
   }
 
   listenBtn.addEventListener('click', async () => {
@@ -522,7 +501,7 @@ function appendGreeting() {
     const original = listenBtn.textContent;
     listenBtn.textContent = '…';
     try {
-      await playBothLanguages();
+      await playGreetingAudio();
       listenBtn.hidden = true; // a real click is always an allowed gesture -- this always works
     } catch {
       listenBtn.textContent = original;
@@ -535,7 +514,7 @@ function appendGreeting() {
   // with the page at all (Chrome/Safari/Firefox's autoplay policy -- not something client code can
   // override) -- so this frequently fails on a genuinely first visit, by design, not a bug. Never
   // a silent dead end: the listen button above appears the moment it does.
-  playBothLanguages().catch(() => {
+  playGreetingAudio().catch(() => {
     listenBtn.hidden = false;
   });
 
