@@ -759,3 +759,128 @@ html, body {
   align-self: flex-start;
   text-decoration: none;
 }
+
+/* ---------------------------------------------------------------------------
+   Floating chat widget (T53) -- reuses .msg/.card/.input/.send-btn styles above.
+--------------------------------------------------------------------------- */
+
+#samadhan-widget-root {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+#samadhan-widget-label {
+  background: var(--header-bg);
+  color: var(--header-text);
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+  margin-bottom: 8px;
+}
+
+#samadhan-widget-toggle {
+  order: 2;
+  flex: none;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.4);
+  animation: widget-idle-pulse 3s ease-in-out infinite;
+}
+
+@keyframes widget-idle-pulse {
+  0%, 100% { box-shadow: 0 8px 24px rgba(37, 99, 235, 0.4), 0 0 0 0 rgba(37, 99, 235, 0.3); }
+  50% { box-shadow: 0 8px 24px rgba(37, 99, 235, 0.4), 0 0 0 10px rgba(37, 99, 235, 0); }
+}
+
+#samadhan-widget-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 92px;
+  width: min(360px, calc(100vw - 40px));
+  height: min(520px, calc(100vh - 140px));
+  background: var(--bg);
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform-origin: bottom right;
+  animation: widget-panel-in 0.22s ease-out;
+}
+
+#samadhan-widget-panel[hidden] {
+  display: none;
+}
+
+@keyframes widget-panel-in {
+  from { opacity: 0; transform: scale(0.9) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+#samadhan-widget-header {
+  flex: none;
+  background: var(--header-bg);
+  color: var(--header-text);
+  padding: 14px 16px;
+  font-weight: 700;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#samadhan-widget-close {
+  background: transparent;
+  border: none;
+  color: var(--header-text);
+  cursor: pointer;
+  display: flex;
+  padding: 4px;
+}
+
+#samadhan-widget-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#samadhan-widget-composer {
+  flex: none;
+  border-top: 1px solid var(--bot-border);
+  background: var(--bot-bg);
+  padding: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+#samadhan-widget-composer .input {
+  min-height: 44px;
+}
+
+@media (max-width: 420px) {
+  #samadhan-widget-root { right: 12px; bottom: 12px; }
+  #samadhan-widget-panel { right: 12px; bottom: 84px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #samadhan-widget-toggle { animation: none; }
+  #samadhan-widget-panel { animation: none; }
+}

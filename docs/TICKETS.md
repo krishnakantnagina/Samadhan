@@ -52,6 +52,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | T50 | Bug: `app.js` shows raw browser error instead of Hindi fallback on network failure (see `docs/problems/T50-app-js-network-fallback.md`) | D | T21 | Backend unreachable → Hindi message shown, not raw error | [x] |
 | T51 | TTS voice reply (Sarvam Bulbul), speaker button on bot messages | D backend, L frontend | T26 | Speaker button plays a real Hindi reply | [x] |
 | T52 | Citizen website redesign for villagers: WhatsApp-style press-and-hold mic, new greeting copy (see `docs/T52-designer-brief.md`) | New UI/UX+dev hire | T29, T51 | Brief's own Acceptance checklist, all boxes | [ ] |
+| T53 | Floating chat widget (real, text-only) for pages without the full chat (see `docs/specs/S19-chat-widget.md`) | D | S01, T22 | Real widget opens/closes, sends/receives real messages on `status.html` | [x] |
 
 ## Phase 3 — Submission documents (draft 28 Sep, final 29 Sep)
 | ID | Item | Owner | Depends on | Done when | Done |
