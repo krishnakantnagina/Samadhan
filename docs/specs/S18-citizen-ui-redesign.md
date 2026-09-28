@@ -3,6 +3,15 @@ Implements: T52 (`frontend/app.js`, `frontend/index.html`, `frontend/style.css`)
 API contract §4.1 (unchanged), S16 mic/location wiring (behavior mostly preserved, trigger
 replaced), S17 TTS speak button (preserved, unstyled changes only) · Version: v1 · Status: Draft
 
+## REVISION (post-review feedback from Lead, same day)
+Two changes made after the first pass, both direct feedback: (1) the mic button was judged too
+large — reduced from 88px to 68px (D-S18-2 revised below). (2) The originally-planned "static
+greeting, manual 🔊 only" (matching S17 D-S17-3's no-autoplay stance) was replaced with a
+requested behavior: wait ~3s (a brief "typing" pause) after page load, then show the greeting and
+**attempt to auto-play both languages**. See BEHAVIOR §4 and D-S18-6/D-S18-7 below — this
+deliberately revisits S17 D-S17-3's autoplay decision for this one specific bubble (the greeting),
+not the rest of the chat.
+
 ## PURPOSE
 `docs/T52-designer-brief.md` is the actual product brief (read it first — this spec only pins down
 the concrete interaction/technical decisions the brief deliberately left open: exact gesture
@@ -70,10 +79,11 @@ risky content; kept uniform instead). The two bolded phrases become `<strong>` e
 
 ### 3. Visual redesign (the parts of the brief that are genuinely a design call, pinned down here)
 - **Mic button is the single largest, most obvious composer element** (brief, verbatim): grown from
-  the current 44px circle to an 88px circle (D-S18-2), visually dominant against the 52px-tall text
-  row beside it.
-- **Every touch target ≥ 48px**: mic 88px, send/location/restart/cancel/input all raised from their
-  current 44px/13px-font footprint to a 52px-minimum height, 15px-minimum font (RULES §1).
+  the original 44px circle to 68px (D-S18-2, revised down from an initial 88px after Lead judged
+  that too large), still clearly dominant against the 52px-tall text row beside it without
+  overwhelming the composer.
+- **Every touch target ≥ 48px**: mic 68px, send/location/restart/cancel/input all raised from their
+  original 44px/13px-font footprint to a 52px-minimum height, 15px-minimum font (RULES §1).
 - **Icon+text, never icon-alone**: the mic button gains a persistent caption beneath the composer
   ("🎤 बोलने के लिए दबाकर रखें · Hold to speak") rather than relying on its `aria-label` alone — the
   brief's "an icon alone is ambiguous to a first-time user" applies to *every* first-time user, not
@@ -90,6 +100,22 @@ risky content; kept uniform instead). The two bolded phrases become `<strong>` e
 - **Palette unchanged** (brief: keep unless a strong reason not to — none found; navy `#0F2A4A` /
   accent `#2563EB` / off-white `#FBFBF8` already match the pitch deck). Only new `--*` tokens this
   spec adds are for the two new interaction states above, built from existing hues, not new ones.
+
+### 4. Delayed, auto-playing greeting (added on revision, D-S18-6/D-S18-7)
+1. On page load, a "typing" indicator (three bouncing dots, reusing the existing bot-bubble shell)
+   appears immediately in place of the greeting.
+2. After ~3s, the indicator is removed and `appendGreeting()` renders as before (§BEHAVIOR 2).
+3. Immediately after rendering, the page attempts to play both languages in sequence: the real
+   Sarvam Hindi audio first (`fetchHindiAudio` — the same request `speakText`/the per-bubble 🔊
+   button already use, S17), then the browser's own English voice via `speechSynthesis`
+   (`lang: 'en-IN'`). English is treated as a bonus, not required — if it fails after Hindi
+   succeeded, the attempt is still considered a success (the citizen already heard the Hindi half).
+4. If the Hindi half fails for any reason — most commonly the browser's autoplay policy blocking
+   it outright, since no citizen has interacted with the page yet — a visible
+   "🔊 सुनने के लिए टैप करें · Tap to listen" button appears on the greeting card. A real tap on it
+   is always an allowed gesture, and plays both languages the same way.
+5. The greeting's own existing 🔊 speak button (S17, Hindi-only, per-bubble) is unaffected and
+   still works independently of this auto-play attempt.
 
 ## RULES
 1. No touch target smaller than 48px in any dimension (brief's explicit floor; this spec uses 52px
@@ -132,7 +158,9 @@ risky content; kept uniform instead). The two bolded phrases become `<strong>` e
 | # | Decision | Reason |
 |---|---|---|
 | D-S18-1 | `MIN_HOLD_MS = 400` | Long enough that a genuine accidental tap (typically well under 200ms) reliably cancels, short enough that a citizen deliberately saying even one short word isn't cancelled against their intent. Not user-tested (no real users available to this session) — flagged as a PROPOSED value, easy to retune (one constant) if real usage shows otherwise (G-S18-2) |
-| D-S18-2 | Mic button grown to 88px (vs. the previous 44px) | Brief: "the single largest, most obvious element on the screen." 88px keeps it clearly dominant over the 52px text row without dominating the whole viewport on small phones |
+| D-S18-2 | Mic button grown to 68px (vs. the original 44px; revised down from an initial 88px) | Brief: "the single largest, most obvious element on the screen." The first pass (88px) was judged too large on review; 68px keeps it clearly dominant over the 52px text row without dominating the composer |
+| D-S18-6 | The greeting auto-plays both languages ~3s after page load (Hindi via the real `/api/v1/speak`, English via the browser's own `speechSynthesis` — S17's endpoint is `hi-IN` fixed server-side, D-S17-1, and adding a language parameter is a backend change out of this ticket's scope) | Direct request: a citizen should hear the greeting without having to find and tap a small icon first, in both languages |
+| D-S18-7 | Autoplay attempts best-effort and falls back to a visible "🔊 tap to listen" button on failure, rather than assuming it always works | Browser autoplay policy (Chrome/Safari/Firefox) blocks unprompted audio before the citizen has interacted with the page at all — this is a platform security policy, not something client code can override, and it reliably fires on a genuinely first visit. Verified live: on a fresh page load, autoplay was blocked exactly as expected and the fallback button appeared; a real click on it played both languages successfully (~20–25s total, Hindi then English, since the greeting is three sentences long) |
 | D-S18-3 | Pointer Events (`pointerdown`/`pointerup`/`pointercancel`) instead of separate touch/mouse handlers | One code path for touch, mouse, and pen; `setPointerCapture` gives reliable release-tracking even if the finger drifts slightly during the hold, without needing to hand-roll touch-move-tracking |
 | D-S18-4 | Greeting built with `createElement`/`<strong>`, not `innerHTML` | Static copy is technically safe to inline, but this file has zero `innerHTML` calls anywhere today; a carve-out here is a precedent a future edit could misapply to genuinely risky (network-derived) content. Consistency over a few lines saved |
 | D-S18-5 | Cancelled-recording state reuses the speak-button's existing brief-inline-flash pattern (text change, auto-revert after ~1s), rather than inventing a new transient-state UI pattern | One flash-state idiom in the codebase, not two doing the same job differently |

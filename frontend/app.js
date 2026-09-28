@@ -51,31 +51,54 @@ function makeSpeakButton(text) {
   return button;
 }
 
+async function fetchHindiAudio(text) {
+  // Real Sarvam TTS, hi-IN fixed server-side (S17 D-S17-1). Throws GENERIC_ERROR-class errors,
+  // same citizen-safe posture as postToApi (T50) -- never a raw fetch/parse error escapes.
+  let response;
+  try {
+    response = await fetch(`${API_BASE}/api/v1/speak`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+  } catch {
+    throw new Error(GENERIC_ERROR);
+  }
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error(GENERIC_ERROR);
+  }
+  if (!response.ok) {
+    throw new Error(body.reply_text || GENERIC_ERROR);
+  }
+  return new Audio(`data:audio/wav;base64,${body.audio_base64}`);
+}
+
+function speakEnglish(text) {
+  // No backend TTS for English exists (S17's /speak is hi-IN fixed; adding a language parameter
+  // is a backend change, out of T52's scope). The browser's own English voice is used instead --
+  // client-side only, no new dependency.
+  return new Promise((resolve, reject) => {
+    if (!('speechSynthesis' in window)) {
+      reject(new Error('speechSynthesis unsupported'));
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-IN';
+    utterance.onend = () => resolve();
+    utterance.onerror = () => reject(new Error('speechSynthesis failed'));
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
 async function speakText(text, button) {
   button.disabled = true;
   const original = button.textContent;
   button.textContent = '…';
   try {
-    let response;
-    try {
-      response = await fetch(`${API_BASE}/api/v1/speak`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-    } catch {
-      throw new Error(GENERIC_ERROR);
-    }
-    let body;
-    try {
-      body = await response.json();
-    } catch {
-      throw new Error(GENERIC_ERROR);
-    }
-    if (!response.ok) {
-      throw new Error(body.reply_text || GENERIC_ERROR);
-    }
-    const audio = new Audio(`data:audio/wav;base64,${body.audio_base64}`);
+    const audio = await fetchHindiAudio(text);
     await audio.play();
     button.textContent = original;
   } catch {
@@ -460,9 +483,16 @@ function appendGreeting() {
   );
   greetingLine(en, 'You can ', 'speak your message or type it', ". We'll do our best to help you.");
 
+  const listenBtn = document.createElement('button');
+  listenBtn.type = 'button';
+  listenBtn.className = 'greeting-listen-btn';
+  listenBtn.hidden = true; // shown only if autoplay below is blocked by the browser
+  listenBtn.textContent = '🔊 सुनने के लिए टैप करें · Tap to listen';
+
   card.appendChild(hi);
   card.appendChild(divider);
   card.appendChild(en);
+  card.appendChild(listenBtn);
 
   // Reuse the existing bot-bubble shell and its speak button (S17). The speak button's closure
   // needs real text to synthesize -- TTS is hi-IN fixed (S17 D-S17-1), so only the Hindi portion
@@ -472,10 +502,62 @@ function appendGreeting() {
     'नमस्ते! मैं समाधान हूँ। आप अपनी समस्या हमें बताइए, या किसी भी सरकारी सेवा से जुड़ी जानकारी ' +
     'चाहिए तो बेझिझक पूछिए। आप अपनी बात आवाज़ में बोलकर या लिखकर बता सकते हैं। हम आपकी सहायता ' +
     'करने की पूरी कोशिश करेंगे।';
+  const spokenEn =
+    "Hello! I'm Samadhan. Please tell me about your problem, or ask me if you need information " +
+    "about any government service. You can speak your message or type it. We'll do our best to " +
+    'help you.';
+
   const wrapper = appendMessage('bot', spokenHi);
   wrapper.firstChild.textContent = ''; // clear the auto-created text node's visible content
   wrapper.insertBefore(card, wrapper.firstChild);
+
+  async function playBothLanguages() {
+    const audio = await fetchHindiAudio(spokenHi); // throws if this fails -- caller catches
+    await audio.play(); // browsers reject this without a prior user gesture (autoplay policy)
+    await speakEnglish(spokenEn).catch(() => {}); // English is a bonus; Hindi already got through
+  }
+
+  listenBtn.addEventListener('click', async () => {
+    listenBtn.disabled = true;
+    const original = listenBtn.textContent;
+    listenBtn.textContent = '…';
+    try {
+      await playBothLanguages();
+      listenBtn.hidden = true; // a real click is always an allowed gesture -- this always works
+    } catch {
+      listenBtn.textContent = original;
+    } finally {
+      listenBtn.disabled = false;
+    }
+  });
+
+  // Best-effort autoplay. Most browsers block unprompted audio before the citizen has interacted
+  // with the page at all (Chrome/Safari/Firefox's autoplay policy -- not something client code can
+  // override) -- so this frequently fails on a genuinely first visit, by design, not a bug. Never
+  // a silent dead end: the listen button above appears the moment it does.
+  playBothLanguages().catch(() => {
+    listenBtn.hidden = false;
+  });
+
   return wrapper;
 }
 
-appendGreeting();
+function appendTypingIndicator() {
+  const el = document.createElement('div');
+  el.className = 'msg bot msg-in';
+  const dots = document.createElement('span');
+  dots.className = 'typing-indicator';
+  for (let i = 0; i < 3; i += 1) dots.appendChild(document.createElement('span'));
+  el.appendChild(dots);
+  chatEl.appendChild(el);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return el;
+}
+
+// Brief pause before the greeting appears, like a chatbot "typing," then the bilingual greeting
+// renders and both languages attempt to auto-play (user-requested behavior).
+const typingEl = appendTypingIndicator();
+setTimeout(() => {
+  typingEl.remove();
+  appendGreeting();
+}, 3000);

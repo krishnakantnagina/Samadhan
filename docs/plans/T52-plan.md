@@ -430,3 +430,31 @@ Ran against a real Chrome browser (not code review alone), real backend, real se
 **Ticked T52's code/verification items `[x]`** on the strength of 1, 2, 3 (retroactively), 5, 6, and
 7 above; G-S18-2 (untuned `MIN_HOLD_MS`), G-S18-3's "new gesture, real human speech" gap, and real
 device testing are called out as open, not silently assumed done — same discipline T29 set.
+
+## Revision (same day, direct feedback from Lead after first review)
+
+Two changes, both `docs/specs/S18-citizen-ui-redesign.md`'s REVISION section covers in full:
+
+1. **Mic button shrunk 88px → 68px.** One-line CSS/SVG change, re-verified visually at both
+   desktop and 375px-wide window sizes — still clearly the largest composer element, no longer
+   judged oversized.
+2. **Greeting now waits ~3s (typing indicator) then auto-plays both languages.** Hindi via the
+   existing real `/api/v1/speak` (refactored `speakText` into a reusable `fetchHindiAudio` +
+   `speakText`, no behavior change to the existing per-bubble 🔊 button); English via the browser's
+   `speechSynthesis` (no backend change — S17's endpoint is `hi-IN` fixed server-side, and adding a
+   language parameter is out of this ticket's scope). Flagged proactively, then confirmed live: a
+   genuinely fresh page load has no prior user gesture, so Chrome's autoplay policy blocks the
+   attempt — the "🔊 tap to listen" fallback appeared exactly as designed, and a real click on it
+   played both languages successfully end to end (~20–25s total for the full three-sentence
+   greeting in both languages). Not a bug; documented as expected platform behavior, not silently
+   worked around.
+
+One real (harmless) bug found and fixed while testing this: the listen button's click handler only
+reset `disabled`/text on its failure path, not its success path — invisible in practice since the
+button hides itself on success, but incorrect state left behind regardless. Fixed by moving the
+reset into a `finally` block.
+
+`cd backend; uv run pytest` not re-run for this revision (no backend file touched, same as the
+original pass). Recording (press-and-hold) itself was spot-checked again post-refactor and still
+works; `fetchHindiAudio`/`speakEnglish`/the greeting are the only new code paths, `beginHold`/
+`endHold`/`sendRecording` were not touched by this revision.

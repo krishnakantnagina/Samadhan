@@ -147,6 +147,50 @@ html, body {
   color: var(--muted);
 }
 
+.greeting-listen-btn {
+  align-self: flex-start;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--accent);
+  background: var(--ticket-bg);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.greeting-listen-btn:active {
+  background: var(--ticket-border);
+}
+
+/* T52: brief "typing" pause before the greeting appears (user-requested, 3s wait). */
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 2px;
+}
+
+.typing-indicator span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: typing-bounce 1.1s ease-in-out infinite;
+}
+
+.typing-indicator span:nth-child(2) { animation-delay: 0.15s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}
+
 .speak-btn {
   display: inline-block;
   margin-left: 8px;
@@ -360,8 +404,8 @@ html, body {
 
 .mic-btn {
   flex: none;
-  width: 88px;
-  height: 88px;
+  width: 68px;
+  height: 68px;
   border-radius: 50%;
   border: none;
   background: var(--accent);
@@ -666,6 +710,7 @@ html, body {
   .reveal { animation: none; opacity: 1; }
   .cta-mic-ring, .preview-card, .hero-scroll-cue { animation: none; }
   .msg-in, .mic-btn, .mic-btn-recording, .card-ticket-confirm { animation: none; }
+  .typing-indicator span { animation: none; opacity: 1; }
 }
 
 /* ---------------------------------------------------------------------------
