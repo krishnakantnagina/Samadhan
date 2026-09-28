@@ -43,7 +43,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | ID | Ticket | Owner | Depends on | Done when | Done |
 |---|---|---|---|---|---|
 | T26 | Voice: upload → Sarvam/Groq Whisper (no FFmpeg, S12 D-S12-1) → storage | D | T18 | Voice flow works | [x] |
-| T27 | Fallbacks + timeouts | D | T26 | Survives 1 API down | [ ] |
+| T27 | Fallbacks + timeouts | D | T26 | Survives 1 API down | [x] |
 | T28 | `cancel` / `restart` / timeout | D | T18 | All work | [ ] |
 | T29 | Mic + location in UI | L | T21 | Audio + GPS reach API | [ ] |
 | T30 | Dashboard map | **D** | T24 | Pins show | [ ] |
