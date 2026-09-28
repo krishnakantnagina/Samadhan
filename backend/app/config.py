@@ -68,3 +68,24 @@ def get_supabase_config() -> SupabaseConfig:
         url=_require("SUPABASE_URL"),
         service_key=_require("SUPABASE_SERVICE_KEY"),
     )
+
+
+@dataclass(frozen=True)
+class VoiceConfig:
+    """S12 ASR provider config: Sarvam primary, Groq Whisper fallback."""
+
+    sarvam_api_key: str
+    sarvam_model: str
+    groq_api_key: str
+    groq_whisper_model: str
+
+
+def get_voice_config() -> VoiceConfig:
+    """SARVAM_API_KEY, SARVAM_MODEL, GROQ_WHISPER_MODEL (required). GROQ_API_KEY is reused from
+    get_llm_config's env var -- same account, different model for a different task."""
+    return VoiceConfig(
+        sarvam_api_key=_require("SARVAM_API_KEY"),
+        sarvam_model=_require("SARVAM_MODEL"),
+        groq_api_key=_require("GROQ_API_KEY"),
+        groq_whisper_model=_require("GROQ_WHISPER_MODEL"),
+    )

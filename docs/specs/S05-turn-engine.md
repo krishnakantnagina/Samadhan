@@ -173,10 +173,10 @@ normalized here.
 ## OPEN
 | ID | Item | Needed by |
 |---|---|---|
-| G-S05-1 | `.env.example`'s `LLM_PROVIDER=gemini` sample conflicts with PROJECT.md §6 ("Groq (JSON mode) → fallback Gemini Flash"). This spec defaults `LLM_PROVIDER` to `groq`; Lead to confirm or fix `.env.example` | Before T12 implementation |
-| G-S05-2 | ~~Exact `GROQ_MODEL` / `GEMINI_MODEL` ids~~ — **Closed 27 Sep:** live-checked against both APIs; `.env.example` now defaults to `llama-3.3-70b-versatile` (Groq) and `gemini-3.6-flash` (Gemini). Re-check before demo day if either provider's lineup moves again | Closed |
+| G-S05-1 | ~~`.env.example`'s `LLM_PROVIDER=gemini`...~~ — **Closed 28 Sep:** `LLM_PROVIDER=groq` confirmed as the live default, matching PROJECT.md §6 | Closed |
+| G-S05-2 | ~~Exact `GROQ_MODEL` / `GEMINI_MODEL` ids~~ — **Re-opened 28 Sep:** `llama-3.3-70b-versatile` was retired from Groq's lineup entirely (`model_not_found`, confirmed via `GET /v1/models`) — this is real model churn, not a one-off. Live-checked replacement: `openai/gpt-oss-120b`, correctly extracts fields from the real Hinglish prompt in ~1.3 s (well under the 6 s budget, and faster than every Gemini timing recorded in G-S05-4). `.env.example` updated. **Re-check again before demo day** — this is now a recurring risk, not a one-time fix | Recheck before demo day |
 | G-S05-3 | Multi-service disambiguation prompt design — deferred until a second service exists (S03 OPEN; out of scope here) | Whenever a second service ships (post-M1) |
-| G-S05-4 | Live-checked 27 Sep: Gemini's newest flagship models (`gemini-3.7-flash`, `gemini-3.8-flash`) returned `503 Service Unavailable` under load, and even the chosen `gemini-3.6-flash` timed out on 1 of 3 consecutive calls at the 6 s budget (S04 §5). Groq (primary) responded reliably in every live check. Worth a closer look in T27 (fallbacks + timeouts) — e.g. whether 6 s is tight for Gemini specifically, or whether a lighter model is more consistent | Before T27 / demo day |
+| G-S05-4 | Live-checked 27 Sep: Gemini's newest flagship models (`gemini-3.7-flash`, `gemini-3.8-flash`) returned `503 Service Unavailable` under load, and even the chosen `gemini-3.6-flash` timed out on 1 of 3 consecutive calls at the 6 s budget (S04 §5). With Groq genuinely working again (G-S05-2) and consistently faster (~1.3–4s vs. Gemini's 4.5–6.7s on the same real prompt), Groq staying primary is the right call, not just the default — Gemini's flakiness is exactly what the fallback exists for. Still worth a closer look in T27 | Before T27 / demo day |
 
 ## ACCEPTANCE
 Ticket-level acceptance for T12. T13 (prompt tests, ≥ 13/15 on T09's sentences) is separate and

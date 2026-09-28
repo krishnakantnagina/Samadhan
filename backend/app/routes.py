@@ -1,8 +1,11 @@
-"""T18 -- POST /api/v1/message. T19 -- GET /status/{complaint_id}.
-Spec: docs/specs/S04-message-endpoint.md section 2, docs/specs/S11-status-lookup.md.
+"""T18 -- POST /api/v1/message. T19 -- GET /status/{complaint_id}. T26 -- voice (S12).
+Spec: docs/specs/S04-message-endpoint.md section 2, docs/specs/S11-status-lookup.md,
+docs/specs/S12-voice.md.
 
-Plain sync `def` routes, not `async def` -- every downstream call (S05/S06/S09/S10) is already
-synchronous, and FastAPI thread-pools a sync route automatically (S04 D-S04-3).
+Plain sync `def` routes, not `async def` -- every downstream call (S05/S06/S09/S10/S12) is already
+synchronous, and FastAPI thread-pools a sync route automatically (S04 D-S04-3). Audio bytes are read
+via `audio.file.read()` (sync, blocking) rather than `await audio.read()`, exactly as FastAPI's own
+`UploadFile` docs recommend for `def` routes -- keeps the whole route sync, D-S04-3's reasoning.
 """
 
 import re
@@ -12,28 +15,38 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from pydantic import UUID4
 
 from app import schemas as api
-from app import session, ticketing, turn_engine, validator
+from app import session, ticketing, turn_engine, validator, voice
 from mock.errors import ApiError
 
 router = APIRouter()
 
 REPLY_CANCELLED = "आपकी शिकायत रद्द कर दी गई है।"  # D-S04-6: matches mock/app.py verbatim
 REPLY_RESTART = "ठीक है, शुरू से शुरू करते हैं। आपकी क्या समस्या है?"  # ditto
+REPLY_EMPTY_TRANSCRIPT = "मुझे आपकी बात समझ नहीं आई। कृपया दोबारा बोलें या लिखकर बताएं।"  # S01 D-A6
 
 
 def _submitted_reply(complaint_id: str) -> str:
     return f"आपकी शिकायत दर्ज हो गई है। शिकायत क्रमांक: {complaint_id}।"
 
 
-def _persist(session_id, message_id, text, response, update) -> api.MessageResponse:
-    input_type = session.InputType.TEXT if text is not None else session.InputType.LOCATION
+def _persist(
+    *,
+    session_id,
+    message_id,
+    input_type,
+    text,
+    transcript,
+    audio_path,
+    response,
+    update,
+) -> api.MessageResponse:
     session.save_turn(
         session_id=session_id,
         message_id=message_id,
         input_type=input_type,
         text=text,
-        transcript=None,
-        audio_path=None,
+        transcript=transcript,
+        audio_path=audio_path,
         response=response,
         session_update=update,
     )
@@ -55,15 +68,14 @@ def message(
     if problem:
         raise ApiError(api.ErrorCode.INVALID_INPUT, problem)
 
+    content_type = api.normalise_content_type(audio.content_type) if audio is not None else None
     if audio is not None:
-        if api.normalise_content_type(audio.content_type) not in api.ACCEPTED_AUDIO_TYPES:
+        if content_type not in api.ACCEPTED_AUDIO_TYPES:
             raise ApiError(api.ErrorCode.UNSUPPORTED_AUDIO, f"Unsupported: {audio.content_type}.")
         if (audio.size or 0) > api.AUDIO_MAX_BYTES:
             raise ApiError(
                 api.ErrorCode.AUDIO_TOO_LARGE, f"Audio over {api.AUDIO_MAX_BYTES} bytes."
             )
-        # S12 (voice) doesn't exist yet (T26) -- D-S04-4.
-        raise ApiError(api.ErrorCode.SERVICE_UNAVAILABLE, "Voice input is not available yet.")
 
     # Step 2: dedupe on message_id (S06)
     stored = session.find_stored_response(session_id, message_id)
@@ -73,7 +85,8 @@ def message(
     # Step 3: load or create session (S06)
     row = session.get_or_create_session(session_id)
 
-    # Step 4: command check (S01 D-A3) -- commands never reach the Turn Engine
+    # Step 4: command check (S01 D-A3) -- text only; a spoken command isn't checked here, it's
+    # transcribed and handled as ordinary text by the Turn Engine (S04's original step order)
     command = api.parse_command(text)
     if command is api.Command.CANCEL:
         response = api.MessageResponse(
@@ -94,7 +107,16 @@ def message(
             lng=None,
             status=session.SessionStatus.CANCELLED,
         )
-        return _persist(session_id, message_id, text, response, update)
+        return _persist(
+            session_id=session_id,
+            message_id=message_id,
+            input_type=session.InputType.TEXT,
+            text=text,
+            transcript=None,
+            audio_path=None,
+            response=response,
+            update=update,
+        )
 
     if command is api.Command.RESTART:
         response = api.MessageResponse(
@@ -115,7 +137,59 @@ def message(
             lng=None,
             status=session.SessionStatus.ACTIVE,
         )
-        return _persist(session_id, message_id, text, response, update)
+        return _persist(
+            session_id=session_id,
+            message_id=message_id,
+            input_type=session.InputType.TEXT,
+            text=text,
+            transcript=None,
+            audio_path=None,
+            response=response,
+            update=update,
+        )
+
+    # Step 5: audio -> transcript (S12)
+    transcript: str | None = None
+    audio_path: str | None = None
+    if audio is not None:
+        try:
+            result = voice.transcribe(audio.file.read(), content_type, session_id, message_id)
+        except voice.VoiceUnavailable as exc:
+            raise ApiError(api.ErrorCode.SERVICE_UNAVAILABLE, str(exc)) from exc
+        transcript, audio_path = result.transcript, result.audio_path
+
+        if not transcript.strip():
+            # Empty/unintelligible transcript is not an error (S01 D-A6) -- action=error, HTTP 200
+            response = api.MessageResponse(
+                session_id=session_id,
+                message_id=message_id,
+                action=api.Action.ERROR,
+                ask_for=None,
+                reply_text=REPLY_EMPTY_TRANSCRIPT,
+                transcript=transcript,
+                summary=None,
+                ticket=None,
+                duplicate=False,
+            )
+            update = session.SessionUpdate(
+                collected_fields=row.collected_fields,
+                awaiting_confirmation=row.awaiting_confirmation,
+                lat=row.lat,
+                lng=row.lng,
+                status=session.SessionStatus.ACTIVE,
+            )
+            return _persist(
+                session_id=session_id,
+                message_id=message_id,
+                input_type=session.InputType.AUDIO,
+                text=None,
+                transcript=transcript,
+                audio_path=audio_path,
+                response=response,
+                update=update,
+            )
+
+    effective_text = text if text is not None else transcript
 
     # Step 6: Turn Engine (S05)
     state = turn_engine.SessionState(
@@ -126,7 +200,7 @@ def message(
         turn_result = turn_engine.run_turn(
             session=state,
             specs=request.app.state.specs,
-            text=text,
+            text=effective_text,
             lat=lat,
             lng=lng,
             recent_messages=recent,
@@ -153,7 +227,7 @@ def message(
             lat=lat,
             lng=lng,
             original_text=original_text,
-            audio_path=None,
+            audio_path=audio_path,
         )
         response = api.MessageResponse(
             session_id=session_id,
@@ -161,7 +235,7 @@ def message(
             action=api.Action.SUBMITTED,
             ask_for=None,
             reply_text=_submitted_reply(ticket.complaint_id),
-            transcript=None,
+            transcript=transcript,
             summary=None,
             ticket=ticket,
             duplicate=False,
@@ -180,7 +254,7 @@ def message(
             action=api.Action(result.action.value),
             ask_for=result.ask_for,
             reply_text=result.reply_text,
-            transcript=None,
+            transcript=transcript,
             summary=result.summary,
             ticket=None,
             duplicate=False,
@@ -194,7 +268,23 @@ def message(
         )
 
     # Step 9: persist and respond
-    return _persist(session_id, message_id, text, response, update)
+    input_type = (
+        session.InputType.AUDIO
+        if audio is not None
+        else session.InputType.TEXT
+        if text is not None
+        else session.InputType.LOCATION
+    )
+    return _persist(
+        session_id=session_id,
+        message_id=message_id,
+        input_type=input_type,
+        text=text,
+        transcript=transcript,
+        audio_path=audio_path,
+        response=response,
+        update=update,
+    )
 
 
 @router.get("/status/{complaint_id}", response_model=api.StatusResponse)

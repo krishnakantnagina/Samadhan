@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app import routes, session, turn_engine, validator
+from app import routes, session, turn_engine, validator, voice
 from app import schemas as api
 from app.service_spec import ServiceSpec
 from mock.errors import register_error_handlers
@@ -106,11 +106,73 @@ def post(client, **fields):
     return client.post("/api/v1/message", files=files)
 
 
-# --- Audio (D-S04-4) -----------------------------------------------------------------------
+# --- Audio (T26, S12) -----------------------------------------------------------------------
 
 
-def test_audio_rejected_as_service_unavailable(test_client, monkeypatch):
-    monkeypatch.setattr(routes.session, "get_or_create_session", raise_if_called)
+def test_audio_transcribed_and_fed_to_turn_engine(test_client, monkeypatch):
+    monkeypatch.setattr(
+        routes.voice,
+        "transcribe",
+        lambda *args, **kwargs: voice.VoiceResult(
+            transcript="paani nahi aa raha", audio_path="sid/mid.webm"
+        ),
+    )
+    captured = {}
+
+    def fake_run_turn(**kwargs):
+        captured.update(kwargs)
+        return turn_engine.TurnResult(service_id="water_supply", fields={}, confirmed=False)
+
+    monkeypatch.setattr(routes.turn_engine, "run_turn", fake_run_turn)
+    monkeypatch.setattr(
+        routes.validator,
+        "apply",
+        lambda **kwargs: validator.ValidationResult(
+            service_id="water_supply",
+            collected_fields={},
+            awaiting_confirmation=False,
+            action=validator.ValidatedAction.ASK,
+            ask_for="issue_type",
+            reply_text="समस्या?",
+            summary=None,
+        ),
+    )
+    saved = {}
+    monkeypatch.setattr(routes.session, "save_turn", lambda **kwargs: saved.update(kwargs))
+
+    response = post(test_client, audio=b"\x1aE\xdf\xa3fake-audio")
+
+    assert response.status_code == 200
+    assert captured["text"] == "paani nahi aa raha"
+    assert response.json()["transcript"] == "paani nahi aa raha"
+    assert saved["audio_path"] == "sid/mid.webm"
+    assert saved["input_type"] == session.InputType.AUDIO
+
+
+def test_empty_transcript_returns_action_error(test_client, monkeypatch):
+    monkeypatch.setattr(
+        routes.voice,
+        "transcribe",
+        lambda *args, **kwargs: voice.VoiceResult(transcript="", audio_path="sid/mid.webm"),
+    )
+    monkeypatch.setattr(routes.turn_engine, "run_turn", raise_if_called)
+    saved = {}
+    monkeypatch.setattr(routes.session, "save_turn", lambda **kwargs: saved.update(kwargs))
+
+    response = post(test_client, audio=b"\x1aE\xdf\xa3fake-audio")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["action"] == "error"
+    assert body["transcript"] == ""
+    assert saved["audio_path"] == "sid/mid.webm"
+
+
+def test_voice_unavailable_is_503(test_client, monkeypatch):
+    def raise_unavailable(*args, **kwargs):
+        raise voice.VoiceUnavailable("both ASR providers failed")
+
+    monkeypatch.setattr(routes.voice, "transcribe", raise_unavailable)
 
     response = post(test_client, audio=b"\x1aE\xdf\xa3fake-audio")
 

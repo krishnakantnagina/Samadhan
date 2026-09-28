@@ -33,6 +33,7 @@ Backend (`backend/pyproject.toml`):
 - [Groq API](https://console.groq.com/docs) (Turn Engine LLM, JSON mode, primary), [Google Gemini API](https://ai.google.dev/gemini-api/docs) (Turn Engine LLM fallback) — called via `httpx`, no SDK
 - [Supabase](https://supabase.com/) (Postgres + Storage, via [`supabase-py`](https://github.com/supabase/supabase-py)) — session manager
 - [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz) — fuzzy ward-name matching (jurisdiction resolver)
+- [Sarvam AI API](https://docs.sarvam.ai/) (voice-to-text, primary), [Groq Whisper](https://console.groq.com/docs/speech-to-text) (voice-to-text fallback) — called via `httpx`, no SDK, no FFmpeg
 - Dev tools: [pytest](https://pytest.org/), [Ruff](https://docs.astral.sh/ruff/), [uv](https://docs.astral.sh/uv/)
 
 ## Author
