@@ -1,7 +1,19 @@
 # S19 — Floating Chat Widget (reusable, for pages without the full chat)
 Implements: T53 (`frontend/widget.js`, `frontend/style.css`, `frontend/status.html`) · Depends on:
-S01 API contract §4.1/§8 (unchanged, text-only subset), S15 status page (first host page) ·
+S01 API contract §4.1/§8 (unchanged), S15 status page (first host page), S16 mic/location, S17
+TTS, S18 press-and-hold + greeting (widget now mirrors all three in full, see REVISION) ·
 Version: v1 · Status: Draft
+
+## REVISION (same day, direct instruction: "fully equivalent... in functionality and behavior")
+The original v1 scope (§SCOPE, RULES §1 below) was deliberately text-only. That's now superseded:
+the widget mirrors `app.js`'s **full** feature set — press-and-hold voice (S16/S18), GPS location
+with the same `ask_for`-highlight behavior, TTS speak buttons on every bot bubble (S17),
+restart/cancel commands, and the same delayed bilingual auto-play greeting (S18 BEHAVIOR 4) — not
+just text send. RULES §1 and the "text-only" framing throughout the original spec below are
+superseded by this revision; kept in place rather than rewritten so the reasoning trail (why v1
+was scoped narrow, then wasn't) stays legible. D-S19-2 (duplicate, don't share, with `app.js`)
+applies more heavily now — `widget.js` is a near-full mirror of `app.js`'s logic against its own
+namespaced DOM, still with zero imports, for the same no-build-step reason.
 
 ## PURPOSE
 `frontend/index.html` already *is* the full chat experience (T21/T29/T51/T52) — no widget needed

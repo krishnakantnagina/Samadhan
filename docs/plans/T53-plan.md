@@ -446,3 +446,31 @@ None. Plain DOM APIs, no build step.
 - Any backend change.
 - Automated frontend tests — no test framework exists in `frontend/` (same posture as every prior
   frontend ticket in this project); relies on the manual Verification above.
+
+## Revision (same day): full feature parity with app.js
+
+Direct instruction: "make the floating widget fully equivalent to the existing full-page chatbot
+in terms of functionality and behavior." `widget.js` was rewritten (still self-mounting, still no
+imports from `app.js` — D-S19-2) to mirror `app.js` in full:
+
+- Composer restructured to reuse `.composer`/`.composer-actions`/`.voice-row`/`.composer-row`
+  directly — same DOM shape as `index.html`'s composer, just namespaced under
+  `#samadhan-widget-composer`, so no new visual language was needed, only two small scoped CSS
+  overrides (tighter padding, `flex-wrap` on the chip row for the narrower 400px panel).
+- Added: press-and-hold recording (`beginHold`/`endHold`/`MIN_HOLD_MS`/mic states, identical logic
+  to `app.js`'s S18 implementation, including the guarded `setPointerCapture` fix from G-S18-4),
+  GPS location with `ask_for`-highlight, TTS speak buttons on every bot bubble, restart/cancel
+  chips, and the delayed bilingual auto-play greeting (typing indicator → 3s → greeting card →
+  best-effort Hindi autoplay → tap-to-listen fallback on autoplay block).
+- Panel grown 360×520 → 400×620 to fit the fuller composer without cramping.
+
+**Live-verified against the real backend, same session**: mic icon renders correctly (custom SVG
+path, not copy-pasted markup); full press-and-hold → real upload → real ASR round trip → correct
+empty-transcript handling with a 🔊 button on the reply; GPS location sends and a real reply
+renders; restart/cancel commands work (`"आपकी शिकायत रद्द कर दी गई है।"`); the bilingual greeting
+renders and its autoplay/fallback behaves identically to the full page's; no console errors; no
+collision with `status.html`'s own lookup form, re-checked again after the rewrite.
+
+`docs/TICKETS.md` T53 stays `[x]` — its own done-when ("real widget opens/closes, sends/receives
+real messages") was already true before this revision and remains true; this revision expands
+*what* it can send/receive, not whether the ticket's original bar was met.

@@ -811,8 +811,8 @@ html, body {
   position: fixed;
   right: 20px;
   bottom: 92px;
-  width: min(360px, calc(100vw - 40px));
-  height: min(520px, calc(100vh - 140px));
+  width: min(400px, calc(100vw - 40px));
+  height: min(620px, calc(100vh - 140px));
   background: var(--bg);
   border-radius: 16px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
@@ -862,17 +862,17 @@ html, body {
   gap: 10px;
 }
 
-#samadhan-widget-composer {
-  flex: none;
-  border-top: 1px solid var(--bot-border);
-  background: var(--bot-bg);
-  padding: 10px;
-  display: flex;
-  gap: 8px;
+/* #samadhan-widget-composer reuses .composer's layout directly (flex-column, padding, border-top)
+   -- the widget's composer-actions/voice-row/composer-row children are the exact same classes
+   app.js's composer uses, so they need no widget-specific styling. Just tighten spacing and allow
+   the 3 chips to wrap on the narrower panel width, where the full page never needs to. */
+#samadhan-widget-composer.composer {
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)) 10px;
+  gap: 6px;
 }
 
-#samadhan-widget-composer .input {
-  min-height: 44px;
+#samadhan-widget-composer .composer-actions {
+  flex-wrap: wrap;
 }
 
 @media (max-width: 420px) {
