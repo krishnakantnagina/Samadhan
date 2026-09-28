@@ -7,6 +7,7 @@ transcription is attempted, unconditionally (D-S12-3, PROJECT.md section 7/13).
 Either of us can change this file. If you do, update docs/specs/S12-voice.md and tell the other.
 """
 
+import logging
 import uuid
 from dataclasses import dataclass
 
@@ -15,6 +16,8 @@ from supabase import Client
 
 from app.config import VoiceConfig, get_voice_config
 from app.db import get_client
+
+logger = logging.getLogger(__name__)
 
 PROVIDER_TIMEOUT_SECONDS = 8.0  # PROJECT.md section 7, S04 section 5
 
@@ -98,7 +101,16 @@ def transcribe(
         try:
             transcript = attempt(audio_bytes, content_type, config)
             return VoiceResult(transcript=transcript, audio_path=audio_path)
-        except (httpx.HTTPError, KeyError, ValueError):
-            continue  # one attempt per provider, no retry -- same posture as S05 D-S05-4
+        except httpx.HTTPStatusError as exc:
+            # Never silently swallow the reason -- a wrong model id, expired key, or oversized
+            # payload all look identical (both providers "failed") to the citizen by design, but
+            # that must not mean invisible to us too. Log, then fall through (one attempt each,
+            # no retry -- same posture as S05 D-S05-4).
+            body = getattr(exc.response, "text", "<no body>")
+            logger.warning("%s failed: HTTP %s -- %s", attempt.__name__, exc.response.status_code, body[:500])
+            continue
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            logger.warning("%s failed: %s: %s", attempt.__name__, type(exc).__name__, exc)
+            continue
 
     raise VoiceUnavailable("both ASR providers failed")

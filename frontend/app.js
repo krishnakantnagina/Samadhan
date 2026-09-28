@@ -30,9 +30,64 @@ function appendMessage(role, text) {
   const el = document.createElement('div');
   el.className = `msg ${role}`;
   el.textContent = text;
+  if (role === 'bot') {
+    // Closure over the original `text`, not read back from the DOM -- citizenEl.textContent is
+    // reassigned in place for audio turns (S16 D-S16-3), but only on citizen bubbles, never bot
+    // ones, so this button and el.textContent never fight over the same node (S17 plan step S8).
+    el.appendChild(makeSpeakButton(text));
+  }
   chatEl.appendChild(el);
   chatEl.scrollTop = chatEl.scrollHeight;
   return el;
+}
+
+function makeSpeakButton(text) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'speak-btn';
+  button.textContent = '🔊';
+  button.setAttribute('aria-label', 'सुनें');
+  button.addEventListener('click', () => speakText(text, button));
+  return button;
+}
+
+async function speakText(text, button) {
+  button.disabled = true;
+  const original = button.textContent;
+  button.textContent = '…';
+  try {
+    let response;
+    try {
+      response = await fetch(`${API_BASE}/api/v1/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+    } catch {
+      throw new Error(GENERIC_ERROR);
+    }
+    let body;
+    try {
+      body = await response.json();
+    } catch {
+      throw new Error(GENERIC_ERROR);
+    }
+    if (!response.ok) {
+      throw new Error(body.reply_text || GENERIC_ERROR);
+    }
+    const audio = new Audio(`data:audio/wav;base64,${body.audio_base64}`);
+    await audio.play();
+    button.textContent = original;
+  } catch {
+    // Brief inline failure state on the button itself -- a failed "listen" tap is not a failed
+    // turn, so this never adds a new chat bubble (S17 BEHAVIOR 2 step 4).
+    button.textContent = '!';
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function appendSummaryCard(botMsgEl, summary) {

@@ -400,3 +400,45 @@ def test_status_unknown_id_is_404(test_client, monkeypatch):
 
     assert response.status_code == 404
     assert response.json()["error_code"] == "COMPLAINT_NOT_FOUND"
+
+
+# --- Speak (T51, S17) ------------------------------------------------------------------------
+
+
+def test_speak_returns_audio(test_client, monkeypatch):
+    monkeypatch.setattr(routes.tts, "synthesize", lambda text: "base64audio")
+
+    response = test_client.post("/api/v1/speak", json={"text": "नमस्ते"})
+
+    assert response.status_code == 200
+    assert response.json() == {"audio_base64": "base64audio"}
+
+
+def test_speak_empty_text_is_400(test_client, monkeypatch):
+    monkeypatch.setattr(routes.tts, "synthesize", raise_if_called)
+
+    response = test_client.post("/api/v1/speak", json={"text": ""})
+
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "INVALID_INPUT"
+
+
+def test_speak_too_long_is_400(test_client, monkeypatch):
+    monkeypatch.setattr(routes.tts, "synthesize", raise_if_called)
+
+    response = test_client.post("/api/v1/speak", json={"text": "अ" * 1001})
+
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "INVALID_INPUT"
+
+
+def test_speak_provider_down_is_503(test_client, monkeypatch):
+    def raise_unavailable(text):
+        raise routes.tts.TtsUnavailable("both failed")
+
+    monkeypatch.setattr(routes.tts, "synthesize", raise_unavailable)
+
+    response = test_client.post("/api/v1/speak", json={"text": "नमस्ते"})
+
+    assert response.status_code == 503
+    assert response.json()["error_code"] == "SERVICE_UNAVAILABLE"

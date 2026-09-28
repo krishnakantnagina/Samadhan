@@ -89,3 +89,22 @@ def get_voice_config() -> VoiceConfig:
         groq_api_key=_require("GROQ_API_KEY"),
         groq_whisper_model=_require("GROQ_WHISPER_MODEL"),
     )
+
+
+@dataclass(frozen=True)
+class TtsConfig:
+    """S17 TTS provider config: Sarvam Bulbul, no fallback (D-S17-2)."""
+
+    sarvam_api_key: str
+    sarvam_tts_model: str
+    sarvam_tts_speaker: str
+
+
+def get_tts_config() -> TtsConfig:
+    """SARVAM_TTS_MODEL, SARVAM_TTS_SPEAKER (required). SARVAM_API_KEY is reused from
+    get_voice_config's env var -- same Sarvam account, opposite direction (speech vs. text)."""
+    return TtsConfig(
+        sarvam_api_key=_require("SARVAM_API_KEY"),
+        sarvam_tts_model=_require("SARVAM_TTS_MODEL"),
+        sarvam_tts_speaker=_require("SARVAM_TTS_SPEAKER"),
+    )

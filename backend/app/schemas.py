@@ -189,6 +189,20 @@ class ErrorResponse(ContractModel):
     request_id: str
 
 
+class SpeakRequest(ContractModel):
+    """POST /api/v1/speak body (S17 section 1). Reuses S01's own text bounds -- every text this
+    endpoint is ever asked to speak is a reply_text the backend already generated, already inside
+    them."""
+
+    text: str = Field(min_length=TEXT_MIN_LENGTH, max_length=TEXT_MAX_LENGTH)
+
+
+class SpeakResponse(ContractModel):
+    """200 body: Sarvam's own base64 WAV, forwarded unmodified (S17 D-S17-4)."""
+
+    audio_base64: str
+
+
 # --- Shared helpers (used by the mock and the real backend) --------------------------------
 
 

@@ -15,7 +15,7 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from pydantic import UUID4
 
 from app import schemas as api
-from app import session, ticketing, turn_engine, validator, voice
+from app import session, ticketing, tts, turn_engine, validator, voice
 from mock.errors import ApiError
 
 router = APIRouter()
@@ -285,6 +285,16 @@ def message(
         response=response,
         update=update,
     )
+
+
+@router.post("/speak", response_model=api.SpeakResponse)
+def speak(body: api.SpeakRequest) -> api.SpeakResponse:
+    """S17 -- text-to-speech reply (T51). Stateless: no session, no DB write (S17 RULES 1)."""
+    try:
+        audio_base64 = tts.synthesize(body.text)
+    except tts.TtsUnavailable as exc:
+        raise ApiError(api.ErrorCode.SERVICE_UNAVAILABLE, str(exc)) from exc
+    return api.SpeakResponse(audio_base64=audio_base64)
 
 
 @router.get("/status/{complaint_id}", response_model=api.StatusResponse)
