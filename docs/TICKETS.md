@@ -49,6 +49,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | T30 | Dashboard map | **D** | T24 | Pins show | [ ] |
 | T31 | Integration + 10 MVP scenarios | L | T19, T22, T24, T26, T29 | 10/10 pass | [ ] |
 | T32 | Deploy + local laptop run verified | L | T31 | URLs + local both work | [ ] |
+| T50 | Bug: `app.js` shows raw browser error instead of Hindi fallback on network failure (see `docs/problems/T50-app-js-network-fallback.md`) | D | T21 | Backend unreachable → Hindi message shown, not raw error | [ ] |
 
 ## Phase 3 — Submission documents (draft 28 Sep, final 29 Sep)
 | ID | Item | Owner | Depends on | Done when | Done |
