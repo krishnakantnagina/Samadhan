@@ -45,7 +45,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | T26 | Voice: upload → Sarvam/Groq Whisper (no FFmpeg, S12 D-S12-1) → storage | D | T18 | Voice flow works | [x] |
 | T27 | Fallbacks + timeouts | D | T26 | Survives 1 API down | [x] |
 | T28 | `cancel` / `restart` / timeout | D | T18 | All work | [ ] |
-| T29 | Mic + location in UI | L | T21 | Audio + GPS reach API | [ ] |
+| T29 | Mic + location in UI | L | T21 | Audio + GPS reach API | [x] |
 | T30 | Dashboard map | **D** | T24 | Pins show | [ ] |
 | T31 | Integration + 10 MVP scenarios | L | T19, T22, T24, T26, T29 | 10/10 pass | [ ] |
 | T32 | Deploy + local laptop run verified | L | T31 | URLs + local both work | [ ] |

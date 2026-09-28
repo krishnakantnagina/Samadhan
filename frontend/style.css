@@ -228,6 +228,13 @@ html, body {
   background: #eef2f6;
 }
 
+.chip-btn-highlight {
+  background: var(--ticket-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .composer-row {
   display: flex;
   align-items: flex-end;
@@ -268,6 +275,37 @@ html, body {
 .send-btn:disabled {
   background: #93b4e8;
   cursor: not-allowed;
+}
+
+.mic-btn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--bot-border);
+  background: #f8fafc;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mic-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mic-btn-recording {
+  background: var(--error-text);
+  border-color: var(--error-text);
+  color: #fff;
+  animation: mic-recording-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes mic-recording-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(122, 39, 26, 0.35); }
+  50% { box-shadow: 0 0 0 8px rgba(122, 39, 26, 0); }
 }
 
 @media (min-width: 640px) {

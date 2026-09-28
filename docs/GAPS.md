@@ -16,6 +16,7 @@
 | G-API-8 | S01 | Audio duration (≤ 60 s) cannot be checked by the mock; the real backend needs a way to measure it (e.g. `ffprobe` after FFmpeg conversion) and must return `413 AUDIO_TOO_LARGE` | Dev | Before voice ticket |
 | G-T06-1 | T06 | Free-tier Supabase project pause after 7 days' inactivity (`docs/research/T06-research.md` §5) sits inside the 30 Sep–10 Oct freeze window, when nothing is supposed to touch the product | Lead | Before the freeze (30 Sep) |
 | G-T06-2 | T06 | Max signed-URL `expiresIn` ceiling for the `audio` bucket was never found in Supabase's docs; `60`s works empirically. Whoever builds T24 (dashboard audio playback) should pick a real value and confirm it works, not assume a ceiling | Dev/Lead | Before T24 |
+| G-S16-1 | S16 | No real spoken-word audio has been tested against Sarvam/Groq Whisper in this project yet — T29's own live verification used a synthetic tone (proved the record→upload→ASR plumbing works, including a real `503` when both providers genuinely failed on it), not real speech, since an AI agent can't physically speak. Needs a human to record one real Hindi/Hinglish sentence through the mic UI and confirm a non-empty transcript comes back | Lead or Dev | Before demo day |
 
 ## Closed
 

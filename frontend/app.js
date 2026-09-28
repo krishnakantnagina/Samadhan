@@ -10,9 +10,12 @@ const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('btn-send');
 const restartBtn = document.getElementById('btn-restart');
 const cancelBtn = document.getElementById('btn-cancel');
+const micBtn = document.getElementById('btn-mic');
+const locationBtn = document.getElementById('btn-location');
 
 const SESSION_KEY = 'samadhan_session_id';
 const GENERIC_ERROR = 'सर्वर से संपर्क नहीं हो सका। कृपया दोबारा प्रयास करें।';
+const ACCEPTED_AUDIO_TYPES = new Set(['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/wav']); // S01 4.1
 
 function getSessionId() {
   let id = sessionStorage.getItem(SESSION_KEY);
@@ -83,13 +86,20 @@ function setBusy(busy) {
   sendBtn.disabled = busy;
   restartBtn.disabled = busy;
   cancelBtn.disabled = busy;
+  micBtn.disabled = busy;
+  locationBtn.disabled = busy;
 }
 
-async function sendToApi(text) {
+function normaliseAudioType(mimeType) {
+  // 'audio/webm;codecs=opus' -> 'audio/webm' -- mirrors app.schemas.normalise_content_type.
+  return (mimeType || '').split(';', 1)[0].trim().toLowerCase();
+}
+
+async function postToApi(buildForm) {
   const form = new FormData();
   form.append('session_id', getSessionId());
   form.append('message_id', crypto.randomUUID());
-  form.append('text', text);
+  buildForm(form);
 
   let response;
   try {
@@ -114,15 +124,20 @@ async function sendToApi(text) {
   return body;
 }
 
-async function send(text) {
-  const trimmed = text.trim();
-  if (!trimmed) return;
+function setLocationHighlight(on) {
+  locationBtn.classList.toggle('chip-btn-highlight', on);
+}
 
-  appendMessage('citizen', trimmed);
+async function handleTurn(apiCall, citizenBubbleText) {
+  const citizenEl = appendMessage('citizen', citizenBubbleText);
   setBusy(true);
 
   try {
-    const result = await sendToApi(trimmed);
+    const result = await apiCall();
+    if (result.transcript) {
+      citizenEl.textContent = result.transcript; // S16 D-S16-3: show what was actually heard
+    }
+    setLocationHighlight(result.ask_for === 'location'); // S16 D-S16-1 / S01 D-A4
     const botEl = appendMessage('bot', result.reply_text);
     if (result.action === 'confirm' && result.summary) {
       appendSummaryCard(botEl, result.summary);
@@ -137,6 +152,99 @@ async function send(text) {
     inputEl.focus();
   }
 }
+
+async function send(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  await handleTurn(() => postToApi((form) => form.append('text', trimmed)), trimmed);
+}
+
+// --- S16: recording -----------------------------------------------------------------------
+
+let mediaRecorder = null;
+let recordedChunks = [];
+
+function setRecordingUI(recording) {
+  micBtn.classList.toggle('mic-btn-recording', recording);
+  const label = recording ? 'रिकॉर्डिंग बंद करें' : 'आवाज़ रिकॉर्ड करें';
+  micBtn.setAttribute('aria-label', label);
+  micBtn.title = label;
+}
+
+async function startRecording() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    appendMessage('error', 'यह ब्राउज़र आवाज़ रिकॉर्ड नहीं कर सकता। कृपया लिखकर भेजें।');
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    appendMessage('error', 'माइक्रोफ़ोन का उपयोग नहीं हो सका। कृपया अनुमति दें या लिखकर भेजें।');
+    return;
+  }
+
+  recordedChunks = [];
+  mediaRecorder = new MediaRecorder(stream); // S16 D-S16-2: no explicit mimeType, browser default
+  mediaRecorder.ondataavailable = (event) => {
+    if (event.data.size > 0) recordedChunks.push(event.data);
+  };
+  mediaRecorder.onstop = () => {
+    stream.getTracks().forEach((track) => track.stop()); // S16 RULES 5: release the mic indicator
+    void sendRecording(mediaRecorder.mimeType);
+  };
+  mediaRecorder.start();
+  setRecordingUI(true);
+}
+
+async function sendRecording(mimeType) {
+  const type = normaliseAudioType(mimeType);
+  if (!ACCEPTED_AUDIO_TYPES.has(type)) {
+    appendMessage('error', 'यह ऑडियो प्रारूप समर्थित नहीं है। कृपया लिखकर भेजें।');
+    setRecordingUI(false);
+    return;
+  }
+  const blob = new Blob(recordedChunks, { type });
+  setRecordingUI(false);
+  await handleTurn(
+    () => postToApi((form) => form.append('audio', blob, `recording.${type.split('/')[1]}`)),
+    '🎤 आवाज़ भेजी जा रही है…',
+  );
+}
+
+micBtn.addEventListener('click', () => {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+  } else {
+    startRecording();
+  }
+});
+
+// --- S16: location --------------------------------------------------------------------------
+
+locationBtn.addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    appendMessage('error', 'यह ब्राउज़र लोकेशन साझा नहीं कर सकता। कृपया अपना वार्ड लिखें।');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const { latitude, longitude } = position.coords;
+      handleTurn(
+        () =>
+          postToApi((form) => {
+            form.append('lat', String(latitude));
+            form.append('lng', String(longitude));
+          }),
+        '📍 लोकेशन साझा की गई',
+      );
+    },
+    () => {
+      appendMessage('error', 'लोकेशन नहीं मिल सकी। कृपया अपना वार्ड या इलाका लिखें।');
+    },
+    { enableHighAccuracy: true, timeout: 10000 },
+  );
+});
 
 composerEl.addEventListener('submit', (event) => {
   event.preventDefault();
