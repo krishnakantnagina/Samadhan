@@ -1,8 +1,8 @@
 // Samadhan citizen chat — T21. Talks only to POST /api/v1/message (S01 contract).
 // No business logic here: every action/reply comes from the backend as-is.
 
-// Point this at the mock (T08) today; switch to :8000 once T18 ships the real /message route.
-const API_BASE = 'http://localhost:8001';
+// Real backend (T18 shipped the real /message route; matches status.js's API_BASE, S15 G-S15-1).
+const API_BASE = 'http://localhost:8000';
 
 const chatEl = document.getElementById('chat');
 const composerEl = document.getElementById('composer');

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>समाधान — शिकायत की स्थिति</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app-shell">
+<header class="app-header">
+  <h1>समाधान</h1>
+  <p class="tagline">अपनी शिकायत की स्थिति जानें</p>
+</header>
+
+<main class="status-main">
+  <form id="lookup-form" class="status-form">
+    <label for="complaint-id" class="status-label">शिकायत क्रमांक</label>
+    <input id="complaint-id" class="input" type="text" placeholder="SMD-0042" autocomplete="off" required>
+    <div id="form-error" class="form-error" role="alert" hidden></div>
+    <button type="submit" id="btn-check" class="send-btn status-submit">स्थिति देखें</button>
+  </form>
+
+  <div id="result" class="status-result" aria-live="polite"></div>
+
+  <a href="index.html" class="chip-btn status-back">&larr; बातचीत पर वापस जाएँ</a>
+</main>
+</div>
+
+<script src="status.js"></script>
+</body>
+</html>

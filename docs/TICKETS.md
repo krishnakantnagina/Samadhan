@@ -32,7 +32,7 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 | T19 | Real `/status/{id}` | D | T17 | Correct status | [x] |
 | T20 | Seed 15 tickets | L | T06 | Rows visible | [x] |
 | T21 | Website chatbot UI (mobile, Hindi-first) | L | T08 | Works on mock | [x] |
-| T22 | Status-check page | **D** | T08, T21 | Shows status | [ ] |
+| T22 | Status-check page | **D** | T08, T21 | Shows status | [x] |
 | T23 | Dashboard: login, list, filters | L | T20 | Tickets listed | [x] |
 | T24 | Dashboard: detail, status, reassign, review queue | L | T23 | Saves to DB | [x] |
 | T25 | Backup video (text flow) | L | T18, T21, T23 | Recorded 28 Sep night | [ ] |
