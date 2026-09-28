@@ -137,16 +137,48 @@ a chatbot before, and may not read fluently in any language. Design for that spe
 
 ## Acceptance — what "done" looks like
 
-- [ ] Press-and-hold works exactly like WhatsApp: hold = record, release = send, a very short tap
+- [x] Press-and-hold works exactly like WhatsApp: hold = record, release = send, a very short tap
       cancels gracefully instead of sending near-empty audio.
-- [ ] The greeting shows both the English and Hindi copy above, verbatim.
+      *Caveat: the "released before recording actually started" cancel path was cleanly
+      live-verified (real `PointerEvent` dispatch, real backend). The "recording had started,
+      released under 400ms later" sub-case could not be timed reliably through this session's
+      browser-automation harness (sub-100ms scheduling isn't trustworthy there) — correct by code
+      inspection (same `performance.now()`-delta logic as the verified path), not independently
+      timed live. See `docs/plans/T52-plan.md`'s build log, item 4.*
+- [x] The greeting shows both the English and Hindi copy above, verbatim.
+      Verified live: Hindi first, both bolded phrases rendered bold, English secondary below a
+      divider.
 - [ ] A citizen can complete a full complaint (issue → location → confirm → ticket) using **only**
       voice, and separately using **only** typing, without either path feeling like an afterthought.
-- [ ] Every existing flow still works end-to-end against the real backend: text send, voice send,
+      *Not fully re-verified through the new UI in this pass — left unchecked deliberately, not
+      overlooked. What is true: (1) a real, complete voice-only complaint **has** happened in this
+      project and produced a real ticket (`SMD-0019`) — discovered via direct DB query during this
+      ticket's own verification, not something anyone had documented before now — but that
+      conversation used the old tap-to-toggle gesture, not the new press-and-hold one this ticket
+      ships. (2) This ticket's own live test of the new gesture reused the exact same unchanged
+      request code (`sendRecording`/`postToApi`, S18 RULES §4) and got a real round trip through
+      Sarvam/Groq Whisper — just with an empty transcript, since no actual speech was produced by
+      an AI agent. The two facts together make success highly likely, not confirmed. Needs a human
+      speaking through the new button once. Text-only completion is separately well-proven across
+      this project's history (many real tickets via text, unrelated to this redesign).*
+- [x] Every existing flow still works end-to-end against the real backend: text send, voice send,
       GPS location button, the 🔊 listen button on bot replies, the status-check page.
-- [ ] No backend file changed; the API contract (`docs/specs/S01-api-contract.md`) is untouched.
-- [ ] No raw browser/JS error is ever shown to a citizen, under any failure condition you test.
+      Text, voice (plumbing), GPS, and 🔊 (real Sarvam TTS via a genuine trusted click) were all
+      re-tested live this pass. `status.html`/`status.js` were not touched and not re-tested this
+      pass (S18 explicitly keeps them out of scope) — no shared file changed, so no reason to
+      expect a regression, but stated here rather than silently assumed.
+- [x] No backend file changed; the API contract (`docs/specs/S01-api-contract.md`) is untouched.
+      `git diff --stat` confirms only `frontend/` files changed; `cd backend; uv run pytest` — 209
+      passed, unaffected.
+- [x] No raw browser/JS error is ever shown to a citizen, under any failure condition you test.
+      Mic permission denial tested live (correct Hindi message). A genuine bug was found and fixed
+      here: `setPointerCapture` could throw uncaught for a pointer id the browser doesn't recognize
+      as active, which would have silently prevented recording from ever starting — fixed with a
+      `try`/`catch`. Network/backend-down handling reuses T50's already-fixed, unchanged code path.
 - [ ] Verified on a real Android device, not only desktop.
+      Not done — no physical Android device available to this session. Substituted a 375×720
+      window resize (DevTools-emulation-equivalent), stated explicitly rather than passed off as
+      real-device testing.
 
 ## Timeline — flagged, not assumed
 

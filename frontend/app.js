@@ -28,7 +28,7 @@ function getSessionId() {
 
 function appendMessage(role, text) {
   const el = document.createElement('div');
-  el.className = `msg ${role}`;
+  el.className = `msg ${role} msg-in`; // T52: gentle arrival animation, reveal-up keyframe (S18)
   el.textContent = text;
   if (role === 'bot') {
     // Closure over the original `text`, not read back from the DOM -- citizenEl.textContent is
@@ -113,7 +113,7 @@ function appendSummaryCard(botMsgEl, summary) {
 
 function appendTicketCard(botMsgEl, ticket) {
   const card = document.createElement('div');
-  card.className = 'card card-ticket';
+  card.className = 'card card-ticket card-ticket-confirm'; // T52: confirmation pop (S18)
   const id = document.createElement('div');
   id.className = 'complaint-id';
   id.textContent = ticket.complaint_id;
@@ -214,28 +214,88 @@ async function send(text) {
   await handleTurn(() => postToApi((form) => form.append('text', trimmed)), trimmed);
 }
 
-// --- S16: recording -----------------------------------------------------------------------
+// --- S18: press-and-hold recording (replaces S16's tap-to-toggle trigger) -------------------
+
+const MIN_HOLD_MS = 400; // D-S18-1
+const micTimerEl = document.getElementById('mic-timer');
 
 let mediaRecorder = null;
 let recordedChunks = [];
+let holdStartedAt = 0;
+let releaseRequested = false;
+let recordingTimerInterval = null;
 
-function setRecordingUI(recording) {
-  micBtn.classList.toggle('mic-btn-recording', recording);
-  const label = recording ? 'रिकॉर्डिंग बंद करें' : 'आवाज़ रिकॉर्ड करें';
-  micBtn.setAttribute('aria-label', label);
-  micBtn.title = label;
+function clearMicTimer() {
+  if (recordingTimerInterval) {
+    clearInterval(recordingTimerInterval);
+    recordingTimerInterval = null;
+  }
+  if (micTimerEl) {
+    micTimerEl.hidden = true;
+    micTimerEl.textContent = '0:00';
+  }
 }
 
-async function startRecording() {
+function setMicIdle() {
+  micBtn.classList.remove('mic-btn-starting', 'mic-btn-recording', 'mic-btn-cancelled');
+  micBtn.setAttribute('aria-label', 'आवाज़ रिकॉर्ड करने के लिए दबाकर रखें');
+  clearMicTimer();
+}
+
+function setMicStarting() {
+  micBtn.classList.add('mic-btn-starting');
+  micBtn.setAttribute('aria-label', 'शुरू हो रहा है…');
+}
+
+function setMicRecording() {
+  micBtn.classList.remove('mic-btn-starting');
+  micBtn.classList.add('mic-btn-recording');
+  micBtn.setAttribute('aria-label', 'रिकॉर्ड हो रहा है… छोड़ने पर भेजा जाएगा');
+  if (micTimerEl) {
+    micTimerEl.hidden = false;
+    const startedAt = Date.now();
+    recordingTimerInterval = setInterval(() => {
+      const elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
+      micTimerEl.textContent = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, '0')}`;
+    }, 250);
+  }
+}
+
+function flashMicCancelled() {
+  // Same brief-inline-flash idiom S17's speak button uses (D-S18-5) -- no new chat bubble, a
+  // cancelled tap is not a failed turn.
+  clearMicTimer();
+  micBtn.classList.remove('mic-btn-recording', 'mic-btn-starting');
+  micBtn.classList.add('mic-btn-cancelled');
+  micBtn.setAttribute('aria-label', 'रद्द');
+  setTimeout(setMicIdle, 900);
+}
+
+async function beginHold() {
+  holdStartedAt = performance.now();
+  releaseRequested = false;
+  setMicStarting();
+
   if (!navigator.mediaDevices?.getUserMedia) {
     appendMessage('error', 'यह ब्राउज़र आवाज़ रिकॉर्ड नहीं कर सकता। कृपया लिखकर भेजें।');
+    setMicIdle();
     return;
   }
+
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch {
     appendMessage('error', 'माइक्रोफ़ोन का उपयोग नहीं हो सका। कृपया अनुमति दें या लिखकर भेजें।');
+    setMicIdle();
+    return;
+  }
+
+  if (releaseRequested) {
+    // S18 BEHAVIOR 1 step 3: released before permission resolved -- never start a recording
+    // nobody is still holding for.
+    stream.getTracks().forEach((track) => track.stop());
+    setMicIdle();
     return;
   }
 
@@ -245,35 +305,52 @@ async function startRecording() {
     if (event.data.size > 0) recordedChunks.push(event.data);
   };
   mediaRecorder.onstop = () => {
-    stream.getTracks().forEach((track) => track.stop()); // S16 RULES 5: release the mic indicator
+    stream.getTracks().forEach((track) => track.stop()); // S16 RULES 5, unchanged
+    const held = performance.now() - holdStartedAt;
+    if (held < MIN_HOLD_MS) {
+      flashMicCancelled();
+      return;
+    }
+    setMicIdle();
     void sendRecording(mediaRecorder.mimeType);
   };
   mediaRecorder.start();
-  setRecordingUI(true);
+  setMicRecording();
+
+  if (releaseRequested) mediaRecorder.stop(); // finger lifted while getUserMedia was resolving
+}
+
+function endHold() {
+  releaseRequested = true;
+  if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
 }
 
 async function sendRecording(mimeType) {
   const type = normaliseAudioType(mimeType);
   if (!ACCEPTED_AUDIO_TYPES.has(type)) {
     appendMessage('error', 'यह ऑडियो प्रारूप समर्थित नहीं है। कृपया लिखकर भेजें।');
-    setRecordingUI(false);
     return;
   }
   const blob = new Blob(recordedChunks, { type });
-  setRecordingUI(false);
   await handleTurn(
     () => postToApi((form) => form.append('audio', blob, `recording.${type.split('/')[1]}`)),
     '🎤 आवाज़ भेजी जा रही है…',
   );
 }
 
-micBtn.addEventListener('click', () => {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop();
-  } else {
-    startRecording();
+micBtn.addEventListener('pointerdown', (event) => {
+  event.preventDefault(); // avoid a delayed synthetic click firing after touch release
+  try {
+    micBtn.setPointerCapture(event.pointerId); // S18 D-S18-3
+  } catch {
+    // Capture is a reliability nicety (keeps release tracked if the finger drifts off the
+    // button); if the browser can't grant it, recording must still proceed uninterrupted.
   }
+  beginHold();
 });
+micBtn.addEventListener('pointerup', endHold);
+micBtn.addEventListener('pointercancel', endHold);
+micBtn.addEventListener('contextmenu', (event) => event.preventDefault()); // no long-press menu
 
 // --- S16: location --------------------------------------------------------------------------
 
@@ -334,4 +411,71 @@ if (heroCta && appShell) {
   });
 }
 
-appendMessage('bot', 'नमस्ते! अपनी पानी की समस्या यहाँ लिखिए।');
+// --- T52: bilingual greeting (S18 BEHAVIOR 2) -------------------------------------------------
+
+function greetingLine(container, before, bold, after) {
+  const p = document.createElement('p');
+  p.className = 'greeting-line';
+  if (before) p.appendChild(document.createTextNode(before));
+  if (bold) {
+    const strong = document.createElement('strong');
+    strong.textContent = bold;
+    p.appendChild(strong);
+  }
+  if (after) p.appendChild(document.createTextNode(after));
+  container.appendChild(p);
+}
+
+function appendGreeting() {
+  const card = document.createElement('div');
+  card.className = 'greeting-card';
+
+  const hi = document.createElement('div');
+  hi.className = 'greeting-block greeting-hi';
+  greetingLine(hi, 'नमस्ते! मैं समाधान हूँ।', null, null);
+  greetingLine(
+    hi,
+    'आप अपनी समस्या हमें बताइए, या किसी भी सरकारी सेवा से जुड़ी जानकारी चाहिए तो बेझिझक पूछिए।',
+    null,
+    null,
+  );
+  greetingLine(
+    hi,
+    'आप अपनी बात ',
+    'आवाज़ में बोलकर या लिखकर',
+    ' बता सकते हैं। हम आपकी सहायता करने की पूरी कोशिश करेंगे।',
+  );
+
+  const divider = document.createElement('div');
+  divider.className = 'greeting-divider';
+
+  const en = document.createElement('div');
+  en.className = 'greeting-block greeting-en';
+  greetingLine(en, "Hello! I'm Samadhan.", null, null);
+  greetingLine(
+    en,
+    'Please tell me about your problem, or ask me if you need information about any government service.',
+    null,
+    null,
+  );
+  greetingLine(en, 'You can ', 'speak your message or type it', ". We'll do our best to help you.");
+
+  card.appendChild(hi);
+  card.appendChild(divider);
+  card.appendChild(en);
+
+  // Reuse the existing bot-bubble shell and its speak button (S17). The speak button's closure
+  // needs real text to synthesize -- TTS is hi-IN fixed (S17 D-S17-1), so only the Hindi portion
+  // is passed, not the English. appendMessage's own textContent write becomes an empty text node
+  // once cleared below, so the card is the only thing actually visible.
+  const spokenHi =
+    'नमस्ते! मैं समाधान हूँ। आप अपनी समस्या हमें बताइए, या किसी भी सरकारी सेवा से जुड़ी जानकारी ' +
+    'चाहिए तो बेझिझक पूछिए। आप अपनी बात आवाज़ में बोलकर या लिखकर बता सकते हैं। हम आपकी सहायता ' +
+    'करने की पूरी कोशिश करेंगे।';
+  const wrapper = appendMessage('bot', spokenHi);
+  wrapper.firstChild.textContent = ''; // clear the auto-created text node's visible content
+  wrapper.insertBefore(card, wrapper.firstChild);
+  return wrapper;
+}
+
+appendGreeting();

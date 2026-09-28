@@ -61,15 +61,23 @@
     <button type="button" id="btn-cancel" class="chip-btn">रद्द करें</button>
     <button type="button" id="btn-location" class="chip-btn">📍 लोकेशन भेजें</button>
   </div>
-  <div class="composer-row">
-    <textarea id="input" class="input" placeholder="यहाँ लिखें…" rows="1" required></textarea>
-    <button type="button" id="btn-mic" class="mic-btn" aria-label="आवाज़ रिकॉर्ड करें" title="आवाज़ रिकॉर्ड करें">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+
+  <div class="voice-row">
+    <button type="button" id="btn-mic" class="mic-btn"
+            aria-label="आवाज़ रिकॉर्ड करने के लिए दबाकर रखें">
+      <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="9" y="2" width="6" height="12" rx="3"></rect>
         <path d="M5 10a7 7 0 0 0 14 0"></path>
         <line x1="12" y1="19" x2="12" y2="22"></line>
       </svg>
+      <span id="mic-timer" class="mic-timer" hidden>0:00</span>
     </button>
+    <p class="mic-caption">🎤 बोलने के लिए दबाकर रखें &middot; Hold to speak</p>
+  </div>
+
+  <div class="composer-row">
+    <textarea id="input" class="input" placeholder="या यहाँ लिखें…" rows="1" required></textarea>
     <button type="submit" id="btn-send" class="send-btn" aria-label="भेजें">भेजें</button>
   </div>
 </form>

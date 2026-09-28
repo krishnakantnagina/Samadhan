@@ -84,6 +84,10 @@ html, body {
   white-space: pre-wrap;
 }
 
+.msg-in {
+  animation: reveal-up 0.35s ease-out; /* T52: same keyframe as the hero, shorter for a bubble */
+}
+
 .msg.bot {
   align-self: flex-start;
   background: var(--bot-bg);
@@ -105,6 +109,42 @@ html, body {
   border: 1px solid var(--error-border);
   color: var(--error-text);
   border-bottom-left-radius: 4px;
+}
+
+/* T52: bilingual greeting card -- Hindi primary, English secondary, both always shown (S18). */
+.greeting-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.greeting-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.greeting-line {
+  margin: 0;
+}
+
+.greeting-hi {
+  font-size: 16px;
+  color: var(--bot-text);
+}
+
+.greeting-hi .greeting-line strong {
+  color: var(--accent);
+}
+
+.greeting-divider {
+  height: 1px;
+  background: var(--bot-border);
+  margin: 10px 0;
+}
+
+.greeting-en {
+  font-size: 14px;
+  color: var(--muted);
 }
 
 .speak-btn {
@@ -185,6 +225,16 @@ html, body {
   color: #334155;
 }
 
+.card-ticket-confirm {
+  animation: ticket-confirm-pop 0.5s ease-out; /* T52: one-off celebratory pop (S18) */
+}
+
+@keyframes ticket-confirm-pop {
+  0% { transform: scale(0.92); border-color: var(--accent); }
+  60% { transform: scale(1.03); }
+  100% { transform: scale(1); border-color: var(--ticket-border); }
+}
+
 .badge {
   display: inline-block;
   margin-top: 8px;
@@ -232,8 +282,9 @@ html, body {
 
 .chip-btn {
   flex: none;
-  font-size: 13px;
-  padding: 6px 12px;
+  min-height: 48px;
+  font-size: 15px;
+  padding: 10px 16px;
   border-radius: 999px;
   border: 1px solid var(--bot-border);
   background: #f8fafc;
@@ -260,12 +311,12 @@ html, body {
 
 .input {
   flex: 1;
-  min-height: 44px;
+  min-height: 52px;
   max-height: 120px;
   resize: none;
   border: 1px solid var(--bot-border);
   border-radius: 14px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   font-size: 16px;
   font-family: inherit;
   line-height: 1.4;
@@ -278,8 +329,8 @@ html, body {
 
 .send-btn {
   flex: none;
-  min-width: 72px;
-  height: 44px;
+  min-width: 76px;
+  height: 52px;
   border: none;
   border-radius: 14px;
   background: var(--accent);
@@ -294,35 +345,83 @@ html, body {
   cursor: not-allowed;
 }
 
+/* ---------------------------------------------------------------------------
+   T52: press-and-hold mic -- the single largest, most obvious composer element
+   (docs/T52-designer-brief.md), its own row above the text input (S18).
+--------------------------------------------------------------------------- */
+
+.voice-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0 2px;
+}
+
 .mic-btn {
   flex: none;
-  width: 44px;
-  height: 44px;
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
-  border: 1px solid var(--bot-border);
-  background: #f8fafc;
-  color: var(--muted);
+  border: none;
+  background: var(--accent);
+  color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  touch-action: none; /* the browser's own scroll/pan gesture must never steal the hold */
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+  animation: mic-idle-pulse 2.6s ease-in-out infinite;
 }
 
 .mic-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  animation: none;
+}
+
+.mic-btn-starting {
+  animation: none;
+  opacity: 0.7;
 }
 
 .mic-btn-recording {
   background: var(--error-text);
-  border-color: var(--error-text);
-  color: #fff;
-  animation: mic-recording-pulse 1.4s ease-in-out infinite;
+  animation: mic-recording-pulse 1.2s ease-in-out infinite;
+}
+
+.mic-btn-cancelled {
+  background: var(--muted);
+  animation: none;
+}
+
+.mic-timer {
+  position: absolute;
+  bottom: -22px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--error-text);
+}
+
+.mic-caption {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+  text-align: center;
+}
+
+@keyframes mic-idle-pulse {
+  0%, 100% { box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35), 0 0 0 0 rgba(37, 99, 235, 0.25); }
+  50% { box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35), 0 0 0 14px rgba(37, 99, 235, 0); }
 }
 
 @keyframes mic-recording-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(122, 39, 26, 0.35); }
-  50% { box-shadow: 0 0 0 8px rgba(122, 39, 26, 0); }
+  50% { box-shadow: 0 0 0 14px rgba(122, 39, 26, 0); }
 }
 
 @media (min-width: 640px) {
@@ -566,6 +665,7 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .reveal { animation: none; opacity: 1; }
   .cta-mic-ring, .preview-card, .hero-scroll-cue { animation: none; }
+  .msg-in, .mic-btn, .mic-btn-recording, .card-ticket-confirm { animation: none; }
 }
 
 /* ---------------------------------------------------------------------------
