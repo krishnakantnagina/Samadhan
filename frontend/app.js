@@ -26,10 +26,51 @@ function getSessionId() {
   return id;
 }
 
+// S28 4.6: a URL in a bot reply becomes a real link, but ONLY an https `*.gov.in` homepage (the backend has
+// already validated it; this is the second, independent check). Anything else stays plain text. Built with
+// the DOM, never innerHTML. The line holding a URL is never sent to text-to-speech.
+const URL_RE = /(https?:\/\/[^\s]+)/g;
+
+function isGovLink(candidate) {
+  try {
+    const url = new URL(candidate);
+    return url.protocol === 'https:' && url.hostname.endsWith('.gov.in') && !url.username && !url.port;
+  } catch {
+    return false;
+  }
+}
+
+function fillBotText(el, text) {
+  el.textContent = '';
+  const parts = text.split(URL_RE);
+  for (const part of parts) {
+    if (!part) continue;
+    if (part.startsWith('http') && isGovLink(part)) {
+      const a = document.createElement('a');
+      a.href = part;
+      a.textContent = part;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      el.appendChild(a);
+    } else {
+      el.appendChild(document.createTextNode(part));
+    }
+  }
+}
+
+function spokenTextOf(text) {
+  return text
+    .split('\n')
+    .filter((line) => !/https?:\/\//.test(line))
+    .join(' ')
+    .trim();
+}
+
 function appendMessage(role, text) {
   const el = document.createElement('div');
   el.className = `msg ${role} msg-in`; // T52: gentle arrival animation, reveal-up keyframe (S18)
-  el.textContent = text;
+  if (role === 'bot') fillBotText(el, text);
+  else el.textContent = text;
   if (role === 'bot') {
     // Closure over the original `text`, not read back from the DOM -- citizenEl.textContent is
     // reassigned in place for audio turns (S16 D-S16-3), but only on citizen bubbles, never bot
@@ -51,7 +92,9 @@ function makeSpeakButton(text) {
   return button;
 }
 
-async function fetchHindiAudio(text) {
+async function fetchHindiAudio(rawText) {
+  const text = spokenTextOf(rawText); // never speak the URL line (S28 4.6)
+  if (!text) throw new Error(GENERIC_ERROR);
   // Real Sarvam TTS, hi-IN fixed server-side (S17 D-S17-1). Throws GENERIC_ERROR-class errors,
   // same citizen-safe posture as postToApi (T50) -- never a raw fetch/parse error escapes.
   let response;

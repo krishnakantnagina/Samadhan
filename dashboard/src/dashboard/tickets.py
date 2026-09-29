@@ -82,6 +82,21 @@ def list_offices_for_department(
     ).data
 
 
+def list_all_offices(*, client: Client | None = None) -> list[dict[str, Any]]:
+    """Active offices of EVERY department, for the reassign dropdown (S28 4.4): a ticket sent to the
+    wrong department is corrected by moving it to an office of the right one."""
+    client = client or get_client()
+    return (
+        client.table("offices")
+        .select("id,department,office_name,level")
+        .eq("active", True)
+        .order("department")
+        .order("level")
+        .order("code")
+        .execute()
+    ).data
+
+
 def update_status(complaint_id: str, new_status: str, *, client: Client | None = None) -> None:
     """Only column touched: status. updated_at is tickets' own BEFORE UPDATE trigger (T03) --
     this function never sets it (S14 RULES 4)."""
@@ -107,7 +122,13 @@ def reassign_ticket(
     if from_office_id == to_office_id:
         raise ReassignError("Cannot reassign a ticket to the office it's already at.")
     client = client or get_client()
-    client.table("tickets").update({"office_id": to_office_id}).eq("id", ticket_id).execute()
+    update: dict[str, Any] = {"office_id": to_office_id}
+    # S28 4.4: moving to another department's office also moves the ticket's department (the status page
+    # and dashboard filters read tickets.department). service_id and fields keep the original record.
+    target = client.table("offices").select("department").eq("id", to_office_id).execute().data
+    if target and target[0].get("department"):
+        update["department"] = target[0]["department"]
+    client.table("tickets").update(update).eq("id", ticket_id).execute()
     client.table("routing_corrections").insert(
         {
             "ticket_id": ticket_id,

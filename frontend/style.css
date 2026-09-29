@@ -88,6 +88,9 @@ html, body {
   animation: reveal-up 0.35s ease-out; /* T52: same keyframe as the hero, shorter for a bubble */
 }
 
+/* S28 4.6: links in bot replies (.msg already keeps line breaks) */
+.msg.bot a { color: var(--accent); word-break: break-all; }
+
 .msg.bot {
   align-self: flex-start;
   background: var(--bot-bg);

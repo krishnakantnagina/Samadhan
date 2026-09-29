@@ -10,6 +10,7 @@ FIELD_LABELS_EN = {
     "location": "Location",
     "duration_days": "Days affected",
     "address_detail": "Address or landmark",
+    "description": "Complaint",  # S28 general triage
 }
 
 ISSUE_TYPE_LABELS_EN = {
@@ -18,6 +19,19 @@ ISSUE_TYPE_LABELS_EN = {
     "dirty_water": "Dirty or smelly water",
     "leakage": "Pipe or tap leakage",
     "other": "Other water issue",
+    # S28 departments (enum values are unique across specs so one map serves all of them)
+    "no_power": "No power",
+    "low_voltage": "Low or high voltage",
+    "pole_wire": "Pole, wire or transformer",
+    "billing": "Bill or meter problem",
+    "power_other": "Other electricity issue",
+    "pothole": "Pothole",
+    "broken_road": "Broken road or culvert",
+    "road_other": "Other road issue",
+    "garbage": "Garbage not collected",
+    "drain_blocked": "Drain blocked or overflowing",
+    "dirty_area": "Dirty area",
+    "sanitation_other": "Other sanitation issue",
 }
 
 

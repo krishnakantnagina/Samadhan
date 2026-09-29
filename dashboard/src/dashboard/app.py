@@ -19,8 +19,8 @@ from dashboard.map_view import build_map, issue_label, legend_markdown, office_n
 from dashboard.tickets import (
     ReassignError,
     get_ticket_detail,
+    list_all_offices,
     list_map_points,
-    list_offices_for_department,
     list_routing_corrections,
     list_tickets,
     reassign_ticket,
@@ -95,6 +95,15 @@ def _render_map_tab(df: pd.DataFrame, filtered: pd.DataFrame) -> None:
             _render_detail(df[df["complaint_id"] == chosen].iloc[0], "map")
 
 
+def _render_department_counts(df: pd.DataFrame) -> None:
+    """S28 4.4 Phase A: how many tickets each department has waiting (new + needs review)."""
+    waiting = df[df["status"].isin(["new", "needs_review"])].groupby("department").size()
+    departments = sorted(df["department"].unique())
+    columns = st.columns(len(departments))
+    for column, department in zip(columns, departments, strict=True):
+        column.metric(department, int(waiting.get(department, 0)), help="new + needs review")
+
+
 def _require_login() -> None:
     if st.session_state.get("authenticated"):
         return
@@ -157,9 +166,13 @@ def _render_detail(row: pd.Series, source: str) -> None:
         st.success("Status updated.")
         st.rerun()
 
-    offices = list_offices_for_department(detail["department"])
+    offices = list_all_offices()  # every department (S28 4.4): a wrong department is fixed here
     office_lookup = {o["id"]: o["office_name"] for o in offices}
-    options = {oid: name for oid, name in office_lookup.items() if oid != detail["office_id"]}
+    options = {
+        o["id"]: f"{o['department']}: {o['office_name']}"
+        for o in offices
+        if o["id"] != detail["office_id"]
+    }
     if options:
         to_office_id = st.selectbox(
             "Reassign to",
@@ -226,6 +239,8 @@ def main() -> None:
     if df.empty:
         st.info("No tickets yet.")
         return
+
+    _render_department_counts(df)
 
     tab_all, tab_review, tab_map = st.tabs(["All Tickets", "Review Queue", "Map"])
 

@@ -9,6 +9,7 @@ from dashboard.tickets import (
     TICKET_DETAIL_COLUMNS,
     ReassignError,
     get_ticket_detail,
+    list_all_offices,
     list_offices_for_department,
     list_routing_corrections,
     list_tickets,
@@ -214,7 +215,7 @@ def test_reassign_same_office_raises_before_any_call():
 
 
 def test_reassign_updates_office_and_inserts_one_correction():
-    store = FakeStore(tickets=[dict(DETAIL_ROW)], routing_corrections=[])
+    store = FakeStore(tickets=[dict(DETAIL_ROW)], routing_corrections=[], offices=OFFICES)
 
     reassign_ticket(ticket_id=2, from_office_id=1, to_office_id=6, reason="wrong ward", client=store)
 
@@ -225,6 +226,37 @@ def test_reassign_updates_office_and_inserts_one_correction():
     assert correction["from_office_id"] == 1
     assert correction["to_office_id"] == 6
     assert correction["reason"] == "wrong ward"
+
+
+def test_reassign_to_another_departments_office_moves_the_department_too():
+    """S28 4.4: the officer fixes a wrong department by moving the ticket to the right one's office."""
+    offices = [*OFFICES, {"id": 30, "office_name": "Bijli Vibhag District Office (DEMO)", "level": "district",
+                          "department": "Bijli Vibhag", "code": "ELEC-HQ", "active": True}]
+    store = FakeStore(tickets=[dict(DETAIL_ROW)], routing_corrections=[], offices=offices)
+
+    reassign_ticket(ticket_id=2, from_office_id=1, to_office_id=30, reason="was electricity", client=store)
+
+    ticket = store.tables["tickets"][0]
+    assert (ticket["office_id"], ticket["department"]) == (30, "Bijli Vibhag")
+    assert ticket["fields"] == DETAIL_ROW["fields"]  # the original record is kept
+    assert store.inserted["routing_corrections"][0]["to_office_id"] == 30
+
+
+def test_reassign_within_the_same_department_keeps_the_department():
+    store = FakeStore(tickets=[dict(DETAIL_ROW)], routing_corrections=[], offices=OFFICES)
+
+    reassign_ticket(ticket_id=2, from_office_id=1, to_office_id=2, reason=None, client=store)
+
+    assert store.tables["tickets"][0]["department"] == "Jal Vibhag"
+
+
+def test_list_all_offices_returns_every_departments_active_offices():
+    store = FakeStore(offices=OFFICES)
+
+    result = list_all_offices(client=store)
+
+    assert {o["department"] for o in result} == {"Jal Vibhag", "Other Dept"}
+    assert store.queries[-1].filters == {"active": True}
 
 
 # --- S14: list_routing_corrections ---------------------------------------------------------

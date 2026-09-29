@@ -42,8 +42,12 @@ def split_points(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list
 
 
 def issue_label(row: dict[str, Any]) -> str:
-    issue = (row.get("fields") or {}).get("issue_type")
-    return ISSUE_TYPE_LABELS_EN.get(issue, str(issue)) if issue else "-"
+    fields = row.get("fields") or {}
+    issue = fields.get("issue_type")
+    if issue:
+        return ISSUE_TYPE_LABELS_EN.get(issue, str(issue))
+    description = fields.get("description")  # S28 general triage tickets
+    return str(description)[:60] if description else "-"
 
 
 def office_name(row: dict[str, Any]) -> str:
