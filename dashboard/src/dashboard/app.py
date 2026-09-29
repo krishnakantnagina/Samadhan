@@ -15,6 +15,7 @@ from streamlit_folium import st_folium
 from dashboard.config import get_dashboard_config
 from dashboard.db import get_client
 from dashboard.labels import display_field
+from dashboard.table_state import selected_row, table_key
 from dashboard.map_view import build_map, issue_label, legend_markdown, office_name, split_points
 from dashboard.tickets import (
     ReassignError,
@@ -210,18 +211,19 @@ def _ticket_table(df: pd.DataFrame, *, key: str) -> None:
     display_cols = [
         "complaint_id", "status", "department", "office_name", "summary_en", "created_at", "updated_at",
     ]
+    widget_key = table_key(key, df)  # a changed list drops any stale selection (see table_state.py)
     event = st.dataframe(
         df[display_cols],
         use_container_width=True,
         hide_index=True,
         on_select="rerun",
         selection_mode="single-row",
-        key=key,
+        key=widget_key,
     )
-    selected_rows = event.selection["rows"]
-    if selected_rows:
+    row = selected_row(df, event.selection["rows"])
+    if row is not None:
         st.divider()
-        _render_detail(df.iloc[selected_rows[0]], key)
+        _render_detail(row, key)
 
 
 def main() -> None:
