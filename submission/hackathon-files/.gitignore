@@ -1,0 +1,6 @@
+# Big media stays on disk and is uploaded to the portal, not committed (see README.md)
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
