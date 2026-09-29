@@ -3,9 +3,6 @@ name = "dashboard"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "Krishnakant Nagina", email = "naginakrishnakant@gmail.com" }
-]
 requires-python = ">=3.12"
 dependencies = [
     "folium>=0.20.0",

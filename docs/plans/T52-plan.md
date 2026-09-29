@@ -424,7 +424,7 @@ Ran against a real Chrome browser (not code review alone), real backend, real se
    ≥48px.
 8. **Not done, stated explicitly rather than silently skipped**: real physical-device testing
    (brief's own deliverable #3) and a human deliberately speaking through the *new* press-and-hold
-   button specifically (G-S18-3) — both need Krishnakant or Dev, same posture T29's build log
+   button specifically (G-S18-3) — both need the Lead or Dev, same posture T29's build log
    already established for the equivalent gaps in its own scope.
 
 **Ticked T52's code/verification items `[x]`** on the strength of 1, 2, 3 (retroactively), 5, 6, and

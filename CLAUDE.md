@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository. Product source of trut
 
 ## Team
 
-Two friends building a hackathon project: **Lead** (krishnakantnagina) and **Dev**.
+Two friends building a hackathon project: **Lead** and **Dev**.
 
 ## Folders
 

@@ -358,7 +358,7 @@ Ran against a real Chrome browser (not just code review), real backend, real see
    citizen-safe error rendering) genuinely works end-to-end.
 4. **G-S16-1 — still open, and can only be closed by a human.** No real spoken-word audio was
    tested against Sarvam/Groq Whisper in this session — an AI agent cannot physically produce
-   speech into a microphone. **Krishnakant (or Dev) needs to do this once**: open the site, click
+   speech into a microphone. **The Lead (or Dev) needs to do this once**: open the site, click
    the mic, say something like "3 din se pani nahi aa raha" in Hindi/Hinglish, click again to stop,
    and confirm whether a real, non-empty transcript comes back. This is the one part of T29 no
    amount of automation could substitute for — recorded here rather than silently assumed.
