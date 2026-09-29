@@ -25,6 +25,23 @@ TICKET_DETAIL_COLUMNS = (
 )
 
 
+# S24 section 4: the map's own column list. Adds lat/lng (the list view deliberately omits them) and
+# `fields` (issue label / location text); still never original_text, audio_path or session_id.
+MAP_COLUMNS = "complaint_id,status,department,fields,lat,lng,created_at,offices(office_name)"
+
+
+def list_map_points(*, client: Client | None = None) -> list[dict[str, Any]]:
+    """Up to 500 tickets with the columns the map needs, newest first (S24 section 4). Read-only."""
+    client = client or get_client()
+    return (
+        client.table("tickets")
+        .select(MAP_COLUMNS)
+        .order("created_at", desc=True)
+        .limit(500)
+        .execute()
+    ).data
+
+
 def list_tickets(*, client: Client | None = None) -> list[dict[str, Any]]:
     """Up to 500 tickets, newest first, joined to their office's name/level (S13 BEHAVIOR 1)."""
     client = client or get_client()

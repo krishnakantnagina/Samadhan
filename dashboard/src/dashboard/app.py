@@ -10,13 +10,16 @@ import secrets
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
+from streamlit_folium import st_folium
 
 from dashboard.config import get_dashboard_config
 from dashboard.db import get_client
 from dashboard.labels import display_field
+from dashboard.map_view import build_map, issue_label, legend_markdown, office_name, split_points
 from dashboard.tickets import (
     ReassignError,
     get_ticket_detail,
+    list_map_points,
     list_offices_for_department,
     list_routing_corrections,
     list_tickets,
@@ -39,6 +42,57 @@ def _cached_tickets() -> pd.DataFrame:
     rows = list_tickets()
     df = pd.json_normalize(rows)
     return df.rename(columns={"offices.office_name": "office_name", "offices.level": "office_level"})
+
+
+@st.cache_data(ttl=30)
+def _cached_map_points() -> list[dict]:
+    """Same 30 s cache, cleared after writes like the ticket list (S24 section 4)."""
+    return list_map_points()
+
+
+def _render_map_tab(df: pd.DataFrame, filtered: pd.DataFrame) -> None:
+    """S24: exact-GPS pins for the tickets the All Tickets filters currently show; the rest are
+    counted and listed, never faked onto the map."""
+    st.title("Map")
+    visible_ids = set(filtered["complaint_id"])
+    rows = [r for r in _cached_map_points() if r["complaint_id"] in visible_ids]
+    with_gps, without_gps = split_points(rows)
+
+    if not with_gps:
+        st.info("No tickets with a GPS location match the current filters.")
+    else:
+        st.markdown(legend_markdown(), unsafe_allow_html=True)
+        try:
+            st_folium(build_map(with_gps), height=460, use_container_width=True, returned_objects=[])
+        except Exception as exc:  # noqa: BLE001 -- a map failure must not break the other tabs
+            st.error(f"Could not draw the map: {exc}")
+        st.caption(f"{len(with_gps)} ticket(s) on the map.")
+
+    if without_gps:
+        st.warning(f"{len(without_gps)} ticket(s) have no GPS and are not on the map.")
+        with st.expander("Tickets without GPS"):
+            st.dataframe(
+                pd.DataFrame(
+                    {
+                        "complaint_id": [r["complaint_id"] for r in without_gps],
+                        "status": [r["status"] for r in without_gps],
+                        "issue": [issue_label(r) for r in without_gps],
+                        "location given": [
+                            (r.get("fields") or {}).get("location", "-") for r in without_gps
+                        ],
+                        "office": [office_name(r) for r in without_gps],
+                    }
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+    if with_gps:
+        st.divider()
+        options = [r["complaint_id"] for r in with_gps]
+        chosen = st.selectbox("Open ticket", ["-", *options], key="map-open-ticket")
+        if chosen != "-":
+            _render_detail(df[df["complaint_id"] == chosen].iloc[0], "map")
 
 
 def _require_login() -> None:
@@ -66,9 +120,12 @@ def _render_audio(audio_path: str) -> None:
         st.warning(f"Could not load audio: {exc}")
 
 
-def _render_detail(row: pd.Series) -> None:
+def _render_detail(row: pd.Series, source: str) -> None:
     """Everything S13's list view deliberately left out, for one deliberately opened ticket
-    (S14 BEHAVIOR 2) -- fields, original text, status/reassign forms, reassignment history."""
+    (S14 BEHAVIOR 2) -- fields, original text, status/reassign forms, reassignment history.
+
+    `source` names the tab that opened it and prefixes every widget key: Streamlit runs all tabs on
+    every rerun, so the same ticket opened from two tabs would otherwise collide (S24 review)."""
     detail = get_ticket_detail(row["complaint_id"])
     if detail is None:
         st.warning("This ticket could not be loaded.")
@@ -88,12 +145,13 @@ def _render_detail(row: pd.Series) -> None:
         _render_audio(detail["audio_path"])
 
     ticket_id = detail["id"]
+    key_prefix = f"{source}-{ticket_id}"
 
     st.divider()
     new_status = st.selectbox(
-        "Status", STATUSES, index=STATUSES.index(detail["status"]), key=f"status-{ticket_id}"
+        "Status", STATUSES, index=STATUSES.index(detail["status"]), key=f"status-{key_prefix}"
     )
-    if st.button("Save status", key=f"save-status-{ticket_id}"):
+    if st.button("Save status", key=f"save-status-{key_prefix}"):
         update_status(detail["complaint_id"], new_status)  # S14 RULES 1: only tickets.status
         st.cache_data.clear()
         st.success("Status updated.")
@@ -107,10 +165,10 @@ def _render_detail(row: pd.Series) -> None:
             "Reassign to",
             list(options),
             format_func=lambda i: options[i],
-            key=f"office-{ticket_id}",
+            key=f"office-{key_prefix}",
         )
-        reason = st.text_input("Reason (optional)", key=f"reason-{ticket_id}")
-        if st.button("Reassign", key=f"reassign-{ticket_id}"):
+        reason = st.text_input("Reason (optional)", key=f"reason-{key_prefix}")
+        if st.button("Reassign", key=f"reassign-{key_prefix}"):
             try:
                 reassign_ticket(
                     ticket_id=ticket_id,
@@ -150,7 +208,7 @@ def _ticket_table(df: pd.DataFrame, *, key: str) -> None:
     selected_rows = event.selection["rows"]
     if selected_rows:
         st.divider()
-        _render_detail(df.iloc[selected_rows[0]])
+        _render_detail(df.iloc[selected_rows[0]], key)
 
 
 def main() -> None:
@@ -169,7 +227,7 @@ def main() -> None:
         st.info("No tickets yet.")
         return
 
-    tab_all, tab_review = st.tabs(["All Tickets", "Review Queue"])
+    tab_all, tab_review, tab_map = st.tabs(["All Tickets", "Review Queue", "Map"])
 
     with tab_all:
         st.title("Tickets")
@@ -209,6 +267,9 @@ def main() -> None:
             st.success("Nothing needs review.")
         else:
             _ticket_table(queue, key="review-queue")
+
+    with tab_map:
+        _render_map_tab(df, filtered)
 
 
 if __name__ == "__main__":
