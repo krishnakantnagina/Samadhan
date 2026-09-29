@@ -240,12 +240,47 @@ def _normalise_command_text(text: str) -> str:
     return " ".join(text.lower().split()).rstrip(".।!? ")
 
 
+# S20 section 5b (29 Sep, from REAL Sarvam transcripts of a spoken cancel: "इसको रद्द करें।", "इसे कैंसिल करें।"):
+# a short sentence made ONLY of command words and filler words is the command. Any other word ("मत", "नहीं",
+# "हुई", a noun...) breaks the match, so "रद्द मत करो" / "मेरी शिकायत रद्द नहीं हुई" are never commands.
+_CANCEL_WORDS = frozenset(
+    {
+        "cancel", "कैंसल", "कैन्सल", "कैंसिल", "कैन्सिल", "कैंसील", "केंसल", "केन्सल", "रद्द", "रद", "निरस्त",
+    }
+)  # fmt: skip
+_RESTART_WORDS = frozenset({"restart", "रीस्टार्ट", "रिस्टार्ट", "शुरू", "शुरु", "दोबारा"})
+_FILLER_WORDS = frozenset(
+    {
+        "इसको", "इसे", "इस", "इसकी", "यह", "ये", "उसे", "उसको", "शिकायत", "समस्या", "मेरी", "मेरा", "मेरे",
+        "को", "की", "का", "से", "फिर", "करो", "करें", "कर", "दो", "दें", "दीजिए", "कीजिए", "कीजिये",
+        "करना", "चाहता", "चाहती", "हूँ", "हूं", "है", "प्लीज", "प्लीज़", "please", "अब", "अभी", "सब", "सारी",
+        "पूरी", "बात", "एक", "बार", "नया", "नए", "सिरे", "यही", "और",
+    }
+)  # fmt: skip
+_MAX_COMMAND_WORDS = 6
+_PUNCTUATION = str.maketrans({c: " " for c in ",.।!?;:()-\"'"})
+
+
+def _command_from_words(text: str) -> Command | None:
+    words = text.lower().translate(_PUNCTUATION).split()
+    if not words or len(words) > _MAX_COMMAND_WORDS:
+        return None
+    cancel = [w for w in words if w in _CANCEL_WORDS]
+    restart = [w for w in words if w in _RESTART_WORDS]
+    if cancel and not restart and all(w in _CANCEL_WORDS or w in _FILLER_WORDS for w in words):
+        return Command.CANCEL
+    if restart and not cancel and all(w in _RESTART_WORDS or w in _FILLER_WORDS for w in words):
+        return Command.RESTART
+    return None
+
+
 def parse_command(text: str | None) -> Command | None:
-    """Return the command if the whole of `text` is `cancel`/`restart` or a known alias
-    (case-insensitive, trailing punctuation ignored). S20 section 5."""
+    """Return the command if `text` is `cancel`/`restart`, a known alias, or a short sentence made only
+    of command and filler words (case-insensitive, punctuation ignored). S20 sections 5 and 5b."""
     if text is None:
         return None
-    return COMMAND_ALIASES.get(_normalise_command_text(text))
+    exact = COMMAND_ALIASES.get(_normalise_command_text(text))
+    return exact if exact is not None else _command_from_words(text)
 
 
 def check_message_inputs(

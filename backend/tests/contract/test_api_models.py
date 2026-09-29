@@ -94,3 +94,32 @@ def test_parse_command():
 )
 def test_parse_command_aliases(text, expected):
     assert parse_command(text) is expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        # REAL Sarvam transcripts of a spoken cancel (29 Sep, Supabase `messages.transcript`)
+        ("इसको रद्द करें।", Command.CANCEL),
+        ("इसे कैंसिल करें।", Command.CANCEL),
+        # other natural phrasings and spellings
+        ("कैंसिल", Command.CANCEL),
+        ("इसे कैन्सिल कर दो", Command.CANCEL),
+        ("please cancel", Command.CANCEL),
+        ("मेरी शिकायत रद्द कर दीजिए", Command.CANCEL),
+        ("फिर से शुरू करें", Command.RESTART),
+        ("दोबारा शुरू करो", Command.RESTART),
+        ("नए सिरे से शुरू करो", Command.RESTART),
+        # must NOT be commands
+        ("रद्द मत करो", None),
+        ("मेरी शिकायत रद्द नहीं हुई", None),
+        ("इसे रद्द नहीं करना है", None),
+        ("पानी रद्द", None),
+        ("बिजली नहीं आ रही फिर से शुरू हुई", None),
+        ("रद्द करो और शुरू से करो", None),  # both words: ambiguous, goes to the LLM
+        ("मुझे शिकायत दर्ज करनी है", None),
+        ("इसको रद्द करें और नई शिकायत दर्ज करें कि पानी नहीं आ रहा है बहुत दिनों से", None),  # too long
+    ],
+)
+def test_parse_command_natural_sentences(text, expected):
+    assert parse_command(text) is expected

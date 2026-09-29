@@ -100,3 +100,13 @@ An empty transcript is still handled first (S01 D-A6) and is never a command.
 
 ## OPEN
 None. G-S20-1 closed: option b (§5).
+
+## 5b. Natural spoken commands (29 Sep 2026, found by the Lead's real test, L6)
+A real spoken cancel failed while the button worked. The stored Sarvam transcripts were **"इसको रद्द करें।"** and **"इसे कैंसिल करें।"**:
+full sentences with filler words and the spelling "कैंसिल". The exact-alias match (§5) missed both, and the LLM then filed them as
+chit-chat ("unable to reply"). Fix in `schemas.parse_command`: after the exact aliases, a short sentence (at most 6 words) made **only**
+of cancel words + filler words is CANCEL; one made only of restart words + filler words is RESTART. Any other word breaks the match, so
+"रद्द मत करो", "मेरी शिकायत रद्द नहीं हुई" and a sentence carrying both cancel and restart words are never commands (they go to the LLM).
+Tests: the two real transcripts, other spellings, and the negative cases. Live (typed, same code path): all four cancel phrasings,
+restart, a clean new complaint after a cancel, and both negatives behave as above. **Still not verified:** a fresh real spoken cancel
+through the mic after this fix (needs a human), and other Sarvam spellings we have not seen yet: check `messages.transcript` if one fails.
