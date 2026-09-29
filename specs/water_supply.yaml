@@ -26,8 +26,8 @@ recognise:
 out_of_scope:
   examples: [बिजली, सड़क / गड्ढे, कचरा, राशन, "any non-water complaint"]
   reply:
-    hi: क्षमा करें, अभी मैं केवल पानी की आपूर्ति से जुड़ी शिकायतें दर्ज कर सकता हूँ।
-    en: Sorry, I can only register water supply complaints right now.
+    hi: माफ़ कीजिए, अभी मैं सिर्फ़ पानी से जुड़ी समस्याएँ दर्ज कर सकता हूँ। बिजली, सड़क जैसी दूसरी समस्याओं के लिए कृपया संबंधित विभाग से संपर्क करें। पानी की कोई समस्या हो तो मुझे बताइए।
+    en: Sorry, I can only register water-related problems right now. For other issues such as electricity or roads, please contact the concerned department. If you have a water problem, tell me.
 
 pilot:
   city: Bhopal
@@ -73,8 +73,8 @@ fields:
       place_name: {min_length: 2, max_length: 100}  # ward, locality or village; stored in fields
     rule: gps or place_name is enough; the jurisdiction resolver maps it to an office (S02 offices)
     question:
-      hi: कृपया अपना वार्ड या इलाका बताइए, या लोकेशन साझा कीजिए।
-      en: Please tell me your ward or area, or share your location.
+      hi: 'क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो "हाँ, मैं यहीं हूँ" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।'
+      en: 'Are you at the place where the water problem is? If yes, tap "Yes, I am here". If not, tell me your village or ward name.'
 
   - name: duration_days
     type: integer

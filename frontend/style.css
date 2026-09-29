@@ -247,6 +247,14 @@ html, body {
 
 .vn-time { flex: none; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
+/* S23: yes/no chips under a location question */
+.location-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .msg.system {
   align-self: center;
   background: transparent;

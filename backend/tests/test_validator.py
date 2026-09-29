@@ -1,5 +1,7 @@
 """S07 Validator (T15): every branch against hand-built specs -- no I/O, no fakes needed."""
 
+import pytest
+
 from app.service_spec import ServiceSpec
 from app.turn_engine import TurnResult
 from app.validator import (
@@ -106,6 +108,120 @@ def test_location_missing_asks_for_location():
 
     assert result.action == ValidatedAction.ASK
     assert result.ask_for == "location"
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "हाँ",
+        "नहीं",
+        "हां।",
+        " Yes ",
+        "no",
+        "जी हाँ",
+        "ठीक है",
+        "यहीं हूँ",
+        "हाँ मैं यहीं हूँ",
+        "घर पर हूँ",
+        "मैं यहाँ नहीं हूँ",
+    ],
+)
+def test_yes_no_answer_is_not_a_location(answer):
+    """S23 section 5: a spoken/typed yes/no to 'are you at the place?' must never become a location."""
+    result = apply(
+        specs=SPECS,
+        session=session(collected_fields={"issue_type": "no_supply"}),
+        turn_result=turn_result(fields={"location": answer}),
+        lat=None,
+        lng=None,
+    )
+
+    assert result.action == ValidatedAction.ASK
+    assert result.ask_for == "location"
+    assert "location" not in result.collected_fields
+
+
+def test_real_place_name_still_accepted():
+    result = apply(
+        specs=SPECS,
+        session=session(collected_fields={"issue_type": "no_supply"}),
+        turn_result=turn_result(fields={"location": "मिसरोद"}),
+        lat=None,
+        lng=None,
+    )
+
+    assert result.collected_fields["location"] == "मिसरोद"
+
+
+# --- S25: acknowledgement line ---------------------------------------------------------------
+
+
+def _ask_with_ack(ack):
+    return apply(
+        specs=SPECS,
+        session=session(),
+        turn_result=turn_result(fields={"issue_type": "no_supply"}, ack=ack),
+        lat=None,
+        lng=None,
+    )
+
+
+def test_valid_ack_is_placed_before_the_spec_question():
+    result = _ask_with_ack("समझ गया, तीन दिन से पानी नहीं आ रहा।")
+
+    assert result.action == ValidatedAction.ASK
+    assert result.reply_text == "समझ गया, तीन दिन से पानी नहीं आ रहा। स्थान बताइए"
+
+
+@pytest.mark.parametrize(
+    "bad_ack",
+    [
+        None,
+        "",
+        "ok",  # too short
+        "x" * 121,  # too long
+        "क्या आप कहाँ हैं?",  # a question
+        "देखिए http://evil.example",  # URL
+        "देखिए www.evil.example",
+        "हम जाँच कर रहे हैं।",  # promise / claim of action (D-S25-5)
+        "जल्द ठीक हो जाएगा।",
+        "फ़ोन करें 9876543210",  # 4+ digit run
+    ],
+)
+def test_bad_ack_falls_back_to_the_plain_question(bad_ack):
+    assert _ask_with_ack(bad_ack).reply_text == "स्थान बताइए"
+
+
+def test_ack_without_final_punctuation_gets_one_so_it_never_runs_into_the_question():
+    assert (
+        _ask_with_ack("समझ गया, पानी नहीं आ रहा").reply_text == "समझ गया, पानी नहीं आ रहा। स्थान बताइए"
+    )
+
+
+def test_ack_is_not_used_on_confirm():
+    result = apply(
+        specs=SPECS,
+        session=session(collected_fields={"issue_type": "no_supply", "location": "मिसरोद"}),
+        turn_result=turn_result(ack="समझ गया।"),
+        lat=None,
+        lng=None,
+    )
+
+    assert result.action == ValidatedAction.CONFIRM
+    assert "समझ गया" not in result.reply_text
+
+
+def test_ack_is_not_used_on_out_of_scope():
+    result = apply(
+        specs=SPECS,
+        session=session(),
+        turn_result=turn_result(service_id=None, ack="समझ गया।"),
+        lat=None,
+        lng=None,
+    )
+
+    assert result.action == ValidatedAction.OUT_OF_SCOPE
+    assert "समझ गया" not in result.reply_text
 
 
 # --- confirm / ready_to_submit --------------------------------------------------------------

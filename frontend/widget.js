@@ -7,7 +7,7 @@
 // its own namespaced DOM (#samadhan-widget-*) rather than sharing a module.
 
 (function () {
-  const API_BASE = 'http://localhost:8000';
+  const API_BASE = window.SAMADHAN_API_BASE || 'http://localhost:8000'; // config.js, S22
   const SESSION_KEY = 'samadhan_session_id'; // D-S19-1: same key app.js uses -- same conversation
   const SEEN_KEY = 'samadhan_widget_seen';
   const GENERIC_ERROR = 'सर्वर से संपर्क नहीं हो सका। कृपया दोबारा प्रयास करें।';
@@ -383,6 +383,69 @@
     botEl.appendChild(makeVoiceNote(text, autoPlay));
   }
 
+  // --- S23: "are you at the place of the problem?" -------------------------------------------------
+  // Chips under a location question; typed or spoken yes/no is answered the same way. GPS/routing on
+  // the backend is untouched: yes -> the existing lat/lng turn, no -> an ordinary place-name turn.
+
+  let awaitingLocationChoice = false;
+  const LOCATION_YES = new Set([
+    'हाँ', 'हां', 'हा', 'जी', 'जी हाँ', 'जी हां', 'yes', 'y', 'ok', 'okay', 'ठीक है',
+    'हाँ मैं यहीं हूँ', 'हां मैं यहीं हूं', 'यहीं हूँ', 'यहीं हूं',
+  ]);
+  const LOCATION_NO = new Set([
+    'नहीं', 'नही', 'ना', 'जी नहीं', 'no', 'n', 'नहीं मैं यहाँ नहीं हूँ', 'मैं यहाँ नहीं हूँ',
+    'घर पर हूँ', 'मैं घर पर हूँ',
+  ]);
+  const LOCATION_NO_REPLY =
+    'ठीक है। कृपया अपने गाँव, मोहल्ले या वार्ड का नाम बताइए (बोलकर या लिखकर)।';
+
+  function locationChoiceOf(text) {
+    const cleaned = (text || '')
+      .toLowerCase()
+      .replace(/[.,।!?]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean)
+      .join(' ');
+    if (LOCATION_YES.has(cleaned)) return 'yes';
+    if (LOCATION_NO.has(cleaned)) return 'no';
+    return null;
+  }
+
+  function removeLocationChoiceChips() {
+    document.querySelectorAll('.location-choice').forEach((el) => el.remove());
+  }
+
+  function chooseLocation(choice) {
+    awaitingLocationChoice = false;
+    removeLocationChoiceChips();
+    setLocationHighlight(false);
+    if (choice === 'yes') {
+      shareLocation();
+      return;
+    }
+    const botEl = appendMessage('bot', LOCATION_NO_REPLY);
+    replaceSpeakWithVoiceNote(botEl, LOCATION_NO_REPLY, true); // the chip tap was a gesture
+    input.focus();
+  }
+
+  function appendLocationChoiceChips(botEl) {
+    removeLocationChoiceChips(); // only the latest location question keeps them
+    const row = document.createElement('div');
+    row.className = 'location-choice';
+    const yes = document.createElement('button');
+    yes.type = 'button';
+    yes.className = 'chip-btn chip-btn-highlight';
+    yes.textContent = '📍 हाँ, मैं यहीं हूँ';
+    yes.addEventListener('click', () => chooseLocation('yes'));
+    const no = document.createElement('button');
+    no.type = 'button';
+    no.className = 'chip-btn';
+    no.textContent = '✍️ नहीं, मैं नाम बताऊँगा';
+    no.addEventListener('click', () => chooseLocation('no'));
+    row.append(yes, no);
+    botEl.appendChild(row);
+  }
+
   async function handleTurn(apiCall, citizenBubbleText, autoSpeak = false) {
     const citizenEl = appendMessage('citizen', citizenBubbleText);
     setBusy(true);
@@ -392,8 +455,15 @@
         citizenEl.textContent = result.transcript;
       }
       setLocationHighlight(result.ask_for === 'location');
+      const spokenChoice = awaitingLocationChoice ? locationChoiceOf(result.transcript) : null;
+      if (spokenChoice && result.ask_for === 'location') {
+        chooseLocation(spokenChoice); // S23: a spoken yes/no; skip the backend's re-ask bubble
+        return;
+      }
+      awaitingLocationChoice = result.ask_for === 'location';
       const botEl = appendMessage('bot', result.reply_text);
       replaceSpeakWithVoiceNote(botEl, result.reply_text, autoSpeak);
+      if (awaitingLocationChoice) appendLocationChoiceChips(botEl);
       if (result.action === 'confirm' && result.summary) appendSummaryCard(botEl, result.summary);
       if (result.action === 'submitted' && result.ticket) appendTicketCard(botEl, result.ticket);
     } catch (err) {
@@ -407,6 +477,12 @@
   async function send(text) {
     const trimmed = text.trim();
     if (!trimmed) return;
+    const typedChoice = awaitingLocationChoice ? locationChoiceOf(trimmed) : null;
+    if (typedChoice) {
+      appendMessage('citizen', trimmed); // S23: answered locally, not sent
+      chooseLocation(typedChoice);
+      return;
+    }
     await handleTurn(() => postToApi((form) => form.append('text', trimmed)), trimmed);
   }
 
@@ -556,7 +632,7 @@
 
   // --- Location ------------------------------------------------------------------------------
 
-  locationBtn.addEventListener('click', () => {
+  function shareLocation() {
     if (!navigator.geolocation) {
       appendMessage('error', 'यह ब्राउज़र लोकेशन साझा नहीं कर सकता। कृपया अपना वार्ड लिखें।');
       return;
@@ -578,7 +654,9 @@
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );
-  });
+  }
+
+  locationBtn.addEventListener('click', shareLocation);
 
   // --- Bilingual greeting (mirrors app.js's S18 BEHAVIOR 4, Hindi audio only) ----------------
 
@@ -604,7 +682,7 @@
     greetingLine(hi, 'नमस्ते! मैं समाधान हूँ।', null, null);
     greetingLine(
       hi,
-      'आप अपनी समस्या हमें बताइए, या किसी भी सरकारी सेवा से जुड़ी जानकारी चाहिए तो बेझिझक पूछिए।',
+      'आप अपनी पानी की समस्या हमें बताइए, हम उसे सही कार्यालय तक पहुँचाएँगे।',
       null,
       null,
     );
@@ -623,7 +701,7 @@
     greetingLine(en, "Hello! I'm Samadhan.", null, null);
     greetingLine(
       en,
-      'Please tell me about your problem, or ask me if you need information about any government service.',
+      'Please tell me about your water problem and we will route it to the right office.',
       null,
       null,
     );
@@ -641,8 +719,8 @@
     card.appendChild(listenBtn);
 
     const spokenHi =
-      'नमस्ते! मैं समाधान हूँ। आप अपनी समस्या हमें बताइए, या किसी भी सरकारी सेवा से जुड़ी जानकारी ' +
-      'चाहिए तो बेझिझक पूछिए। आप अपनी बात आवाज़ में बोलकर या लिखकर बता सकते हैं। हम आपकी सहायता ' +
+      'नमस्ते! मैं समाधान हूँ। आप अपनी पानी की समस्या हमें बताइए, हम उसे सही कार्यालय तक ' +
+      'पहुँचाएँगे। आप अपनी बात आवाज़ में बोलकर या लिखकर बता सकते हैं। हम आपकी सहायता ' +
       'करने की पूरी कोशिश करेंगे।';
 
     const wrapper = appendMessage('bot', spokenHi);

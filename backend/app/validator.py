@@ -8,6 +8,7 @@ Either of us can change this file. If you do, update docs/specs/S07-validator.md
 other.
 """
 
+import re
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -58,6 +59,52 @@ class ValidationResult(BaseModel):
 # --- Per-type validation (S03 FIELDS table) --------------------------------------------------
 
 
+# S23 section 5: a bare yes/no answer to "are you at the place of the problem?" is not a place. Kept in
+# sync by hand with the word lists in frontend/app.js + widget.js (D-S23-4).
+YES_NO_WORDS = frozenset(
+    {
+        # YES (frontend LOCATION_YES)
+        "हाँ", "हां", "हा", "जी", "जी हाँ", "जी हां", "yes", "y", "ok", "okay", "ठीक है",
+        "हाँ मैं यहीं हूँ", "हां मैं यहीं हूं", "यहीं हूँ", "यहीं हूं",
+        # NO (frontend LOCATION_NO)
+        "नहीं", "नही", "ना", "जी नहीं", "no", "n", "नहीं मैं यहाँ नहीं हूँ", "मैं यहाँ नहीं हूँ",
+        "घर पर हूँ", "मैं घर पर हूँ",
+    }
+)  # fmt: skip
+
+
+def _is_yes_no_answer(text: str) -> bool:
+    cleaned = " ".join(text.lower().replace(",", " ").split()).strip(".।!?")
+    return cleaned in YES_NO_WORDS
+
+
+ACK_MIN_LENGTH = 3
+ACK_MAX_LENGTH = 120
+# S25 D-S25-5: promise / action words. The bot must not claim anyone is acting on the complaint.
+ACK_BLOCKED_WORDS = (
+    "जल्द", "जाँच", "जांच", "देख रहे", "कार्रवाई", "कार्यवाही", "ठीक कर", "समाधान कर", "भेज",
+    "जायेगा", "जाएगा", "करेंगे", "करूँगा", "करूंगा",
+)  # fmt: skip
+
+
+def _clean_ack(ack: Any) -> str | None:
+    """S25 section 2: the LLM's acknowledgement is decoration, never trusted. Anything odd is dropped
+    and the reply falls back to the spec's plain question."""
+    if not isinstance(ack, str):
+        return None
+    text = " ".join(ack.split())
+    if not ACK_MIN_LENGTH <= len(text) <= ACK_MAX_LENGTH:
+        return None
+    lowered = text.lower()
+    if "?" in text or "\uff1f" in text or "http" in lowered or "www" in lowered:
+        return None
+    if re.search(r"\d{4,}", text):
+        return None
+    if any(word in text for word in ACK_BLOCKED_WORDS):
+        return None
+    return text
+
+
 def _validate_field(field: FieldSpec, raw_value: Any) -> Any | None:
     match field.type:
         case "enum":
@@ -82,6 +129,8 @@ def _validate_field(field: FieldSpec, raw_value: Any) -> Any | None:
                 return None
             trimmed = raw_value.strip()
             bounds = field.accepts.place_name
+            if _is_yes_no_answer(trimmed):
+                return None  # S23 section 5
             return trimmed if bounds.min_length <= len(trimmed) <= bounds.max_length else None
 
 
@@ -186,6 +235,15 @@ def _build_summary(
 # --- apply -------------------------------------------------------------------------------------
 
 
+def _with_ack(ack: Any, question: str) -> str:
+    cleaned = _clean_ack(ack)
+    if not cleaned:
+        return question
+    if cleaned[-1] not in ".।!":
+        cleaned += "।"  # never let the ack run into the question
+    return f"{cleaned} {question}"
+
+
 def apply(
     *,
     specs: dict[str, ServiceSpec],
@@ -219,7 +277,7 @@ def apply(
             awaiting_confirmation=False,
             action=ValidatedAction.ASK,
             ask_for=missing.ask_for if missing.type == "location" else missing.name,
-            reply_text=missing.question.hi,
+            reply_text=_with_ack(turn_result.ack, missing.question.hi),
             summary=None,
         )
 

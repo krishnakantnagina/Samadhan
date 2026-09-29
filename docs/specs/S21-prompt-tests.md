@@ -61,3 +61,7 @@ Failures, by cause (not tuned away — the grading table above was fixed before 
    instead of location. Arguably correct behaviour (T09-04's own note allows a follow-up), but fails the pre-set rule.
 4. **T09-11 (drainage)** → `out_of_scope`, in both runs. Arguably the *right* answer for a drainage complaint;
    fails only because the grading table said any valid `issue_type`.
+
+### Run 3 (after S25 warm replies): **9/15**, `submission/T13-prompt-test-results-run3-after-s25.json`
+3 of 15 were `503` caused by Groq `429` + Gemini overload (see S25 FINDING), so the honest reading is 9/12 answered.
+Same three substantive misses as run 2. Target still not met.

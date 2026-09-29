@@ -123,6 +123,39 @@ def test_gps_only_turn_never_calls_a_provider(text):
     assert result == TurnResult(service_id="water_supply", fields={}, confirmed=False)
 
 
+# --- S25: acknowledgement line passes through, untrusted --------------------------------------
+
+
+def _run_with_raw(raw: str) -> TurnResult:
+    return run_turn(
+        session=session(),
+        specs=SPECS,
+        text="paani nahi aa raha",
+        lat=None,
+        lng=None,
+        providers=[FakeProvider("groq", response=raw)],
+    )
+
+
+def test_ack_is_carried_on_the_result():
+    raw = json.dumps(
+        {"service_id": "water_supply", "fields": {}, "confirmed": False, "ack": "समझ गया।"}
+    )
+    assert _run_with_raw(raw).ack == "समझ गया।"
+
+
+def test_missing_or_non_string_ack_becomes_none_not_an_error():
+    base = {"service_id": "water_supply", "fields": {}, "confirmed": False}
+    assert _run_with_raw(json.dumps(base)).ack is None
+    assert _run_with_raw(json.dumps({**base, "ack": 12345})).ack is None
+    assert _run_with_raw(json.dumps({**base, "ack": ["x"]})).ack is None
+
+
+def test_prompt_states_the_ack_rules():
+    prompt = _build_prompt(session(), SPECS, "paani nahi aa raha", None, None, [])
+    assert '"ack"' in prompt and "NEW information" in prompt
+
+
 # --- Fallback sequencing -----------------------------------------------------------------------
 
 

@@ -25,7 +25,7 @@ SYSTEM_INSTRUCTIONS = """\
 You extract structured data from one message a citizen sent a government grievance chatbot.
 Output ONLY a JSON object matching this schema -- no prose, no markdown fences:
 {"service_id": "<one of the listed service ids, or null>", \
-"fields": {"<field_name>": "<value>"}, "confirmed": true/false}
+"fields": {"<field_name>": "<value>"}, "confirmed": true/false, "ack": "<see rules>" or null}
 
 Rules:
 - service_id must be one of the listed service ids, or null if the message matches none of them.
@@ -44,6 +44,12 @@ Rules:
   A generic word is not a name: "village"/"गाँव", "neighbourhood"/"मोहल्ला", "house"/"घर",
   "hand pump"/"हैंडपंप", "tap"/"नल", "tank"/"टंकी" alone (including "our village", "हमाए गाँव") name
   no place, so leave the location field out entirely.
+- A bare yes/no answer ("हाँ", "नहीं", "yes", "no") is never a location; leave the location field out.
+- ack: only when this turn gave NEW information, one short warm sentence in Devanagari Hindi (max 12 words)
+  that acknowledges what the citizen said. It must not be a question, must not promise anything, and must
+  not state any fact about offices, officers, dates, numbers or ticket status. Otherwise null.
+  Repeat the citizen's own words (the symptom and how long, if said). Good: "समझ गया, तीन दिन से पानी नहीं आ रहा।"
+  Bad (a promise or claim of action): "हम जाँच कर रहे हैं", "जल्द ठीक होगा", "शिकायत भेज दी गई".
 """
 
 
@@ -74,6 +80,7 @@ class TurnResult(BaseModel):
     service_id: str | None
     fields: dict[str, Any]
     confirmed: bool
+    ack: str | None = None  # S25: untrusted, sanitised by the validator
 
 
 class _RawTurnOutput(BaseModel):
@@ -84,6 +91,7 @@ class _RawTurnOutput(BaseModel):
     service_id: str | None = None
     fields: dict[str, Any] = {}
     confirmed: bool = False
+    ack: Any = None  # S25: any type accepted here, the validator decides
 
 
 class Provider(Protocol):
@@ -246,6 +254,11 @@ def run_turn(
         if parsed.service_id is not None and parsed.service_id not in specs:
             continue  # hallucinated service id -- structural failure, not a valid answer
         confirmed = parsed.confirmed and session.awaiting_confirmation  # D-S05-3
-        return TurnResult(service_id=parsed.service_id, fields=parsed.fields, confirmed=confirmed)
+        return TurnResult(
+            service_id=parsed.service_id,
+            fields=parsed.fields,
+            confirmed=confirmed,
+            ack=parsed.ack if isinstance(parsed.ack, str) else None,
+        )
 
     raise TurnEngineUnavailable("both LLM providers failed")

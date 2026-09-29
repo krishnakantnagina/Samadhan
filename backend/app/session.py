@@ -68,6 +68,7 @@ class SessionUpdate:
     lat: float | None
     lng: float | None
     status: SessionStatus = SessionStatus.ACTIVE
+    service_id: str | None = None  # written verbatim; None clears it (S23 5b)
 
 
 def _now_iso() -> str:
@@ -230,6 +231,7 @@ def save_turn(
 
     client.table("sessions").update(
         {
+            "service_id": session_update.service_id,
             "collected_fields": session_update.collected_fields,
             "awaiting_confirmation": session_update.awaiting_confirmation,
             "lat": session_update.lat,

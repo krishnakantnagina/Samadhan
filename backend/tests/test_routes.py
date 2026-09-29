@@ -326,6 +326,58 @@ def test_sentence_containing_alias_is_not_a_command(test_client, monkeypatch):
     assert called == [1]
 
 
+# --- S23 5b: sessions.service_id is persisted, so a GPS-only turn continues the complaint ---------
+
+
+def test_gps_only_turn_continues_when_service_is_saved(test_client, monkeypatch):
+    monkeypatch.setattr(
+        routes.session,
+        "get_or_create_session",
+        lambda sid: make_session_row(
+            id=sid, service_id="water_supply", collected_fields={"issue_type": "no_supply"}
+        ),
+    )
+    monkeypatch.setattr(routes.turn_engine, "_call_provider", raise_if_called, raising=False)
+    saved = {}
+    monkeypatch.setattr(routes.session, "save_turn", lambda **kwargs: saved.update(kwargs))
+
+    body = post(test_client, lat="23.2156", lng="77.4384").json()
+
+    assert body["action"] == "confirm"  # not out_of_scope
+    assert saved["session_update"].service_id == "water_supply"
+    assert saved["session_update"].lat == 23.2156
+
+
+def test_gps_only_turn_is_out_of_scope_when_service_was_never_saved(test_client):
+    """Documents the pre-fix failure mode: no saved service, nothing to continue."""
+    body = post(test_client, lat="23.2156", lng="77.4384").json()
+    assert body["action"] == "out_of_scope"
+
+
+def test_ask_turn_persists_the_service(test_client, monkeypatch):
+    monkeypatch.setattr(
+        routes.turn_engine,
+        "run_turn",
+        lambda **kw: turn_engine.TurnResult(
+            service_id="water_supply", fields={"issue_type": "no_supply"}, confirmed=False
+        ),
+    )
+    saved = {}
+    monkeypatch.setattr(routes.session, "save_turn", lambda **kwargs: saved.update(kwargs))
+
+    body = post(test_client, text="paani nahi aa raha").json()
+
+    assert body["action"] == "ask"
+    assert saved["session_update"].service_id == "water_supply"
+
+
+def test_cancel_and_submit_clear_the_service(test_client, monkeypatch):
+    saved = {}
+    monkeypatch.setattr(routes.session, "save_turn", lambda **kwargs: saved.update(kwargs))
+    post(test_client, text="cancel")
+    assert saved["session_update"].service_id is None
+
+
 # --- Turn Engine + Validator wiring ----------------------------------------------------------
 
 

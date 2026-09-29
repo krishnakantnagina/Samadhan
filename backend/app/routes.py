@@ -81,6 +81,7 @@ def _command_update(command: api.Command) -> session.SessionUpdate:
             if command is api.Command.CANCEL
             else session.SessionStatus.ACTIVE
         ),
+        service_id=None,  # a cancelled/restarted complaint starts over (S23 5b)
     )
 
 
@@ -145,6 +146,7 @@ def message(
                 lat=row.lat,
                 lng=row.lng,
                 status=session.SessionStatus.ACTIVE,
+                service_id=row.service_id,
             )
             return _persist(
                 session_id=session_id,
@@ -230,6 +232,7 @@ def message(
             lat=None,
             lng=None,
             status=session.SessionStatus.COMPLETED,
+            service_id=None,
         )
     else:
         response = api.MessageResponse(
@@ -249,6 +252,7 @@ def message(
             lat=lat if lat is not None else row.lat,
             lng=lng if lng is not None else row.lng,
             status=session.SessionStatus.ACTIVE,
+            service_id=result.service_id,
         )
 
     # Step 9: persist and respond
