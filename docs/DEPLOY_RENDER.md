@@ -45,8 +45,12 @@ what makes the real-Android test (T52 box "b") possible without your laptop.
    | Name | `samadhan` (becomes the URL) |
    | Branch | `main` |
    | Root Directory | leave empty |
-   | Build Command | `test -n "$SAMADHAN_API_BASE" \|\| { echo "SAMADHAN_API_BASE is not set" >&2; exit 1; }; printf "window.SAMADHAN_API_BASE = '%s';\n" "$SAMADHAN_API_BASE" > frontend/config.js` |
+   | Build Command | the one-line command in the box just below (copy it exactly: no backslashes) |
    | Publish Directory | `frontend` |
+   **Build Command** (copy exactly; the two `|` characters are plain, no backslashes):
+   ```
+   test -n "$SAMADHAN_API_BASE" || { echo "SAMADHAN_API_BASE is not set" >&2; exit 1; }; printf "window.SAMADHAN_API_BASE = '%s';\n" "$SAMADHAN_API_BASE" > frontend/config.js
+   ```
    (The build command is the same one `vercel.json` uses: it writes the backend address into `frontend/config.js`. It fails on
    purpose if the variable is missing.)
 3. **Environment** → `SAMADHAN_API_BASE` = the backend URL from step 1, **no trailing slash**.
