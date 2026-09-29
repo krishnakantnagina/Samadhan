@@ -8,13 +8,13 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 |---|---|---|---|---|---|
 | T00 | Confirm PS5 registered, team size matches registration, portal format + exact cutoff time | L | — | All 3 confirmed | [ ] |
 | T01 | Repo, folders, `CLAUDE.md`, `.gitignore`, `.env.example` | L | — | Dev cloned | [ ] |
-| T02 | API contract (`docs/specs/S01-api-contract.md`, `backend/app/schemas.py`): `POST /api/v1/message`, `GET /api/v1/status/{complaint_id}`, `/health` | L | — | Pydantic file pushed | [ ] |
+| T02 | API contract (`docs/specs/S01-api-contract.md`, `backend/app/schemas.py`): `POST /api/v1/message`, `GET /api/v1/status/{complaint_id}`, `/health` | L | — | Pydantic file pushed | [x] |
 | T03 | DB schema incl. `offices`, statuses, `SMD-` prefix | L | — | SQL pushed | [x] |
-| T04 | `water_supply.yaml` spec | L | — | Loads cleanly | [ ] |
+| T04 | `water_supply.yaml` spec | L | — | Loads cleanly | [x] |
 | T05 | Office data: 5 Bhopal wards + district fallback | L | T03 | Rows ready | [x] |
 | T06 | Supabase: schema, `audio` bucket, offices, share keys | L | T03, T05 | Tables visible | [x] |
 | T07 | FastAPI skeleton, config, CORS, `/health` | D | T01, T02 | 200 OK | [x] |
-| T08 | Mock `/message` + `/status` | D | T07 | Callable from browser | [ ] |
+| T08 | Mock `/message` + `/status` | D | T07 | Callable from browser | [x] |
 | T09 | 15 test sentences + 3 voice samples | L | — | Shared | [x] |
 | T10 | Screenshots: CM Helpline menu bot (evidence) | L | — | 5 saved | [ ] |
 
@@ -84,3 +84,35 @@ Owners: **L** = Lead, **D** = Dev: who usually does it; either of us can pick up
 |---|---|
 | Dev | T07 → T08 → T11 → T12 → T14 → T13 → T15 → T16 → T17 → T18 → T19 → T22 → T26 → T27 → T28 → T30 → T38 → T40 |
 | Lead | T00 → T01 → T02 → T03 → T04 → T09 → T05 → T06 → T10 → T20 → T21 → T23 → T24 → T25 → T33–T37 (drafts) → T29 → T31 → T32 → T39 → T41 → T42 → T43 |
+
+## Status notes (verified 29 Sep 2026)
+
+Ticked today, each checked before ticking:
+- **T02** `S01-api-contract.md` + `backend/app/schemas.py` exist. The shared contract suite passes against the mock (88 passed)
+  and against the **real** backend with real Groq/Supabase (68 passed, 20 `mock_only` skipped; needs
+  `CONTRACT_EXISTING_ID=SMD-0001`, because the default `SMD-0042` only exists in the mock).
+- **T04** `specs/water_supply.yaml` loads (`water_supply`, Jal Vibhag, 4 fields) on every backend start.
+- **T08** the mock runs (`uvicorn mock.app:app --port 8001`), answers `/health` and `POST /api/v1/message` over HTTP, and the
+  citizen website was built against it.
+
+Left unticked, on purpose:
+- **T01** repo, folders, `CLAUDE.md`, `.gitignore`, `.env.example` all exist, but "Dev cloned" cannot be verified from the repo
+  (all 50 commits are by one author). Tick it when the Dev confirms.
+- **T00, T10, T25** need the Lead (confirmations, CM Helpline screenshots, backup video). Nothing in the repo can show them done.
+- **T13** prompt tests: 6 live runs, 11 / 10 / 9 / 9 / **13** / **12** of 15 (`submission/T13-prompt-test-results-run*.json`,
+  analysis in `docs/specs/S21` and `S27`). Target met once, missed once. Remaining misses: two vague sentences and the drainage
+  sentence, which flips between pass and fail. Left open rather than ticked on the lucky run.
+- **T28** typed `cancel` / `restart` / timeout verified live (S20 L1, L2, L4, L5) and spoken commands are implemented and unit
+  tested. Open: **L3** (session reuse after a submitted ticket, needs a real ticket) and **L6** (a real spoken cancel/restart
+  through Sarvam, needs a human at the mic).
+- **T30** map built and tested (`docs/specs/S24`): 25 dashboard tests; the real app run against live data showed 3 tabs, 2 pins,
+  18 tickets without GPS. Open: not yet looked at in a real browser (tiles, filters, the "Open ticket" picker).
+- **T31** 10-scenario pass: not done.
+- **T32** deploy config is ready (`Dockerfile`, `vercel.json`, `docs/DEPLOY.md`, spec `S22`); nothing is deployed yet and the
+  Docker image was never built (no Docker on the dev machine).
+- **T52** unchanged: 2 of 7 checklist items still need a human (real Android device, a spoken test through the press-and-hold mic).
+- **T33-T43** (submission documents, demo video, slides, submit + tag `v1-mvp`) and **T44-T49** (event prep) not started.
+
+Unticketed work done since 28 Sep, for the record: T09 (ticked above), warm replies (`S25`), Groq model fallback chain
+(`S26`), generic-place guard (`S27`), location yes/no chips and the `sessions.service_id` fix (`S23`), voice-note bubbles and
+auto-speak (`S17` D-S17-4/5), auto-scroll from the hero page.
