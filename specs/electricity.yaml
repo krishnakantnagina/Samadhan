@@ -1,0 +1,69 @@
+# Service spec: electricity (S28, 29 Sep). DEMO department for the multi-department routing demo.
+# Format: docs/specs/S03-service-spec-format.md. Office rows are DEMO data (database/seed_departments.sql).
+# Minimal by design (S28 D-S28-3): route the complaint, do not try to resolve it.
+
+spec_version: 1
+service: electricity
+department: Bijli Vibhag            # DEMO department name, see S28
+label:
+  hi: बिजली की समस्या
+  en: Electricity problem
+
+recognise:
+  - बिजली नहीं आ रही / light nahi hai / no power / power cut
+  - कम या ज्यादा वोल्टेज / low or high voltage
+  - खंभा या तार टूटा / ट्रांसफार्मर खराब / pole, wire or transformer problem
+  - बिजली का बिल या मीटर / electricity bill or meter problem
+
+out_of_scope:
+  examples: [पानी, सड़क, कचरा, राशन]
+  reply:
+    hi: माफ़ कीजिए, यह बिजली की समस्या नहीं लगती।
+    en: Sorry, this does not look like an electricity problem.
+
+pilot:
+  city: Bhopal
+  wards: 5
+
+routing:
+  min_confidence: 0.7
+  fallback_level: district
+  fallback_status: needs_review
+  max_match_distance_km: 5
+
+confirmation: required
+
+fields:
+  - name: issue_type
+    type: enum
+    required: true
+    label: {hi: समस्या, en: Issue}
+    values:
+      - {value: no_power,    hi: बिजली नहीं आ रही,        en: No power}
+      - {value: low_voltage, hi: कम या ज्यादा वोल्टेज,     en: Low or high voltage}
+      - {value: pole_wire,   hi: खंभा / तार / ट्रांसफार्मर, en: "Pole, wire or transformer"}
+      - {value: billing,     hi: बिल या मीटर की समस्या,    en: Bill or meter problem}
+      - {value: power_other, hi: बिजली की अन्य समस्या,     en: Other electricity issue}
+    question:
+      hi: "आपको बिजली की क्या समस्या है: बिजली नहीं आ रही, वोल्टेज, खंभा या तार, या बिल?"
+      en: "What is the electricity problem: no power, voltage, pole or wire, or bill?"
+
+  - name: location
+    type: location
+    required: true
+    label: {hi: स्थान, en: Location}
+    ask_for: location
+    accepts:
+      gps: {lat: [-90, 90], lng: [-180, 180]}
+      place_name: {min_length: 2, max_length: 100}
+    question:
+      hi: 'क्या आप अभी उसी जगह पर हैं जहाँ यह समस्या है? अगर हाँ, तो "हाँ, मैं यहीं हूँ" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।'
+      en: 'Are you at the place where this problem is? If yes, tap "Yes, I am here". If not, tell me your village or ward name.'
+
+  - name: duration_days
+    type: integer
+    required: false
+    min: 0
+    max: 365
+    label: {hi: कितने दिनों से, en: Days affected}
+    hint: "'3 दिन से' → 3, 'कल से' → 1, 'हफ्ते भर से' → 7"

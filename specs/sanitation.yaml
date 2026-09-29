@@ -1,0 +1,66 @@
+# Service spec: sanitation (S28, 29 Sep). DEMO department for the multi-department routing demo.
+# Office rows are DEMO data (database/seed_departments.sql). Minimal by design (S28 D-S28-3).
+
+spec_version: 1
+service: sanitation
+department: Nagar Nigam Sanitation  # DEMO department name, see S28
+label:
+  hi: सफाई / कचरे की समस्या
+  en: Sanitation problem
+
+recognise:
+  - कचरा नहीं उठा / garbage not collected
+  - नाली जाम / नाली का पानी / drain blocked or overflowing
+  - गंदगी / सफाई नहीं हुई / dirty area, cleaning not done
+
+out_of_scope:
+  examples: [पानी की सप्लाई, बिजली, सड़क, राशन]
+  reply:
+    hi: माफ़ कीजिए, यह सफाई की समस्या नहीं लगती।
+    en: Sorry, this does not look like a sanitation problem.
+
+pilot:
+  city: Bhopal
+  wards: 5
+
+routing:
+  min_confidence: 0.7
+  fallback_level: district
+  fallback_status: needs_review
+  max_match_distance_km: 5
+
+confirmation: required
+
+fields:
+  - name: issue_type
+    type: enum
+    required: true
+    label: {hi: समस्या, en: Issue}
+    values:
+      - {value: garbage,          hi: कचरा नहीं उठा,        en: Garbage not collected}
+      - {value: drain_blocked,    hi: नाली जाम / ओवरफ्लो,    en: Drain blocked or overflowing}
+      - {value: dirty_area,       hi: गंदगी / सफाई नहीं हुई, en: Dirty area}
+      - {value: sanitation_other, hi: सफाई की अन्य समस्या,   en: Other sanitation issue}
+    question:
+      hi: "सफाई की क्या समस्या है: कचरा, नाली जाम, या गंदगी?"
+      en: "What is the sanitation problem: garbage, blocked drain, or dirty area?"
+
+  - name: location
+    type: location
+    required: true
+    label: {hi: स्थान, en: Location}
+    ask_for: location
+    accepts:
+      gps: {lat: [-90, 90], lng: [-180, 180]}
+      place_name: {min_length: 2, max_length: 100}
+    question:
+      hi: 'क्या आप अभी उसी जगह पर हैं जहाँ यह समस्या है? अगर हाँ, तो "हाँ, मैं यहीं हूँ" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।'
+      en: 'Are you at the place where this problem is? If yes, tap "Yes, I am here". If not, tell me your village or ward name.'
+
+  - name: duration_days
+    type: integer
+    required: false
+    min: 0
+    max: 365
+    label: {hi: कितने दिनों से, en: Days affected}
+    hint: "'3 दिन से' → 3, 'कल से' → 1, 'हफ्ते भर से' → 7"

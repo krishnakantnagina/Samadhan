@@ -1,0 +1,64 @@
+# Service spec: roads (S28, 29 Sep). DEMO department for the multi-department routing demo.
+# Office rows are DEMO data (database/seed_departments.sql). Minimal by design (S28 D-S28-3).
+
+spec_version: 1
+service: roads
+department: Lok Nirman Vibhag       # DEMO department name, see S28
+label:
+  hi: सड़क की समस्या
+  en: Road problem
+
+recognise:
+  - सड़क में गड्ढा / pothole
+  - सड़क टूटी हुई है / पुलिया टूटी / broken road or culvert
+  - सड़क की मरम्मत / road repair needed
+
+out_of_scope:
+  examples: [पानी, बिजली, कचरा, राशन]
+  reply:
+    hi: माफ़ कीजिए, यह सड़क की समस्या नहीं लगती।
+    en: Sorry, this does not look like a road problem.
+
+pilot:
+  city: Bhopal
+  wards: 5
+
+routing:
+  min_confidence: 0.7
+  fallback_level: district
+  fallback_status: needs_review
+  max_match_distance_km: 5
+
+confirmation: required
+
+fields:
+  - name: issue_type
+    type: enum
+    required: true
+    label: {hi: समस्या, en: Issue}
+    values:
+      - {value: pothole,    hi: सड़क में गड्ढा,        en: Pothole}
+      - {value: broken_road, hi: सड़क / पुलिया टूटी,    en: Broken road or culvert}
+      - {value: road_other, hi: सड़क की अन्य समस्या,   en: Other road issue}
+    question:
+      hi: "सड़क की क्या समस्या है: गड्ढा, टूटी सड़क या पुलिया, या कुछ और?"
+      en: "What is the road problem: pothole, broken road or culvert, or something else?"
+
+  - name: location
+    type: location
+    required: true
+    label: {hi: स्थान, en: Location}
+    ask_for: location
+    accepts:
+      gps: {lat: [-90, 90], lng: [-180, 180]}
+      place_name: {min_length: 2, max_length: 100}
+    question:
+      hi: 'क्या आप अभी उसी जगह पर हैं जहाँ यह समस्या है? अगर हाँ, तो "हाँ, मैं यहीं हूँ" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।'
+      en: 'Are you at the place where this problem is? If yes, tap "Yes, I am here". If not, tell me your village or ward name.'
+
+  - name: address_detail
+    type: string
+    required: false
+    max_length: 200
+    label: {hi: पता / लैंडमार्क, en: Address or landmark}
+    hint: street or landmark exactly as the citizen said it
