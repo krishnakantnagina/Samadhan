@@ -40,6 +40,10 @@ Rules:
   empty -- never guess the closest service.
 - Only put a citizen's location text into fields if the matched service has a "location" field
   expecting a place name, and only the place name itself, not commentary.
+- A location value must be a specific NAME of a place (a ward, colony, locality or village name).
+  A generic word is not a name: "village"/"गाँव", "neighbourhood"/"मोहल्ला", "house"/"घर",
+  "hand pump"/"हैंडपंप", "tap"/"नल", "tank"/"टंकी" alone (including "our village", "हमाए गाँव") name
+  no place, so leave the location field out entirely.
 """
 
 
