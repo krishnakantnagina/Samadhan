@@ -15,11 +15,14 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.info_reply import OUT_OF_CONTEXT_REPLY_HI, URGENT_LINE_HI, build_info_reply
 from app.service_spec import FieldSpec, LocationField, ServiceSpec
-from app.turn_engine import TurnResult
+from app.turn_engine import GENERAL_SERVICE, TurnResult
 
 CONFIRM_PROMPT_HI = "कृपया जानकारी जाँचें और पुष्टि करें (हाँ/ठीक है), या सुधार बताएं।"  # PROPOSED (G-S07-1)
 GPS_LOCATION_LABEL_HI = "साझा लोकेशन (GPS)"  # PROPOSED (G-S07-2)
+CONFIDENT = 0.8  # S28 4.3: at or above, route without asking
+RECONFIRM_MIN = 0.5  # S28 4.3: from here up to CONFIDENT, ask 'are you reporting X?'
 
 
 class ValidatedAction(StrEnum):
@@ -274,6 +277,55 @@ def _with_ack(ack: Any, question: str) -> str:
     return f"{cleaned} {question}"
 
 
+def _urgent(turn_result: TurnResult, text: str) -> str:
+    """S28 Q4: immediate danger gets a fixed neutral line first (no numbers: none are verified)."""
+    return f"{URGENT_LINE_HI} {text}" if turn_result.urgent else text
+
+
+def _passthrough(
+    session: SessionSnapshot, turn_result: TurnResult, reply: str
+) -> "ValidationResult":
+    """A reply that leaves the session exactly as it was (S28 4.6): a side question mid-complaint
+    never resets the complaint, and no ticket or triage entry is created."""
+    return ValidationResult(
+        service_id=session.service_id,
+        collected_fields=session.collected_fields,
+        awaiting_confirmation=session.awaiting_confirmation,
+        action=ValidatedAction.OUT_OF_SCOPE,
+        ask_for=None,
+        reply_text=_urgent(turn_result, reply),
+        summary=None,
+    )
+
+
+def _carry_over(spec: ServiceSpec, collected: dict[str, Any]) -> dict[str, Any]:
+    """Fields collected under another service that are still valid under `spec` (e.g. the location).
+    Anything invalid for `spec` (an enum value from another department) is dropped, never kept."""
+    kept: dict[str, Any] = {}
+    for name, value in collected.items():
+        field = spec.field(name)
+        if field is not None and _validate_field(field, value) is not None:
+            kept[name] = value
+    return kept
+
+
+def _common_fields(
+    specs: list[ServiceSpec], proposed: dict[str, Any], collected: dict[str, Any]
+) -> dict[str, Any]:
+    """Unsure between departments: keep only what is valid under EVERY candidate (in practice the
+    location), so the citizen is not asked for it again after they pick one."""
+    merged = dict(collected)
+    for name, value in proposed.items():
+        checks = [(sp.field(name), sp) for sp in specs]
+        if all(f is not None and _validate_field(f, value) is not None for f, _ in checks):
+            merged[name] = _validate_field(checks[0][0], value)
+    return merged
+
+
+def _list_labels(labels: list[str]) -> str:
+    return labels[0] if len(labels) == 1 else ", ".join(labels[:-1]) + " या " + labels[-1]
+
+
 def apply(
     *,
     specs: dict[str, ServiceSpec],
@@ -282,22 +334,89 @@ def apply(
     lat: float | None,
     lng: float | None,
 ) -> ValidationResult:
-    if turn_result.service_id is None:
-        # Not matching any loaded service this turn -- session state is untouched, so a citizen
-        # mid-flow who sends one unrelated message can resume on their next message (D-S07-2).
-        fallback_id = session.service_id or next(iter(specs))
-        return ValidationResult(
-            service_id=session.service_id,
-            collected_fields=session.collected_fields,
-            awaiting_confirmation=session.awaiting_confirmation,
-            action=ValidatedAction.OUT_OF_SCOPE,
-            ask_for=None,
-            reply_text=specs[fallback_id].out_of_scope.reply.hi,
-            summary=None,
-        )
+    # --- 1. What kind of message is it? (S28 4.3a). Anything that already changed the complaint
+    # (a confirmation or a field) is a complaint turn whatever the label says: a short "haan" must
+    # never be treated as chit-chat.
+    intent = turn_result.intent
+    if turn_result.confirmed or turn_result.fields:
+        intent = "complaint"
+    if intent == "information":
+        return _passthrough(session, turn_result, build_info_reply(turn_result.info_url))
+    if intent == "out_of_context":
+        return _passthrough(session, turn_result, OUT_OF_CONTEXT_REPLY_HI)
 
-    spec = specs[turn_result.service_id]  # trusted: S05 already constrains this to specs.keys()
-    merged = _merge_fields(session.collected_fields, turn_result.fields, spec)
+    # --- 2. Which department? (S28 4.3). The active service is sticky: a follow-up in the middle of
+    # a complaint never re-routes it, and only an explicit different service switches it.
+    active = session.service_id if session.service_id in specs else None
+    service_id = turn_result.service_id
+    candidates = [c for c in turn_result.candidates if c in specs and c != GENERAL_SERVICE]
+
+    if (
+        service_id is not None
+        and service_id != active
+        and service_id != GENERAL_SERVICE
+        and turn_result.confidence is not None
+        and turn_result.confidence < CONFIDENT
+    ):
+        if turn_result.confidence >= RECONFIRM_MIN:
+            candidates = [service_id]  # fairly sure: reconfirm just this one
+        else:
+            candidates = candidates or [service_id]  # unsure: at least this one is a candidate
+        service_id = None
+
+    if service_id is None:
+        if len(candidates) >= 2:
+            cand_specs = [specs[c] for c in candidates]
+            question = f"क्या यह {_list_labels([sp.label.hi for sp in cand_specs])} है?"
+            return ValidationResult(
+                service_id=None,
+                collected_fields=_common_fields(
+                    cand_specs, turn_result.fields, session.collected_fields
+                ),
+                awaiting_confirmation=False,
+                action=ValidatedAction.ASK,
+                ask_for="service",
+                reply_text=_urgent(turn_result, question),
+                summary=None,
+            )
+        if len(candidates) == 1:
+            spec = specs[candidates[0]]
+            base = (
+                _carry_over(spec, session.collected_fields)
+                if active != spec.service
+                else session.collected_fields
+            )
+            return ValidationResult(
+                service_id=spec.service,  # tentative: the next turn's yes/no settles it
+                collected_fields=_merge_fields(base, turn_result.fields, spec),
+                awaiting_confirmation=False,
+                action=ValidatedAction.ASK,
+                ask_for="service",
+                reply_text=_urgent(turn_result, f"क्या आप {spec.label.hi} बता रहे हैं?"),
+                summary=None,
+            )
+        if GENERAL_SERVICE in specs:
+            # Multi-department mode (S28). No new routing information mid-complaint: stay in it;
+            # otherwise a real complaint that fits no department goes to triage (D-S28-4).
+            service_id = active if active is not None else GENERAL_SERVICE
+        else:
+            # Single-service deployment (no general spec): the pre-S28 behaviour, unchanged.
+            fallback_id = next(iter(specs))
+            return ValidationResult(
+                service_id=session.service_id,
+                collected_fields=session.collected_fields,
+                awaiting_confirmation=session.awaiting_confirmation,
+                action=ValidatedAction.OUT_OF_SCOPE,
+                ask_for=None,
+                reply_text=specs[fallback_id].out_of_scope.reply.hi,
+                summary=None,
+            )
+
+    spec = specs[service_id]  # trusted: S05 constrains service ids to specs.keys()
+    switched = active is not None and service_id != active
+    base = _carry_over(spec, session.collected_fields) if switched else session.collected_fields
+    merged = _merge_fields(base, turn_result.fields, spec)
+    confirmed = turn_result.confirmed and not switched  # a switch is never a confirmation
     missing = _first_missing_required(spec, merged, lat, lng, session.lat, session.lng)
 
     if missing is not None:
@@ -307,13 +426,13 @@ def apply(
             awaiting_confirmation=False,
             action=ValidatedAction.ASK,
             ask_for=missing.ask_for if missing.type == "location" else missing.name,
-            reply_text=_with_ack(turn_result.ack, missing.question.hi),
+            reply_text=_urgent(turn_result, _with_ack(turn_result.ack, missing.question.hi)),
             summary=None,
         )
 
     summary = _build_summary(spec, merged, lat, lng, session.lat, session.lng)
 
-    if turn_result.confirmed:
+    if confirmed:
         return ValidationResult(
             service_id=spec.service,
             collected_fields=merged,
@@ -330,6 +449,6 @@ def apply(
         awaiting_confirmation=True,
         action=ValidatedAction.CONFIRM,
         ask_for=None,
-        reply_text=CONFIRM_PROMPT_HI,
+        reply_text=_urgent(turn_result, CONFIRM_PROMPT_HI),
         summary=summary,
     )

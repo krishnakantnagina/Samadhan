@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
 import httpx
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.config import LLMConfig, get_llm_config
 from app.service_spec import EnumField, IntegerField, LocationField, ServiceSpec, StringField
@@ -25,12 +25,16 @@ logger = logging.getLogger(__name__)
 
 PROVIDER_TIMEOUT_SECONDS = 6.0  # S04 section 5 / S05 provider table
 TURN_DEADLINE_SECONDS = 14.0  # S26 D-S26-4: stop starting new providers past this
+GENERAL_SERVICE = "general"  # S28 D-S28-4: the catch-all triage service id (specs/general.yaml)
+INTENTS = ("complaint", "information", "out_of_context")
 
 SYSTEM_INSTRUCTIONS = """\
 You extract structured data from one message a citizen sent a government grievance chatbot.
 Output ONLY a JSON object matching this schema -- no prose, no markdown fences:
 {"service_id": "<one of the listed service ids, or null>", \
-"fields": {"<field_name>": "<value>"}, "confirmed": true/false, "ack": "<see rules>" or null}
+"fields": {"<field_name>": "<value>"}, "confirmed": true/false, "ack": "<see rules>" or null, \
+"intent": "complaint|information|out_of_context", "confidence": <0..1 or null>, \
+"candidates": ["<service_id>", ...], "urgent": true/false, "info_url": "<see rules>" or null}
 
 Rules:
 - service_id must be one of the listed service ids, or null if the message matches none of them.
@@ -41,8 +45,7 @@ Rules:
 - confirmed is true only if "awaiting confirmation" below is true AND this turn plainly affirms the
   summary (e.g. "haan", "yes", "sahi hai", "theek hai") with no correction in it. A correction (a
   new/changed field value) is confirmed: false even if phrased politely.
-- If the message reads as unrelated to every listed service, set service_id: null and leave fields
-  empty -- never guess the closest service.
+- If intent (below) is not "complaint", leave fields empty.
 - Only put a citizen's location text into fields if the matched service has a "location" field
   expecting a place name, and only the place name itself, not commentary.
 - A location value must be a specific NAME of a place (a ward, colony, locality or village name).
@@ -55,6 +58,24 @@ Rules:
   not state any fact about offices, officers, dates, numbers or ticket status. Otherwise null.
   Repeat the citizen's own words (the symptom and how long, if said). Good: "समझ गया, तीन दिन से पानी नहीं आ रहा।"
   Bad (a promise or claim of action): "हम जाँच कर रहे हैं", "जल्द ठीक होगा", "शिकायत भेज दी गई".
+- intent (always set): "complaint" if the citizen reports a problem they want registered; "information" if
+  they ask how to get or apply for a government document, certificate, scheme or service, or where to find
+  such information (a question, not a problem report); "out_of_context" for greetings, chit-chat, jokes,
+  general-knowledge questions, or anything that is neither a complaint nor such an information question.
+- service_id: only when intent is "complaint". Choose the best specific service. Use "general" ONLY for a
+  genuine complaint that fits none of the other listed services. Use null if intent is not "complaint", or if
+  you truly cannot decide between specific services (then fill candidates). Never guess the closest service.
+- confidence: a number from 0 to 1, how sure you are about service_id (null when service_id is null).
+- candidates: up to 3 specific service ids (never "general") you are torn between, else [].
+- urgent: true only for immediate danger to life or safety (fire, medical emergency, violence, a crime in
+  progress), else false.
+- info_url: only when intent is "information": ONE https homepage of the government website most relevant to
+  the question (a ".gov.in" domain, no path), else null. Never a deep link and never a guess at a specific page.
+- A short reply that answers the bot's last question (yes, no, a place name, a number, a choice between
+  problem types or departments) belongs to the current complaint: intent "complaint", keep the active service.
+- If the previous bot turn asked whether this is a certain kind of problem ("क्या आप ... बता रहे हैं?") and the
+  citizen agrees, return that service with confidence 1. If the citizen says no, return service_id null and
+  candidates = the other specific services that might fit.
 """
 
 
@@ -86,6 +107,13 @@ class TurnResult(BaseModel):
     fields: dict[str, Any]
     confirmed: bool
     ack: str | None = None  # S25: untrusted, sanitised by the validator
+    intent: Literal["complaint", "information", "out_of_context"] = "complaint"  # S28 4.3a
+    confidence: float | None = (
+        None  # S28 4.3: LLM-reported, uncalibrated, only ever compared to thresholds
+    )
+    candidates: list[str] = Field(default_factory=list)  # S28: specific services it is torn between
+    urgent: bool = False  # S28 Q4: immediate danger -> fixed neutral guidance line
+    info_url: str | None = None  # S28 4.6: untrusted, validated in app/info_reply.py
 
 
 class _RawTurnOutput(BaseModel):
@@ -97,6 +125,11 @@ class _RawTurnOutput(BaseModel):
     fields: dict[str, Any] = {}
     confirmed: bool = False
     ack: Any = None  # S25: any type accepted here, the validator decides
+    intent: Any = "complaint"  # S28: normalised in run_turn, anything unknown means complaint
+    confidence: Any = None
+    candidates: Any = None
+    urgent: Any = False
+    info_url: Any = None
 
 
 class Provider(Protocol):
@@ -241,6 +274,24 @@ def default_providers(config: LLMConfig) -> list[Provider]:
 # --- run_turn ---------------------------------------------------------------------------------
 
 
+def _clean_confidence(value: Any) -> float | None:
+    """S28: a number in 0..1, else None. bool is an int subclass, reject it first."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value) if 0.0 <= value <= 1.0 else None
+
+
+def _clean_candidates(value: Any, specs: dict[str, ServiceSpec]) -> list[str]:
+    """S28: only loaded, specific (not general) service ids, no duplicates, at most 3."""
+    if not isinstance(value, list):
+        return []
+    seen: list[str] = []
+    for item in value:
+        if isinstance(item, str) and item in specs and item != GENERAL_SERVICE and item not in seen:
+            seen.append(item)
+    return seen[:3]
+
+
 def run_turn(
     *,
     session: SessionState,
@@ -280,6 +331,11 @@ def run_turn(
             fields=parsed.fields,
             confirmed=confirmed,
             ack=parsed.ack if isinstance(parsed.ack, str) else None,
+            intent=parsed.intent if parsed.intent in INTENTS else "complaint",
+            confidence=_clean_confidence(parsed.confidence),
+            candidates=_clean_candidates(parsed.candidates, specs),
+            urgent=parsed.urgent is True,
+            info_url=parsed.info_url if isinstance(parsed.info_url, str) else None,
         )
 
     raise TurnEngineUnavailable("both LLM providers failed")
