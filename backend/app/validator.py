@@ -105,6 +105,36 @@ def _clean_ack(ack: Any) -> str | None:
     return text
 
 
+# S27: generic place nouns and filler words. A location made ONLY of these names no place ("हमाए गाँव",
+# "our village", "hand pump"); any other word (a real name, a number) makes it acceptable. Backend only.
+GENERIC_PLACE_WORDS = frozenset(
+    {
+        # Devanagari nouns
+        "गाँव", "गांव", "गाव", "ग्राम", "मोहल्ला", "मोहल्ले", "मुहल्ला", "घर", "घरों", "घरन", "मकान",
+        "हैंडपंप", "हैण्डपंप", "हैंड", "पंप", "नल", "टंकी", "टंकि", "पानी", "कॉलोनी", "कालोनी", "इलाका",
+        "इलाके", "क्षेत्र", "बस्ती", "गली", "सड़क", "रोड", "वार्ड", "नंबर", "शहर", "कस्बा",
+        # Devanagari fillers
+        "हमाए", "हमारे", "हमारा", "हमारी", "हमाई", "हमारो", "मेरे", "मेरा", "मेरी", "अपने", "अपना",
+        "का", "के", "की", "को", "में", "मे", "पर", "पास", "यहाँ", "यहां", "वहाँ", "वहां", "यहीं", "इस",
+        "उस", "आसपास", "और", "से", "एक",
+        # Latin nouns
+        "gaon", "gaanv", "gav", "gram", "village", "mohalla", "mohalle", "muhalla", "ghar", "house",
+        "home", "handpump", "hand", "pump", "nal", "tap", "tank", "tanki", "colony", "area", "ilaka",
+        "ilake", "kshetra", "basti", "gali", "street", "road", "ward", "number", "no", "sadak",
+        "shahar", "city", "town", "paani", "water",
+        # Latin fillers
+        "hamare", "hamaare", "hamara", "hamari", "hamaye", "mere", "mera", "meri", "apne", "our", "my",
+        "the", "of", "in", "at", "near", "nearby", "here", "there", "yaha", "yahan", "wahan", "ka",
+        "ke", "ki", "me", "mein", "par", "pas", "a", "an",
+    }
+)  # fmt: skip
+
+
+def _is_generic_place(text: str) -> bool:
+    tokens = re.sub(r"[.,।!?;:()\-\"']", " ", text.lower()).split()
+    return bool(tokens) and all(token in GENERIC_PLACE_WORDS for token in tokens)
+
+
 def _validate_field(field: FieldSpec, raw_value: Any) -> Any | None:
     match field.type:
         case "enum":
@@ -129,8 +159,8 @@ def _validate_field(field: FieldSpec, raw_value: Any) -> Any | None:
                 return None
             trimmed = raw_value.strip()
             bounds = field.accepts.place_name
-            if _is_yes_no_answer(trimmed):
-                return None  # S23 section 5
+            if _is_yes_no_answer(trimmed) or _is_generic_place(trimmed):
+                return None  # S23 section 5, S27
             return trimmed if bounds.min_length <= len(trimmed) <= bounds.max_length else None
 
 

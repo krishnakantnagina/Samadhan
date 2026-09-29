@@ -141,6 +141,44 @@ def test_yes_no_answer_is_not_a_location(answer):
     assert "location" not in result.collected_fields
 
 
+@pytest.mark.parametrize(
+    "generic",
+    [
+        "गाँव", "हमाए गाँव", "हमारे मोहल्ले में", "हैंडपंप", "हैंड पंप", "पानी की टंकी", "घर",
+        "our village", "the village", "gaon", "Ward", "हमाए गाँव।", "my house",
+    ],
+)  # fmt: skip
+def test_generic_word_is_not_a_location(generic):
+    """S27: a location made only of generic nouns/fillers names no place; the location is asked again."""
+    result = apply(
+        specs=SPECS,
+        session=session(collected_fields={"issue_type": "no_supply"}),
+        turn_result=turn_result(fields={"location": generic}),
+        lat=None,
+        lng=None,
+    )
+
+    assert result.action == ValidatedAction.ASK
+    assert result.ask_for == "location"
+    assert "location" not in result.collected_fields
+
+
+@pytest.mark.parametrize(
+    "place",
+    ["मिसरोद", "Misrod", "वार्ड 12", "मिसरोद गाँव", "Kolar Road", "जाटखेड़ी, वार्ड 29", "पुराना शहर", "गाँव करौद", "सर्वधर्म कोलार"],
+)  # fmt: skip
+def test_names_containing_generic_words_are_still_accepted(place):
+    result = apply(
+        specs=SPECS,
+        session=session(collected_fields={"issue_type": "no_supply"}),
+        turn_result=turn_result(fields={"location": place}),
+        lat=None,
+        lng=None,
+    )
+
+    assert result.collected_fields["location"] == place
+
+
 def test_real_place_name_still_accepted():
     result = apply(
         specs=SPECS,

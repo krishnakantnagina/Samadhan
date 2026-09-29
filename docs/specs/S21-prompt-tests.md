@@ -70,3 +70,7 @@ Same three substantive misses as run 2. Target still not met.
 All 15 answered. Misses are accuracy, not availability (T09-01, 04, 11, 13, 14, 15; details in S26 BUILD LOG). Runs 1-4:
 11, 10, 9, 9. The 13/15 target is not met and the remaining gap needs prompt/spec work or a decision on the vague and
 drainage sentences, not more infrastructure.
+
+### Runs 5 and 6 (after S27 generic-place guard): **13/15** and **12/15**
+Zero 503s. T09-01 and T09-10 now pass every time. Remaining misses: T09-04 and T09-14 (vague; the model asks for the issue), and
+T09-11 (drainage) which flips between pass and fail. Full analysis in S27 BUILD LOG. Target met once, missed once.

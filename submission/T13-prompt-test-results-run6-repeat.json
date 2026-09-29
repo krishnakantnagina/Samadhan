@@ -1,0 +1,384 @@
+{
+  "ticket": "T13",
+  "run_at": "2026-09-29T10:26:57.021997+00:00",
+  "llm_provider": "groq",
+  "groq_model": "openai/gpt-oss-120b",
+  "gemini_model": "gemini-3.6-flash",
+  "score": "12/15",
+  "results": [
+    {
+      "id": "T09-01",
+      "text": "हमाए गाँव में तीन दिन से पानी नईं आ रओ।",
+      "http": 200,
+      "response": {
+        "session_id": "890f3996-4ce1-49c4-b452-f582ce193cfa",
+        "message_id": "52e117ed-7cd1-482e-a433-e9624134816a",
+        "action": "ask",
+        "ask_for": "location",
+        "reply_text": "समझ गया, हमारे गाँव में तीन दिन से पानी नहीं आ रहा है। क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो \"हाँ, मैं यहीं हूँ\" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {
+        "issue_type": "no_supply",
+        "duration_days": 3
+      },
+      "accepted": [
+        "no_supply"
+      ],
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "T09-02",
+      "text": "नल में पानी नईं आ रओ, का करैं?",
+      "http": 200,
+      "response": {
+        "session_id": "c4a3fd44-3c03-48fb-9cc9-d3e300d783ff",
+        "message_id": "a952e609-20a1-4f3f-9085-5c5d37819a57",
+        "action": "ask",
+        "ask_for": "location",
+        "reply_text": "समझ गया, नल में पानी नहीं आ रहा है। क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो \"हाँ, मैं यहीं हूँ\" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {
+        "issue_type": "no_supply"
+      },
+      "accepted": [
+        "no_supply"
+      ],
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "T09-03",
+      "text": "हमाए घर तक पानी नईं पहुँचत।",
+      "http": 200,
+      "response": {
+        "session_id": "5e2851d7-cb49-46fd-b3ef-10bbf5ca2db5",
+        "message_id": "f1186720-39d0-43cd-97f0-6b88c4c8a2c6",
+        "action": "ask",
+        "ask_for": "location",
+        "reply_text": "समझ गया, आपके घर तक पानी नहीं पहुँच रहा है। क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो \"हाँ, मैं यहीं हूँ\" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {
+        "issue_type": "no_supply"
+      },
+      "accepted": [
+        "low_pressure",
+        "no_supply"
+      ],
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "T09-04",
+      "text": "पूरे गाँव में पानी की बड़ी दिक्कत है।",
+      "http": 200,
+      "response": {
+        "session_id": "1429229b-a373-4687-914f-4e173d8bd39a",
+        "message_id": "eb095f37-ca14-42f0-b18e-207e1e54f109",
+        "action": "ask",
+        "ask_for": "issue_type",
+        "reply_text": "समझ गया, पूरे गाँव में पानी की बड़ी दिक्कत है। आपको पानी की क्या समस्या है: पानी नहीं आ रहा, कम दबाव, गंदा पानी या लीकेज?",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {},
+      "accepted": [
+        "no_supply",
+        "other"
+      ],
+      "pass": false,
+      "reasons": [
+        "action=ask ask_for=issue_type",
+        "issue_type=None not in ['no_supply', 'other']"
+      ]
+    },
+    {
+      "id": "T09-05",
+      "text": "बस हमाए मोहल्ले में पानी नईं आ रओ।",
+      "http": 200,
+      "response": {
+        "session_id": "131ac157-09df-406a-bc3d-54de5ffe074a",
+        "message_id": "3885bb13-9f57-459d-b22e-9bcebd90ed1c",
+        "action": "ask",
+        "ask_for": "location",
+        "reply_text": "समझ गया, आपके मोहल्ले में पानी नहीं आ रहा है। क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो \"हाँ, मैं यहीं हूँ\" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {
+        "issue_type": "no_supply"
+      },
+      "accepted": [
+        "no_supply"
+      ],
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "T09-06",
+      "text": "हैंडपंप खराब पड़ा है, पानी नईं निकलत।",
+      "http": 200,
+      "response": {
+        "session_id": "7cc02f99-e9ed-4e07-ab6b-5a3b1651fcac",
+        "message_id": "17833ba8-2747-4738-9bdd-3385801961e4",
+        "action": "ask",
+        "ask_for": "location",
+        "reply_text": "समझ गया, हैंडपंप से पानी नहीं निकल रहा। क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो \"हाँ, मैं यहीं हूँ\" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {
+        "issue_type": "no_supply"
+      },
+      "accepted": [
+        "no_supply",
+        "other"
+      ],
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "T09-07",
+      "text": "नल की पाइप टूट गई, सारा पानी सड़क पे बह रओ।",
+      "http": 200,
+      "response": {
+        "session_id": "503b47de-7626-4279-95ce-c8991c1680ac",
+        "message_id": "662c10ee-a75e-4c6b-8fb0-6c0622bff5da",
+        "action": "ask",
+        "ask_for": "location",
+        "reply_text": "समझ गया, नल की पाइप टूट गई, पानी सड़क पे बह रहा है। क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो \"हाँ, मैं यहीं हूँ\" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {
+        "issue_type": "leakage"
+      },
+      "accepted": [
+        "leakage"
+      ],
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "T09-08",
+      "text": "पानी की टंकी भरी है, फिर भी घरन में पानी नईं आ रओ।",
+      "http": 200,
+      "response": {
+        "session_id": "e3f40422-7bc9-49f2-b25f-9156a7d75f51",
+        "message_id": "4c59cbc0-0d2e-40ad-9f93-0df6fc58a55d",
+        "action": "ask",
+        "ask_for": "location",
+        "reply_text": "समझ गया, टंकी भरी है पर घर में पानी नहीं आया। क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो \"हाँ, मैं यहीं हूँ\" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {
+        "issue_type": "no_supply"
+      },
+      "accepted": [
+        "no_supply",
+        "other"
+      ],
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "T09-09",
+      "text": "दो दिन से नल सूखो पड़ा है।",
+      "http": 200,
+      "response": {
+        "session_id": "1bef3e03-9572-4fba-94d9-b75cc444fc14",
+        "message_id": "4a2f3774-daad-4be7-9c1e-4fdc7e07452e",
+        "action": "ask",
+        "ask_for": "location",
+        "reply_text": "समझ गया, दो दिन से नल सूखा है। क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो \"हाँ, मैं यहीं हूँ\" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {
+        "issue_type": "no_supply",
+        "duration_days": 2
+      },
+      "accepted": [
+        "no_supply"
+      ],
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "T09-10",
+      "text": "गाँव के हैंडपंप में पानी बहुत कम निकलत।",
+      "http": 200,
+      "response": {
+        "session_id": "310cee6b-faca-450f-abf3-18201faf9f62",
+        "message_id": "fd191095-b8dc-4682-9708-22ed23fd86b2",
+        "action": "ask",
+        "ask_for": "location",
+        "reply_text": "समझ गया, हैंडपंप में पानी कम निकल रहा है। क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो \"हाँ, मैं यहीं हूँ\" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {
+        "issue_type": "low_pressure"
+      },
+      "accepted": [
+        "low_pressure"
+      ],
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "T09-11",
+      "text": "घर के सामने पानी जमा हो रओ, निकासी की व्यवस्था नईं है।",
+      "http": 200,
+      "response": {
+        "session_id": "4e62a15c-d4e5-485c-aa1e-091a1ddc4e2b",
+        "message_id": "5086120d-6787-4bba-bb49-883e8fa4894a",
+        "action": "out_of_scope",
+        "ask_for": null,
+        "reply_text": "माफ़ कीजिए, अभी मैं सिर्फ़ पानी से जुड़ी समस्याएँ दर्ज कर सकता हूँ। बिजली, सड़क जैसी दूसरी समस्याओं के लिए कृपया संबंधित विभाग से संपर्क करें। पानी की कोई समस्या हो तो मुझे बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {},
+      "accepted": [
+        "dirty_water",
+        "leakage",
+        "low_pressure",
+        "no_supply",
+        "other"
+      ],
+      "pass": false,
+      "reasons": [
+        "action=out_of_scope ask_for=None",
+        "issue_type=None not in ['dirty_water', 'leakage', 'low_pressure', 'no_supply', 'other']"
+      ]
+    },
+    {
+      "id": "T09-12",
+      "text": "पानी गंदो आ रओ, पीने लायक नईं है।",
+      "http": 200,
+      "response": {
+        "session_id": "2be29a0d-ac1d-4316-af05-abbdd7a04b81",
+        "message_id": "f2f082d8-1161-4c2d-8f5d-2458fdd885bc",
+        "action": "ask",
+        "ask_for": "location",
+        "reply_text": "समझ गया, पानी गंदा है और पीने लायक नहीं। क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो \"हाँ, मैं यहीं हूँ\" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {
+        "issue_type": "dirty_water"
+      },
+      "accepted": [
+        "dirty_water"
+      ],
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "T09-13",
+      "text": "नल में पानी बहुत देर से और थोड़ी देर के लिए ही आ रओ।",
+      "http": 200,
+      "response": {
+        "session_id": "c9b3e44f-9632-4eff-9c93-abeb8e99a0fb",
+        "message_id": "8dd86fb1-0ff0-41ad-aee3-b636f08f4452",
+        "action": "ask",
+        "ask_for": "location",
+        "reply_text": "समझ गया, पानी देर से और कम आता है। क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो \"हाँ, मैं यहीं हूँ\" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {
+        "issue_type": "low_pressure"
+      },
+      "accepted": [
+        "low_pressure",
+        "other"
+      ],
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "id": "T09-14",
+      "text": "गर्मी में गाँव में पीने के पानी की बहुत परेशानी है।",
+      "http": 200,
+      "response": {
+        "session_id": "a58ab407-c3f1-48ee-8c5d-2cc5b87f4970",
+        "message_id": "38164557-1911-4f6d-8be4-754aa6af3191",
+        "action": "ask",
+        "ask_for": "issue_type",
+        "reply_text": "समझ गया, गाँव में पानी की परेशानी है। आपको पानी की क्या समस्या है: पानी नहीं आ रहा, कम दबाव, गंदा पानी या लीकेज?",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {},
+      "accepted": [
+        "no_supply"
+      ],
+      "pass": false,
+      "reasons": [
+        "action=ask ask_for=issue_type",
+        "issue_type=None not in ['no_supply']"
+      ]
+    },
+    {
+      "id": "T09-15",
+      "text": "पानी की टंकी खराब है, इसलिए पूरे गाँव में पानी की सप्लाई बंद है।",
+      "http": 200,
+      "response": {
+        "session_id": "91306291-88c4-4f7c-a49f-e9c1fda0567d",
+        "message_id": "a7e510fd-71b2-4217-bee1-0049d5f93677",
+        "action": "ask",
+        "ask_for": "location",
+        "reply_text": "समझ गया, टंकी खराब होने से पानी बंद है। क्या आप अभी उसी जगह पर हैं जहाँ पानी की समस्या है? अगर हाँ, तो \"हाँ, मैं यहीं हूँ\" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।",
+        "transcript": null,
+        "summary": null,
+        "ticket": null,
+        "duplicate": false
+      },
+      "collected_fields": {
+        "issue_type": "no_supply"
+      },
+      "accepted": [
+        "no_supply"
+      ],
+      "pass": true,
+      "reasons": []
+    }
+  ]
+}
