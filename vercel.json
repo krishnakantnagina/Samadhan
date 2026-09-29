@@ -1,0 +1,5 @@
+{
+  "buildCommand": "test -n \"$SAMADHAN_API_BASE\" || { echo \"SAMADHAN_API_BASE is not set\" >&2; exit 1; }; printf \"window.SAMADHAN_API_BASE = '%s';\n\" \"$SAMADHAN_API_BASE\" > frontend/config.js",
+  "outputDirectory": "frontend",
+  "cleanUrls": false
+}

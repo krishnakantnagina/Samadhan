@@ -1,7 +1,7 @@
 // Samadhan status-check page — T22. Talks only to GET /api/v1/status/{complaint_id} (S01 section 5,
 // S11). Read-only: never calls POST /api/v1/message, never touches the DB directly (S15 RULES §2).
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = window.SAMADHAN_API_BASE || 'http://localhost:8000'; // config.js, S22
 
 const COMPLAINT_ID_PATTERN = /^SMD-\d{4,}$/;
 const GENERIC_ERROR = 'सर्वर से संपर्क नहीं हो सका। कृपया दोबारा प्रयास करें।';
