@@ -722,6 +722,125 @@
     container.appendChild(p);
   }
 
+  // --- S30: greeting voice on the first touch, Hindi then English --------------------------------
+  // Browsers refuse sound that starts before the visitor touches the page, so the FIRST touch (a tap, click or key) is what
+  // plays the greeting. It also unlocks one shared audio element (needed on iPhone Safari) and asks for the microphone once.
+  // Everything is best-effort inside try/catch: a failure means "do nothing", never an error for the citizen (T50).
+  const SPOKEN_EN =
+    "Hello! I'm Samadhan. Tell me your problem or complaint, ask about a government service, or check the status " +
+    "of your complaint. You can speak your message or type it. We'll do our best to help you.";
+  const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+
+  const greetingAudio = new Audio(); // ONE shared element, unlocked by the first touch
+  let greetingState = 'idle'; // idle -> playing -> done
+  let greetingTextVisible = false;
+  let touchedBeforeGreeting = false;
+  let greetingSpokenHi = '';
+  let greetingListenBtn = null;
+  let firstTouchDone = false;
+
+  async function fetchSpeechSrc(rawText, language) {
+    const text = spokenTextOf(rawText);
+    if (!text) throw new Error(GENERIC_ERROR);
+    let response;
+    try {
+      response = await fetch(`${API_BASE}/api/v1/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, language }),
+      });
+    } catch {
+      throw new Error(GENERIC_ERROR);
+    }
+    let body;
+    try {
+      body = await response.json();
+    } catch {
+      throw new Error(GENERIC_ERROR);
+    }
+    if (!response.ok) throw new Error(body.reply_text || GENERIC_ERROR);
+    return `data:audio/wav;base64,${body.audio_base64}`;
+  }
+
+  function playOnGreetingElement(src) {
+    return new Promise((resolve, reject) => {
+      greetingAudio.onended = () => resolve();
+      greetingAudio.onerror = () => reject(new Error('audio'));
+      greetingAudio.src = src;
+      const started = greetingAudio.play();
+      if (started) started.catch(reject);
+    });
+  }
+
+  async function playGreetingVoice() {
+    if (greetingState !== 'idle') return; // never two playbacks at once
+    greetingState = 'playing';
+    if (greetingListenBtn) greetingListenBtn.hidden = true;
+    try {
+      const hiSrc = await fetchSpeechSrc(greetingSpokenHi, 'hi');
+      const enPromise = fetchSpeechSrc(SPOKEN_EN, 'en').catch(() => null); // fetched while Hindi plays
+      await playOnGreetingElement(hiSrc);
+      const enSrc = await enPromise;
+      if (enSrc) {
+        try {
+          await playOnGreetingElement(enSrc);
+        } catch {
+          // English failed after Hindi was heard: nothing more to do
+        }
+      }
+      greetingState = 'done';
+    } catch {
+      greetingState = 'idle'; // blocked or failed: the visible button lets the citizen try again
+      if (greetingListenBtn) greetingListenBtn.hidden = false;
+    }
+  }
+
+  function unlockGreetingAudio() {
+    if (greetingState !== 'idle') return; // never cut a greeting that is already playing
+    try {
+      greetingAudio.src = SILENT_WAV;
+      const started = greetingAudio.play();
+      if (started) started.catch(() => {});
+    } catch {
+      // not unlockable in this browser: the greeting button still works
+    }
+  }
+
+  async function primeMicPermission(target) {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      if (!navigator.permissions || !navigator.permissions.query) return; // e.g. Safari: ask at the first hold instead
+      if (target && micBtn && (target === micBtn || micBtn.contains(target))) return; // the mic press asks for itself
+      const status = await navigator.permissions.query({ name: 'microphone' });
+      if (status.state !== 'prompt') return; // already granted or denied: never ask twice
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop()); // release at once: no recording, no indicator left on
+    } catch {
+      // denied or unavailable: the mic button shows its own Hindi message when used, typing always works
+    }
+  }
+
+  function onFirstTouch(event) {
+    if (firstTouchDone) return;
+    firstTouchDone = true;
+    unlockGreetingAudio();
+    if (greetingTextVisible) playGreetingVoice();
+    else touchedBeforeGreeting = true; // the greeting starts speaking as soon as its text appears
+    primeMicPermission(event.target);
+  }
+
+  // Only these events count as a user gesture for sound (a bare pointerdown or scroll does not).
+  ['pointerup', 'touchend', 'mousedown', 'keydown', 'click'].forEach((name) => {
+    document.addEventListener(name, onFirstTouch, { capture: true, passive: true });
+  });
+
+  // Wake the (free, sleeping) backend now so the first voice request is not slow. Silent on failure.
+  try {
+    fetch(`${API_BASE}/health`).catch(() => {});
+  } catch {
+    // ignore
+  }
+
   function appendGreeting() {
     const card = document.createElement('div');
     card.className = 'greeting-card';
@@ -759,7 +878,7 @@
     const listenBtn = document.createElement('button');
     listenBtn.type = 'button';
     listenBtn.className = 'greeting-listen-btn';
-    listenBtn.hidden = true;
+    listenBtn.hidden = false; // S30: visible from the start, hidden once the voice starts
     listenBtn.textContent = '🔊 सुनने के लिए टैप करें · Tap to listen';
 
     card.appendChild(hi);
@@ -776,28 +895,17 @@
     wrapper.firstChild.textContent = '';
     wrapper.insertBefore(card, wrapper.firstChild);
 
-    async function playGreetingAudio() {
-      const audio = await fetchHindiAudio(spokenHi);
-      await audio.play();
+    // S30: the voice is started by the first touch anywhere (onFirstTouch) or by this button; see the helpers above.
+    greetingSpokenHi = spokenHi;
+    greetingListenBtn = listenBtn;
+    greetingTextVisible = true;
+    listenBtn.addEventListener('click', () => {
+      unlockGreetingAudio();
+      playGreetingVoice();
+    });
+    if (touchedBeforeGreeting || (navigator.userActivation && navigator.userActivation.hasBeenActive)) {
+      playGreetingVoice();
     }
-
-    listenBtn.addEventListener('click', async () => {
-      listenBtn.disabled = true;
-      const original = listenBtn.textContent;
-      listenBtn.textContent = '…';
-      try {
-        await playGreetingAudio();
-        listenBtn.hidden = true;
-      } catch {
-        listenBtn.textContent = original;
-      } finally {
-        listenBtn.disabled = false;
-      }
-    });
-
-    playGreetingAudio().catch(() => {
-      listenBtn.hidden = false;
-    });
 
     return wrapper;
   }

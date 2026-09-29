@@ -79,3 +79,20 @@ def test_synthesize_raises_on_malformed_response(monkeypatch):
 
     with pytest.raises(TtsUnavailable):
         synthesize("नमस्ते", config=CONFIG)
+
+
+def test_synthesize_english_uses_en_IN_and_hindi_stays_the_default(monkeypatch):
+    """S30: the English greeting is spoken in en-IN; omitting `language` is exactly the old behaviour."""
+    seen = []
+
+    def fake_post(url, *, headers, json, timeout):
+        seen.append(json["language_code"])
+        return _FakeResponse({"request_id": "r", "audios": ["x"]})
+
+    monkeypatch.setattr(tts_module.httpx, "post", fake_post)
+
+    synthesize("Hello", language="en", config=CONFIG)
+    synthesize("नमस्ते", config=CONFIG)
+    synthesize("नमस्ते", language="hi", config=CONFIG)
+
+    assert seen == ["en-IN", "hi-IN", "hi-IN"]
