@@ -62,7 +62,9 @@ Numbered steps mirror the mock's own `_decide` structure (`backend/mock/app.py`)
 3. **Load or create session.** `row = session.get_or_create_session(session_id)` (S06). Owns the
    30-minute timeout (S01 §8, D-A2) — an expired session resets under the same ID, current message
    still processed, never a citizen-facing error.
-4. **Command check.** `command = api.parse_command(text)`, before anything reaches the Turn Engine
+4. **Command check.** *(Amended by S20/T28: this check now runs after step 5, on the transcript for
+   audio, so a spoken `cancel`/`restart` works. Audio is stored and `transcript` returned.)*
+   `command = api.parse_command(effective_text)`, before anything reaches the Turn Engine
    (S01 D-A3):
    - `cancel` → `action=cancelled`, `reply_text` = the same Hindi copy the mock uses
      (`REPLY_CANCELLED`, duplicated here rather than imported from `mock/` — see D-S04-6).
@@ -177,7 +179,7 @@ reaches transcription (D-S04-4) — it becomes relevant once T26 adds real ASR.
       against `main.py` when run with `CONTRACT_TARGET=real`, excluding `mock_only`-marked tests
 - [ ] Repeated `message_id` returns the stored response with only `duplicate` changed, and causes no
       second Turn Engine/ticket call (verify via call count, not just the response body)
-- [ ] `cancel` and `restart` never reach the Turn Engine (verify via call count)
+- [ ] `cancel` and `restart` never reach the Turn Engine (verify via call count); also when spoken (S20)
 - [ ] Both LLM providers down → `503 SERVICE_UNAVAILABLE`, not a `500`
 - [ ] A Turn-Engine-proposed field value outside the spec's allowed values is dropped, not stored,
       and the field is re-asked

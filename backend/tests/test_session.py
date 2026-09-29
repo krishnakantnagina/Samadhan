@@ -358,6 +358,67 @@ def test_get_recent_messages_respects_limit():
     assert citizen_lines == ["turn 2", "turn 3", "turn 4", "turn 5"]
 
 
+def _turn(fake, session_id, minutes_ago, text, reply="reply", **response):
+    seed_message(
+        fake,
+        session_id=str(session_id),
+        text=text,
+        response={"reply_text": reply, **response},
+        created_at=iso(datetime.now(UTC) - timedelta(minutes=minutes_ago)),
+    )
+
+
+def _citizen_lines(messages):
+    return [m.text for m in messages if m.role == "citizen"]
+
+
+def test_history_stops_after_cancelled_reply():
+    fake, sid = FakeSupabaseClient(), uuid.uuid4()
+    _turn(fake, sid, 5, "old issue")
+    _turn(fake, sid, 4, "cancel", action="cancelled")
+    _turn(fake, sid, 3, "new issue")
+    assert _citizen_lines(get_recent_messages(sid, client=fake)) == ["new issue"]
+
+
+def test_history_stops_after_submitted_reply():
+    fake, sid = FakeSupabaseClient(), uuid.uuid4()
+    _turn(fake, sid, 5, "old issue")
+    _turn(fake, sid, 4, "yes", action="submitted")
+    _turn(fake, sid, 3, "new issue")
+    assert _citizen_lines(get_recent_messages(sid, client=fake)) == ["new issue"]
+
+
+def test_history_stops_after_restart_reply_and_excludes_it():
+    fake, sid = FakeSupabaseClient(), uuid.uuid4()
+    _turn(fake, sid, 5, "old issue")
+    _turn(fake, sid, 4, "restart", reply=schemas.REPLY_RESTART, action="ask")
+    _turn(fake, sid, 3, "new issue")
+    messages = get_recent_messages(sid, client=fake)
+    assert _citizen_lines(messages) == ["new issue"]
+    assert schemas.REPLY_RESTART not in [m.text for m in messages]
+
+
+def test_history_stops_at_idle_gap():
+    fake, sid = FakeSupabaseClient(), uuid.uuid4()
+    _turn(fake, sid, 100, "old issue")
+    _turn(fake, sid, 90, "old detail")
+    _turn(fake, sid, 5, "new issue")
+    assert _citizen_lines(get_recent_messages(sid, client=fake)) == ["new issue"]
+
+
+def test_history_empty_when_newest_row_is_stale():
+    fake, sid = FakeSupabaseClient(), uuid.uuid4()
+    _turn(fake, sid, 45, "old issue")
+    assert get_recent_messages(sid, client=fake) == []
+
+
+def test_history_empty_when_cancel_is_the_newest_turn():
+    fake, sid = FakeSupabaseClient(), uuid.uuid4()
+    _turn(fake, sid, 3, "issue")
+    _turn(fake, sid, 2, "cancel", action="cancelled")
+    assert get_recent_messages(sid, client=fake) == []
+
+
 # --- save_turn -------------------------------------------------------------------------------------
 
 

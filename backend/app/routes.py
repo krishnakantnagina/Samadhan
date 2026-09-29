@@ -20,8 +20,6 @@ from mock.errors import ApiError
 
 router = APIRouter()
 
-REPLY_CANCELLED = "आपकी शिकायत रद्द कर दी गई है।"  # D-S04-6: matches mock/app.py verbatim
-REPLY_RESTART = "ठीक है, शुरू से शुरू करते हैं। आपकी क्या समस्या है?"  # ditto
 REPLY_EMPTY_TRANSCRIPT = "मुझे आपकी बात समझ नहीं आई। कृपया दोबारा बोलें या लिखकर बताएं।"  # S01 D-A6
 
 
@@ -51,6 +49,39 @@ def _persist(
         session_update=update,
     )
     return response
+
+
+def _command_response(
+    command: api.Command, session_id, message_id, transcript: str | None
+) -> api.MessageResponse:
+    cancelled = command is api.Command.CANCEL
+    return api.MessageResponse(
+        session_id=session_id,
+        message_id=message_id,
+        action=api.Action.CANCELLED if cancelled else api.Action.ASK,
+        ask_for=None,
+        reply_text=api.REPLY_CANCELLED if cancelled else api.REPLY_RESTART,
+        transcript=transcript,
+        summary=None,
+        ticket=None,
+        duplicate=False,
+    )
+
+
+def _command_update(command: api.Command) -> session.SessionUpdate:
+    # S06 RULES 3: the caller clears fields when setting a terminal status. lat/lng are cleared
+    # for restart too, not just collected_fields (D-S04-5).
+    return session.SessionUpdate(
+        collected_fields={},
+        awaiting_confirmation=False,
+        lat=None,
+        lng=None,
+        status=(
+            session.SessionStatus.CANCELLED
+            if command is api.Command.CANCEL
+            else session.SessionStatus.ACTIVE
+        ),
+    )
 
 
 @router.post("/message", response_model=api.MessageResponse)
@@ -84,69 +115,6 @@ def message(
 
     # Step 3: load or create session (S06)
     row = session.get_or_create_session(session_id)
-
-    # Step 4: command check (S01 D-A3) -- text only; a spoken command isn't checked here, it's
-    # transcribed and handled as ordinary text by the Turn Engine (S04's original step order)
-    command = api.parse_command(text)
-    if command is api.Command.CANCEL:
-        response = api.MessageResponse(
-            session_id=session_id,
-            message_id=message_id,
-            action=api.Action.CANCELLED,
-            ask_for=None,
-            reply_text=REPLY_CANCELLED,
-            transcript=None,
-            summary=None,
-            ticket=None,
-            duplicate=False,
-        )
-        update = session.SessionUpdate(
-            collected_fields={},
-            awaiting_confirmation=False,
-            lat=None,
-            lng=None,
-            status=session.SessionStatus.CANCELLED,
-        )
-        return _persist(
-            session_id=session_id,
-            message_id=message_id,
-            input_type=session.InputType.TEXT,
-            text=text,
-            transcript=None,
-            audio_path=None,
-            response=response,
-            update=update,
-        )
-
-    if command is api.Command.RESTART:
-        response = api.MessageResponse(
-            session_id=session_id,
-            message_id=message_id,
-            action=api.Action.ASK,
-            ask_for=None,
-            reply_text=REPLY_RESTART,
-            transcript=None,
-            summary=None,
-            ticket=None,
-            duplicate=False,
-        )
-        update = session.SessionUpdate(
-            collected_fields={},
-            awaiting_confirmation=False,
-            lat=None,  # D-S04-5: GPS is cleared too, not just collected_fields
-            lng=None,
-            status=session.SessionStatus.ACTIVE,
-        )
-        return _persist(
-            session_id=session_id,
-            message_id=message_id,
-            input_type=session.InputType.TEXT,
-            text=text,
-            transcript=None,
-            audio_path=None,
-            response=response,
-            update=update,
-        )
 
     # Step 5: audio -> transcript (S12)
     transcript: str | None = None
@@ -190,6 +158,22 @@ def message(
             )
 
     effective_text = text if text is not None else transcript
+
+    # Step 5b: command check (S01 D-A3, amended by S20 section 5) -- on the typed text or the
+    # transcript, so a spoken cancel/restart works. Never reaches the Turn Engine.
+    command = api.parse_command(effective_text)
+    if command is not None:
+        input_type = session.InputType.AUDIO if audio is not None else session.InputType.TEXT
+        return _persist(
+            session_id=session_id,
+            message_id=message_id,
+            input_type=input_type,
+            text=text,
+            transcript=transcript,
+            audio_path=audio_path,
+            response=_command_response(command, session_id, message_id, transcript),
+            update=_command_update(command),
+        )
 
     # Step 6: Turn Engine (S05)
     state = turn_engine.SessionState(

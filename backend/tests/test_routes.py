@@ -269,6 +269,63 @@ def test_restart_clears_lat_lng_too(test_client, monkeypatch):
     assert update.collected_fields == {}
 
 
+def _spoken(monkeypatch, transcript):
+    monkeypatch.setattr(
+        routes.voice,
+        "transcribe",
+        lambda *a, **k: voice.VoiceResult(transcript=transcript, audio_path="sid/mid.webm"),
+    )
+
+
+def test_spoken_cancel_is_a_command(test_client, monkeypatch):
+    _spoken(monkeypatch, "कैंसल")
+    monkeypatch.setattr(routes.turn_engine, "run_turn", raise_if_called)
+    saved = {}
+    monkeypatch.setattr(routes.session, "save_turn", lambda **kwargs: saved.update(kwargs))
+
+    response = post(test_client, audio=b"fake")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["action"] == "cancelled"
+    assert body["transcript"] == "कैंसल"
+    assert saved["audio_path"] == "sid/mid.webm"
+    assert saved["input_type"] == session.InputType.AUDIO
+    assert saved["session_update"].status == session.SessionStatus.CANCELLED
+
+
+def test_spoken_restart_is_a_command(test_client, monkeypatch):
+    _spoken(monkeypatch, "शुरू से।")
+    monkeypatch.setattr(routes.turn_engine, "run_turn", raise_if_called)
+    saved = {}
+    monkeypatch.setattr(routes.session, "save_turn", lambda **kwargs: saved.update(kwargs))
+
+    body = post(test_client, audio=b"fake").json()
+
+    assert body["action"] == "ask"
+    assert body["transcript"] == "शुरू से।"
+    update = saved["session_update"]
+    assert (update.lat, update.lng, update.collected_fields) == (None, None, {})
+
+
+def test_typed_hindi_alias_is_a_command(test_client, monkeypatch):
+    monkeypatch.setattr(routes.turn_engine, "run_turn", raise_if_called)
+    assert post(test_client, text="रद्द करो").json()["action"] == "cancelled"
+
+
+def test_sentence_containing_alias_is_not_a_command(test_client, monkeypatch):
+    called = []
+    monkeypatch.setattr(
+        routes.turn_engine,
+        "run_turn",
+        lambda **kw: (
+            called.append(1) or turn_engine.TurnResult(service_id=None, fields={}, confirmed=False)
+        ),
+    )
+    post(test_client, text="मेरी शिकायत रद्द नहीं हुई")
+    assert called == [1]
+
+
 # --- Turn Engine + Validator wiring ----------------------------------------------------------
 
 

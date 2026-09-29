@@ -75,3 +75,22 @@ def test_parse_command():
     assert parse_command("RESTART") is Command.RESTART
     assert parse_command("cancel my complaint") is None
     assert parse_command(None) is None
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("कैंसल", Command.CANCEL),
+        ("रद्द करो।", Command.CANCEL),
+        ("  रद्द   करें  ", Command.CANCEL),
+        ("Cancel!", Command.CANCEL),
+        ("शुरू से", Command.RESTART),
+        ("फिर से शुरू करो", Command.RESTART),
+        ("रीस्टार्ट.", Command.RESTART),
+        ("मेरी शिकायत रद्द नहीं हुई", None),  # substring/sentence never matches (S20 D-S20-4)
+        ("पानी नहीं आ रहा शुरू से", None),
+        ("", None),
+    ],
+)
+def test_parse_command_aliases(text, expected):
+    assert parse_command(text) is expected

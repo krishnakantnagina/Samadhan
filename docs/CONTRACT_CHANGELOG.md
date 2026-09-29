@@ -3,6 +3,13 @@
 Optional notes on contract changes. Not required: we mostly discuss changes in chat.
 Either of us can change a contract; adding a line here is a nice-to-have. Newest first.
 
+## v1.0.0 (unchanged version) — 2026-09-29 — T28 / S20
+
+Additive clarification, no request/response shape change, `CONTRACT_VERSION` stays `1.0.0`.
+- `cancel` / `restart` now also match a fixed Hindi/Hinglish alias set, and match the **transcript** of an audio turn
+  (a spoken cancel/restart is a command). Whole-utterance match only. See S20 §5, S01 D-A3.
+- `REPLY_CANCELLED` / `REPLY_RESTART` moved into `schemas.py` (text unchanged).
+
 ## v1.0.0 — 2026-09-27
 
 Initial contract (S01).

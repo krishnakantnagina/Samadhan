@@ -145,24 +145,51 @@ def find_stored_response(
     return None if row is None else schemas.MessageResponse.model_validate(row["response"])
 
 
+_TERMINAL_ACTIONS = frozenset({schemas.Action.CANCELLED, schemas.Action.SUBMITTED})
+
+
+def _is_conversation_start_marker(row: dict[str, Any]) -> bool:
+    """A stored turn that ends a conversation: cancelled, submitted, or the restart reply (S20 3)."""
+    response = row["response"]
+    return (
+        response.get("action") in _TERMINAL_ACTIONS
+        or response.get("reply_text") == schemas.REPLY_RESTART
+    )
+
+
 def get_recent_messages(
     session_id: uuid.UUID, limit: int = 4, *, client: Client | None = None
 ) -> list[Message]:
-    """Up to the last `limit` messages rows (turns) for this session, oldest first, unrolled into
-    citizen/bot Message lines for the Turn Engine (S05 INPUT)."""
+    """Up to the last `limit` turns of the *current* conversation, oldest first, unrolled into
+    citizen/bot Message lines for the Turn Engine (S05 INPUT). Stops at the first conversation
+    boundary walking back from the newest row (S20 section 3): a cancelled/submitted/restart turn,
+    or an idle gap over the session timeout. Nothing from before it reaches the prompt."""
     client = client or get_client()
     rows = (
         client.table("messages")
-        .select("text,transcript,response")
+        .select("text,transcript,response,created_at")
         .eq("session_id", str(session_id))
         .order("created_at", desc=True)
-        .limit(limit)
+        .limit(limit * 3)
         .execute()
-    ).data
-    rows.reverse()  # oldest first
+    ).data  # newest first
+
+    timeout = timedelta(minutes=SESSION_TIMEOUT_MINUTES)
+    kept: list[dict[str, Any]] = []
+    later = datetime.now(UTC)  # the moment being compared against; starts as "now"
+    for row in rows:
+        created = datetime.fromisoformat(row["created_at"])
+        if later - created > timeout:
+            break  # idle gap: this row belongs to an earlier, timed-out conversation
+        if _is_conversation_start_marker(row):
+            break  # this turn ended the previous conversation; it and older rows are excluded
+        kept.append(row)
+        later = created
+    kept = kept[:limit]
+    kept.reverse()  # oldest first
 
     result: list[Message] = []
-    for row in rows:
+    for row in kept:
         citizen_text = row["text"] or row["transcript"]
         if citizen_text:
             result.append(Message(role="citizen", text=citizen_text))

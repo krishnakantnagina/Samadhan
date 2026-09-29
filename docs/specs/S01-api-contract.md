@@ -79,7 +79,7 @@ The dashboard is **not** a client: it reads and writes the database directly and
 - At least one of `text`, `audio`, or (`lat` + `lng`) must be present.
 - `text` and `audio` together are rejected (`INVALID_INPUT`). **One modality per turn.**
 - `lat`/`lng` may accompany `text` or `audio`, or be sent alone (the location button).
-- The messages `cancel` and `restart` (case-insensitive, trimmed) are commands, recognised by the backend. They are not separate fields.
+- The messages `cancel` and `restart` (case-insensitive, trimmed) are commands, recognised by the backend. They are not separate fields. A fixed set of Hindi/Hinglish aliases (e.g. `रद्द करो`, `शुरू से`) is recognised too, and so is a spoken command: the audio transcript is matched the same way (S20 §5). Whole-utterance match only.
 
 **Audio:** the accepted types are what `MediaRecorder` produces (Chrome/Firefox `webm`/`ogg`, Safari `mp4`). The backend converts to 16 kHz mono WAV with FFmpeg before ASR. The original audio and the transcript are preserved server-side (PROJECT.md §7, §13).
 
@@ -275,7 +275,7 @@ The mock and the real API must pass the same tests.
 |---|---|---|
 | D-A1 | Multipart only for `POST /message`; one modality (`text` or `audio`) per turn | One code path; no ambiguity about which input to trust |
 | D-A2 | Expired session → fresh session, message still processed | A citizen's voice note is never thrown away |
-| D-A3 | `cancel` / `restart` are text commands; `restart` replies with `ask` | Small request; fewer `action` values to mock and test |
+| D-A3 | `cancel` / `restart` are commands; `restart` replies with `ask`. Amended by S20 (T28): aliases and spoken (transcribed) commands count too | Small request; fewer `action` values to mock and test. A voice-first citizen must be able to cancel by voice |
 | D-A4 | `ask_for` tells the UI what is being asked | The website needs to show a location button without holding logic |
 | D-A5 | `ticket.office` is `{name, level}`, not a string | Scenarios 7 and 8 can be checked by `level` (ward vs district) |
 | D-A6 | `error` is a recoverable HTTP 200; outages are `503` | Bad audio is normal for a voice product, not a server fault |

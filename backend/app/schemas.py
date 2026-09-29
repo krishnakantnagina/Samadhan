@@ -211,14 +211,41 @@ def normalise_content_type(content_type: str | None) -> str:
     return (content_type or "").split(";", 1)[0].strip().lower()
 
 
+REPLY_CANCELLED = "आपकी शिकायत रद्द कर दी गई है।"  # D-S04-6: matches mock/app.py verbatim
+REPLY_RESTART = "ठीक है, शुरू से शुरू करते हैं। आपकी क्या समस्या है?"  # ditto
+
+# S20 section 5: whole-utterance aliases, typed or spoken (transcript). Adjust from real Sarvam
+# transcripts (live check L6). Substrings never match, only the entire normalised utterance.
+COMMAND_ALIASES: dict[str, Command] = {
+    **dict.fromkeys(
+        ("cancel", "कैंसल", "कैन्सल", "रद्द", "रद्द करो", "रद्द करें", "रद्द कीजिए", "शिकायत रद्द करो"),
+        Command.CANCEL,
+    ),
+    **dict.fromkeys(
+        (
+            "restart",
+            "रीस्टार्ट",
+            "रिस्टार्ट",
+            "शुरू से",
+            "शुरू से शुरू करो",
+            "फिर से शुरू करो",
+            "दोबारा शुरू करो",
+        ),
+        Command.RESTART,
+    ),
+}
+
+
+def _normalise_command_text(text: str) -> str:
+    return " ".join(text.lower().split()).rstrip(".।!? ")
+
+
 def parse_command(text: str | None) -> Command | None:
-    """Return the command if `text` is exactly `cancel` or `restart` (case-insensitive)."""
+    """Return the command if the whole of `text` is `cancel`/`restart` or a known alias
+    (case-insensitive, trailing punctuation ignored). S20 section 5."""
     if text is None:
         return None
-    try:
-        return Command(text.strip().lower())
-    except ValueError:
-        return None
+    return COMMAND_ALIASES.get(_normalise_command_text(text))
 
 
 def check_message_inputs(
