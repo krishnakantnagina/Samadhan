@@ -332,7 +332,7 @@ def message(
 def speak(body: api.SpeakRequest) -> api.SpeakResponse:
     """S17 -- text-to-speech reply (T51). Stateless: no session, no DB write (S17 RULES 1)."""
     try:
-        audio_base64 = tts.synthesize(body.text, language=body.language)
+        audio_base64 = tts.synthesize(body.text)
     except tts.TtsUnavailable as exc:
         raise ApiError(api.ErrorCode.SERVICE_UNAVAILABLE, str(exc)) from exc
     return api.SpeakResponse(audio_base64=audio_base64)

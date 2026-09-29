@@ -9,7 +9,7 @@ the other so the mock and tests stay in sync.
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import UUID4, BaseModel, ConfigDict, Field, model_validator
 
@@ -195,9 +195,6 @@ class SpeakRequest(ContractModel):
     them."""
 
     text: str = Field(min_length=TEXT_MIN_LENGTH, max_length=TEXT_MAX_LENGTH)
-    language: Literal["hi", "en"] = (
-        "hi"  # S30: optional, Hindi unless the page asks for the English greeting
-    )
 
 
 class SpeakResponse(ContractModel):

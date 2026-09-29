@@ -515,7 +515,7 @@ def test_status_unknown_id_is_404(test_client, monkeypatch):
 
 
 def test_speak_returns_audio(test_client, monkeypatch):
-    monkeypatch.setattr(routes.tts, "synthesize", lambda text, **kwargs: "base64audio")
+    monkeypatch.setattr(routes.tts, "synthesize", lambda text: "base64audio")
 
     response = test_client.post("/api/v1/speak", json={"text": "नमस्ते"})
 
@@ -542,7 +542,7 @@ def test_speak_too_long_is_400(test_client, monkeypatch):
 
 
 def test_speak_provider_down_is_503(test_client, monkeypatch):
-    def raise_unavailable(text, **kwargs):
+    def raise_unavailable(text):
         raise routes.tts.TtsUnavailable("both failed")
 
     monkeypatch.setattr(routes.tts, "synthesize", raise_unavailable)
@@ -551,26 +551,3 @@ def test_speak_provider_down_is_503(test_client, monkeypatch):
 
     assert response.status_code == 503
     assert response.json()["error_code"] == "SERVICE_UNAVAILABLE"
-
-
-def test_speak_passes_the_language_and_defaults_to_hindi(test_client, monkeypatch):
-    """S30: optional `language` reaches the TTS call; nothing sent means Hindi."""
-    seen = []
-    monkeypatch.setattr(
-        routes.tts, "synthesize", lambda text, *, language="hi": seen.append(language) or "audio"
-    )
-
-    assert (
-        test_client.post("/api/v1/speak", json={"text": "Hello", "language": "en"}).status_code
-        == 200
-    )
-    assert test_client.post("/api/v1/speak", json={"text": "नमस्ते"}).status_code == 200
-    assert seen == ["en", "hi"]
-
-
-def test_speak_rejects_an_unknown_language(test_client, monkeypatch):
-    monkeypatch.setattr(routes.tts, "synthesize", raise_if_called)
-
-    response = test_client.post("/api/v1/speak", json={"text": "Hello", "language": "fr"})
-
-    assert response.status_code == 400

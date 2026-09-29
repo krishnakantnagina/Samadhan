@@ -131,7 +131,3 @@ Response: 200 {"audio_base64": "<base64 WAV, exactly what Sarvam returned, unmod
 | Empty/oversized text → `400`, same shape as every other endpoint | §BEHAVIOR 1 step 1 |
 | Sarvam failure → `503`, citizen-safe, scoped to the button not the whole chat | §BEHAVIOR 1 step 4, §BEHAVIOR 2 step 4 |
 | No audio persisted anywhere | RULES §3 |
-
-
-## Amendment (30 Sep, S30)
-`POST /api/v1/speak` accepts an optional `language` (`"hi"` default, `"en"`), mapped to Sarvam `hi-IN` / `en-IN`. Omitting it is exactly the old behaviour (D-S17-1 holds for every reply); the English value exists only for the English greeting (see S30).
