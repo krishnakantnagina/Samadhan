@@ -1,0 +1,147 @@
+{
+  "_meta": {
+    "ticket": "T09",
+    "purpose": "Feeds T13 (prompt tests, done-when >=13/15 pass). Tests the Turn Engine's real extraction accuracy on genuine water_supply complaints across varied real-world phrasings -- all 15 sentences are in-scope water complaints (not an out-of-scope-boundary test; that was an earlier draft, superseded 29 Sep 2026). None give a specific location, so the expected action for all 15 is 'ask' with ask_for=\"location\" -- what actually varies, and what this set is really testing, is whether issue_type (and duration_days where mentioned) gets extracted correctly across different ways a citizen might describe the same handful of underlying problems.",
+    "dialect": "Bundeli/Bundelkhandi (a regional dialect of MP/UP: 'नईं' for नहीं, 'रओ'/'रई' for रहा/रही, 'निकलत'/'आवत' for निकलता/आता, 'सूखो' for सूखा, 'भरी' for भरी हुई, 'गंदो' for गंदा, etc.), not standard Hindi/Hinglish. Kept deliberately (Lead's call) as a genuine, currently-untested check of whether Groq/Gemini's extraction handles real rural dialect variation. A low pass rate may indicate a dialect-handling gap rather than a broken extractor -- worth distinguishing when T13 is actually run.",
+    "how_to_test": "POST each 'text' to /api/v1/message with a FRESH session_id per sentence (single, independent turn each). Assert response.action == \"ask\" and response.ask_for == \"location\" for all 15. Pass/fail per sentence should be judged primarily on whether issue_type was extracted sensibly (see expected_fields/notes per sentence) -- several are deliberately ambiguous between issue_type values and should not be hard-failed on an exact match alone.",
+    "service_spec_reference": "specs/water_supply.yaml -- issue_type enum: no_supply, low_pressure, dirty_water, leakage, other",
+    "confirmed_with_lead": "2026-09-29"
+  },
+  "sentences": [
+    {
+      "id": "T09-01",
+      "text": "हमाए गाँव में तीन दिन से पानी नईं आ रओ।",
+      "translation": "There's been no water in our village for three days.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "no_supply", "duration_days": 3 },
+      "notes": "Near-exact Bundeli match of PROJECT.md's own Definition of Done scenario 1."
+    },
+    {
+      "id": "T09-02",
+      "text": "नल में पानी नईं आ रओ, का करैं?",
+      "translation": "No water is coming in the tap, what should we do?",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "no_supply" },
+      "notes": "Phrased as a question, not a statement -- tests that the extractor still treats this as a complaint, not an information request."
+    },
+    {
+      "id": "T09-03",
+      "text": "हमाए घर तक पानी नईं पहुँचत।",
+      "translation": "Water doesn't reach our house.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "no_supply" },
+      "notes": "Could plausibly read as low_pressure (water reaches the area but not the house) instead of no_supply -- ambiguous, don't hard-fail on the exact value."
+    },
+    {
+      "id": "T09-04",
+      "text": "पूरे गाँव में पानी की बड़ी दिक्कत है।",
+      "translation": "The whole village has a big water problem.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "no_supply or other (vague, see notes)" },
+      "notes": "Deliberately vague -- 'बड़ी दिक्कत' (big problem) names no specific symptom. Reasonable outcomes: 'no_supply' as a default read, or 'other'. A citizen this vague might realistically need a follow-up question about the specific issue too, not just location -- worth noting if the Turn Engine handles this differently from the sharper complaints."
+    },
+    {
+      "id": "T09-05",
+      "text": "बस हमाए मोहल्ले में पानी नईं आ रओ।",
+      "translation": "Water just isn't coming in our neighborhood (mohalla).",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "no_supply" },
+      "notes": "Mentions 'मोहल्ला' (neighborhood) but not a specific ward/village name -- too vague for jurisdiction resolution (S09 needs a ward name or GPS), so 'ask location' is still correct, not 'confirm'."
+    },
+    {
+      "id": "T09-06",
+      "text": "हैंडपंप खराब पड़ा है, पानी नईं निकलत।",
+      "translation": "The hand pump is broken, no water comes out.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "no_supply or other (ambiguous, see notes)" },
+      "notes": "Hand pump is different infrastructure from a piped connection and doesn't map cleanly to any single issue_type value. Don't hard-fail on the exact value, only on staying in-scope and asking for location."
+    },
+    {
+      "id": "T09-07",
+      "text": "नल की पाइप टूट गई, सारा पानी सड़क पे बह रओ।",
+      "translation": "The tap's pipe broke, all the water is flowing onto the road.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "leakage" },
+      "notes": "Clean, unambiguous match to issue_type=leakage."
+    },
+    {
+      "id": "T09-08",
+      "text": "पानी की टंकी भरी है, फिर भी घरन में पानी नईं आ रओ।",
+      "translation": "The water tank is full, yet water isn't coming to the houses.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "no_supply or other (ambiguous, see notes)" },
+      "notes": "Describes a distribution/system-level cause (full tank, no delivery) rather than a simple absence -- reasonable to extract as no_supply (citizen's experience) or other (the actual mechanism). Don't hard-fail on the exact value."
+    },
+    {
+      "id": "T09-09",
+      "text": "दो दिन से नल सूखो पड़ा है।",
+      "translation": "The tap has been dry for two days.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "no_supply", "duration_days": 2 },
+      "notes": "Clean match, same shape as T09-01 with a different duration -- good pair for checking duration_days extraction is consistent, not a fluke."
+    },
+    {
+      "id": "T09-10",
+      "text": "गाँव के हैंडपंप में पानी बहुत कम निकलत।",
+      "translation": "Very little water comes out of the village hand pump.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "low_pressure" },
+      "notes": "'बहुत कम' (very little, not zero) is the clearest low_pressure signal in this set, despite the same hand-pump ambiguity as T09-06."
+    },
+    {
+      "id": "T09-11",
+      "text": "घर के सामने पानी जमा हो रओ, निकासी की व्यवस्था नईं है।",
+      "translation": "Water is pooling in front of the house, there's no drainage arrangement.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "ambiguous -- see notes, not a clean fit to any value" },
+      "notes": "Flagged and discussed with Lead (29 Sep 2026): wording is drainage-flavored ('निकासी' = drainage/outflow) rather than a classic supply complaint, but kept in the water_supply set by Lead's decision, treated the same as the other ambiguous-issue_type sentences (T09-04/06/08/10/13) rather than as a special out-of-scope case. Do not hard-fail on the exact issue_type value here."
+    },
+    {
+      "id": "T09-12",
+      "text": "पानी गंदो आ रओ, पीने लायक नईं है।",
+      "translation": "The water is coming dirty, not fit to drink.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "dirty_water" },
+      "notes": "Clean, unambiguous match to issue_type=dirty_water."
+    },
+    {
+      "id": "T09-13",
+      "text": "नल में पानी बहुत देर से और थोड़ी देर के लिए ही आ रओ।",
+      "translation": "Water comes in the tap very late and only for a short while.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "low_pressure or other (irregular/intermittent, see notes)" },
+      "notes": "Describes irregular timing/duration of supply, not classic low pressure or absence -- doesn't map cleanly to any single value. Don't hard-fail on the exact value."
+    },
+    {
+      "id": "T09-14",
+      "text": "गर्मी में गाँव में पीने के पानी की बहुत परेशानी है।",
+      "translation": "In summer, there's a lot of trouble getting drinking water in the village.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "no_supply" },
+      "notes": "Seasonal framing ('गर्मी में', in summer) -- tests that a seasonal/contextual complaint still extracts as a normal no_supply issue, not something the Turn Engine gets confused by."
+    },
+    {
+      "id": "T09-15",
+      "text": "पानी की टंकी खराब है, इसलिए पूरे गाँव में पानी की सप्लाई बंद है।",
+      "translation": "The water tank is broken, so the whole village's water supply is stopped.",
+      "expected_action": "ask",
+      "expected_ask_for": "location",
+      "expected_fields": { "issue_type": "no_supply" },
+      "notes": "Clean match -- explicit cause (broken tank) and explicit effect (supply stopped), unambiguous no_supply."
+    }
+  ]
+}
