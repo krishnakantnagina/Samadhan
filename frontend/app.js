@@ -96,6 +96,78 @@ async function speakText(text, button) {
   }
 }
 
+// S17 D-S17-5: every bot reply carries a WhatsApp-style voice note (play/pause, progress, time).
+// Audio is fetched as soon as the reply appears; it auto-plays only when `autoPlay` is set (a
+// reply to the citizen's own voice message, D-S17-4). If TTS fails the note shows '!' and a tap
+// retries -- never a chat bubble, never a raw error (T50).
+function makeVoiceNote(text, autoPlay) {
+  const box = document.createElement('div');
+  box.className = 'voice-note';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'vn-play';
+  btn.setAttribute('aria-label', 'सुनें');
+  const track = document.createElement('div');
+  track.className = 'vn-track';
+  const fill = document.createElement('div');
+  fill.className = 'vn-fill';
+  track.appendChild(fill);
+  const time = document.createElement('span');
+  time.className = 'vn-time';
+  time.textContent = '0:00';
+  box.append(btn, track, time);
+
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  let audio = null;
+
+  async function load() {
+    if (audio) return audio;
+    btn.textContent = '…';
+    btn.disabled = true;
+    try {
+      const a = await fetchHindiAudio(text);
+      ['loadedmetadata', 'durationchange'].forEach((evt) => a.addEventListener(evt, () => {
+        if (Number.isFinite(a.duration)) time.textContent = fmt(a.duration);
+      }));
+      a.addEventListener('timeupdate', () => {
+        if (a.duration) fill.style.width = `${(a.currentTime / a.duration) * 100}%`;
+      });
+      a.addEventListener('play', () => { btn.textContent = '⏸'; });
+      a.addEventListener('pause', () => { btn.textContent = '▶'; });
+      a.addEventListener('ended', () => {
+        btn.textContent = '▶';
+        fill.style.width = '0%';
+      });
+      if (a.readyState >= 1 && Number.isFinite(a.duration)) time.textContent = fmt(a.duration); // metadata may already have loaded
+      a.preload = 'auto';
+      a.load(); // fetch the data now so the duration shows before the first play
+      audio = a;
+      btn.textContent = '▶';
+      return a;
+    } catch {
+      btn.textContent = '!'; // tap to retry
+      throw new Error('tts');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  btn.addEventListener('click', async () => {
+    try {
+      const a = await load();
+      if (a.paused) await a.play();
+      else a.pause();
+    } catch {
+      // load() already showed '!'; play() rejections (autoplay policy) leave the ▶ button ready
+    }
+  });
+
+  load()
+    .then((a) => (autoPlay ? a.play() : undefined))
+    .catch(() => {}); // autoplay blocked or TTS down: the button is the fallback
+  return box;
+}
+
 function appendSummaryCard(botMsgEl, summary) {
   const card = document.createElement('div');
   card.className = 'card card-summary';
@@ -189,7 +261,13 @@ function setLocationHighlight(on) {
   locationBtn.classList.toggle('chip-btn-highlight', on);
 }
 
-async function handleTurn(apiCall, citizenBubbleText) {
+function replaceSpeakWithVoiceNote(botEl, text, autoPlay) {
+  const old = botEl.querySelector('.speak-btn');
+  if (old) old.remove();
+  botEl.appendChild(makeVoiceNote(text, autoPlay));
+}
+
+async function handleTurn(apiCall, citizenBubbleText, autoSpeak = false) {
   const citizenEl = appendMessage('citizen', citizenBubbleText);
   setBusy(true);
 
@@ -200,6 +278,7 @@ async function handleTurn(apiCall, citizenBubbleText) {
     }
     setLocationHighlight(result.ask_for === 'location'); // S16 D-S16-1 / S01 D-A4
     const botEl = appendMessage('bot', result.reply_text);
+    replaceSpeakWithVoiceNote(botEl, result.reply_text, autoSpeak);
     if (result.action === 'confirm' && result.summary) {
       appendSummaryCard(botEl, result.summary);
     }
@@ -341,6 +420,7 @@ async function sendRecording(mimeType) {
   await handleTurn(
     () => postToApi((form) => form.append('audio', blob, `recording.${type.split('/')[1]}`)),
     '🎤 आवाज़ भेजी जा रही है…',
+    true, // S17 D-S17-4: auto-speak the reply to a voice message
   );
 }
 
@@ -415,6 +495,23 @@ if (heroCta && appShell) {
     appShell.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => inputEl.focus(), 500);
   });
+}
+
+// A visitor who doesn't know the chat is below the hero: if they haven't scrolled or touched
+// anything after 3 seconds, scroll down to it for them. Any interaction cancels this.
+if (appShell) {
+  const cancelAutoScroll = () => clearTimeout(autoScrollTimer);
+  const autoScrollTimer = setTimeout(() => {
+    ['wheel', 'touchstart', 'keydown', 'pointerdown', 'scroll'].forEach((evt) =>
+      window.removeEventListener(evt, cancelAutoScroll),
+    );
+    if (window.scrollY > 10) return; // already scrolled, nothing to do
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    appShell.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+  }, 3000);
+  ['wheel', 'touchstart', 'keydown', 'pointerdown', 'scroll'].forEach((evt) =>
+    window.addEventListener(evt, cancelAutoScroll, { passive: true, once: true }),
+  );
 }
 
 // --- T52: bilingual greeting (S18 BEHAVIOR 2) -------------------------------------------------
