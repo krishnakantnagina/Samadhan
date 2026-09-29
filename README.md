@@ -32,7 +32,7 @@ DEMO electricity, roads, sanitation and a general triage desk (all office data f
 
 ## Deployment
 
-See [`docs/DEPLOY.md`](docs/DEPLOY.md) (Railway API, Vercel website, Streamlit dashboard) and spec `docs/specs/S22-deploy.md`. Local run: `docs/ONBOARDING.md`.
+See [`docs/DEPLOY.md`](docs/DEPLOY.md) (Railway API, Vercel website, Streamlit dashboard) or [`docs/DEPLOY_RENDER.md`](docs/DEPLOY_RENDER.md) (everything on Render), and spec `docs/specs/S22-deploy.md`. Local run: `docs/ONBOARDING.md`.
 
 ## Attribution
 
@@ -47,7 +47,7 @@ Backend (`backend/pyproject.toml`):
 - [RapidFuzz](https://github.com/rapidfuzz/RapidFuzz) — fuzzy ward-name matching (jurisdiction resolver)
 - [Sarvam AI API](https://docs.sarvam.ai/) (voice-to-text, primary), [Groq Whisper](https://console.groq.com/docs/speech-to-text) (voice-to-text fallback) — called via `httpx`, no SDK, no FFmpeg
 - [Sarvam Bulbul TTS API](https://docs.sarvam.ai/api-reference-docs/text-to-speech/api/rest-api) (text-to-speech reply, speaker button) — called via `httpx`, no SDK, no fallback provider
-- Hosting: [Railway](https://railway.com/) (API, Docker), [Vercel](https://vercel.com/) (static website), [Streamlit Community Cloud](https://streamlit.io/cloud) (dashboard)
+- Hosting: [Railway](https://railway.com/) (API, Docker), [Vercel](https://vercel.com/) (static website), [Streamlit Community Cloud](https://streamlit.io/cloud) (dashboard), or [Render](https://render.com/) for all three
 - Container base image: [`ghcr.io/astral-sh/uv`](https://github.com/astral-sh/uv)
 - Dev tools: [pytest](https://pytest.org/), [Ruff](https://docs.astral.sh/ruff/), [uv](https://docs.astral.sh/uv/)
 
