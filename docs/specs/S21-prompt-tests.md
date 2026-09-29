@@ -65,3 +65,8 @@ Failures, by cause (not tuned away — the grading table above was fixed before 
 ### Run 3 (after S25 warm replies): **9/15**, `submission/T13-prompt-test-results-run3-after-s25.json`
 3 of 15 were `503` caused by Groq `429` + Gemini overload (see S25 FINDING), so the honest reading is 9/12 answered.
 Same three substantive misses as run 2. Target still not met.
+
+### Run 4 (after S26 fallback chain): **9/15**, zero 503s, `submission/T13-prompt-test-results-run4-after-s26-chain.json`
+All 15 answered. Misses are accuracy, not availability (T09-01, 04, 11, 13, 14, 15; details in S26 BUILD LOG). Runs 1-4:
+11, 10, 9, 9. The 13/15 target is not met and the remaining gap needs prompt/spec work or a decision on the vague and
+drainage sentences, not more infrastructure.

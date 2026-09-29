@@ -9,6 +9,8 @@ other.
 """
 
 import json
+import logging
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
@@ -19,7 +21,10 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from app.config import LLMConfig, get_llm_config
 from app.service_spec import EnumField, IntegerField, LocationField, ServiceSpec, StringField
 
+logger = logging.getLogger(__name__)
+
 PROVIDER_TIMEOUT_SECONDS = 6.0  # S04 section 5 / S05 provider table
+TURN_DEADLINE_SECONDS = 14.0  # S26 D-S26-4: stop starting new providers past this
 
 SYSTEM_INSTRUCTIONS = """\
 You extract structured data from one message a citizen sent a government grievance chatbot.
@@ -171,25 +176,30 @@ This turn:
 class GroqProvider:
     name = "groq"
 
-    def __init__(self, api_key: str, model: str) -> None:
+    def __init__(self, api_key: str, model: str, reasoning_effort: str | None = None) -> None:
         self._api_key = api_key
         self._model = model
+        self._reasoning_effort = reasoning_effort
+        self.name = f"groq:{model}"
 
     def complete(self, prompt: str) -> str:
+        body: dict[str, Any] = {
+            "model": self._model,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": {"type": "json_object"},
+        }
+        if self._reasoning_effort and self._model.startswith("openai/gpt-oss"):
+            body["reasoning_effort"] = self._reasoning_effort  # S26 D-S26-2: gpt-oss only
         try:
             response = httpx.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={"Authorization": f"Bearer {self._api_key}"},
-                json={
-                    "model": self._model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "response_format": {"type": "json_object"},
-                },
+                json=body,
                 timeout=PROVIDER_TIMEOUT_SECONDS,
             )
-            response.raise_for_status()
+            response.raise_for_status()  # a 429 raises here and the chain moves on (S26 D-S26-3)
         except httpx.HTTPError as exc:
-            raise _ProviderError(f"groq: {exc}") from exc
+            raise _ProviderError(f"groq:{self._model}: {exc}") from exc
         return response.json()["choices"][0]["message"]["content"]
 
 
@@ -219,9 +229,13 @@ class GeminiProvider:
 
 def default_providers(config: LLMConfig) -> list[Provider]:
     """[primary, fallback], ordered by config.primary (S05 PROVIDERS AND FALLBACK)."""
-    groq = GroqProvider(config.groq_api_key, config.groq_model)
+    groq_models = [config.groq_model, *config.groq_fallback_models]  # S26: one quota per model
+    groq = [
+        GroqProvider(config.groq_api_key, model, config.groq_reasoning_effort)
+        for model in groq_models
+    ]
     gemini = GeminiProvider(config.gemini_api_key, config.gemini_model)
-    return [groq, gemini] if config.primary == "groq" else [gemini, groq]
+    return [*groq, gemini] if config.primary == "groq" else [gemini, *groq]
 
 
 # --- run_turn ---------------------------------------------------------------------------------
@@ -245,13 +259,20 @@ def run_turn(
 
     prompt = _build_prompt(session, specs, text, lat, lng, recent_messages)
 
+    started = time.monotonic()
     for provider in providers if providers is not None else default_providers(get_llm_config()):
+        if time.monotonic() - started >= TURN_DEADLINE_SECONDS:
+            logger.warning("turn deadline reached, not trying %s", provider.name)
+            break  # S26 D-S26-4: bounded wait -> the existing 503
         try:
             raw = provider.complete(prompt)
             parsed = _RawTurnOutput.model_validate_json(raw)
-        except (_ProviderError, ValueError, ValidationError):
+        except (_ProviderError, ValueError, ValidationError) as exc:
+            # Never the prompt or citizen text; the reason is what made the 503s undiagnosable (G-S16-1).
+            logger.warning("LLM provider %s failed: %s", provider.name, str(exc)[:200])
             continue  # move to the next provider (S05 STRUCTURAL VALIDATION / PROVIDERS)
         if parsed.service_id is not None and parsed.service_id not in specs:
+            logger.warning("LLM provider %s returned unknown service_id", provider.name)
             continue  # hallucinated service id -- structural failure, not a valid answer
         confirmed = parsed.confirmed and session.awaiting_confirmation  # D-S05-3
         return TurnResult(

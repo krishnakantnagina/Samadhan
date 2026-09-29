@@ -29,6 +29,8 @@ class LLMConfig:
     gemini_api_key: str
     groq_model: str
     gemini_model: str
+    groq_fallback_models: tuple[str, ...] = ()  # S26: extra Groq models (own quota each)
+    groq_reasoning_effort: str | None = None  # S26: sent to openai/gpt-oss-* models only
 
 
 def _require(name: str) -> str:
@@ -38,6 +40,12 @@ def _require(name: str) -> str:
     return value
 
 
+DEFAULT_GROQ_FALLBACK_MODELS = (
+    "qwen/qwen3.8-27b,openai/gpt-oss-20b"  # S26 section 2, measured order
+)
+REASONING_EFFORTS = ("low", "medium", "high")
+
+
 def get_llm_config() -> LLMConfig:
     """GROQ_API_KEY, GEMINI_API_KEY, GROQ_MODEL, GEMINI_MODEL (required) + LLM_PROVIDER (optional,
     default "groq" per PROJECT.md section 6: "Groq (JSON mode) -> fallback Gemini Flash").
@@ -45,12 +53,21 @@ def get_llm_config() -> LLMConfig:
     primary = os.environ.get("LLM_PROVIDER", "groq").strip().lower() or "groq"
     if primary not in ("groq", "gemini"):
         raise RuntimeError(f"LLM_PROVIDER must be 'groq' or 'gemini', got {primary!r}")
+    raw_models = os.environ.get("GROQ_FALLBACK_MODELS", DEFAULT_GROQ_FALLBACK_MODELS)
+    fallback_models = tuple(m.strip() for m in raw_models.split(",") if m.strip())
+    effort = os.environ.get("GROQ_REASONING_EFFORT", "low").strip().lower() or None
+    if effort is not None and effort not in REASONING_EFFORTS:
+        raise RuntimeError(
+            f"GROQ_REASONING_EFFORT must be one of {REASONING_EFFORTS}, got {effort!r}"
+        )
     return LLMConfig(
         primary=primary,  # type: ignore[arg-type]
         groq_api_key=_require("GROQ_API_KEY"),
         gemini_api_key=_require("GEMINI_API_KEY"),
         groq_model=_require("GROQ_MODEL"),
         gemini_model=_require("GEMINI_MODEL"),
+        groq_fallback_models=fallback_models,
+        groq_reasoning_effort=effort,
     )
 
 
