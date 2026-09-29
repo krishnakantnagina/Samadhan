@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from app.info_reply import OUT_OF_CONTEXT_REPLY_HI, URGENT_LINE_HI, build_info_reply
 from app.service_spec import FieldSpec, LocationField, ServiceSpec
+from app.status_reply import NEED_ID_REPLY_HI
 from app.turn_engine import GENERAL_SERVICE, TurnResult
 
 CONFIRM_PROMPT_HI = "कृपया जानकारी जाँचें और पुष्टि करें (हाँ/ठीक है), या सुधार बताएं।"  # PROPOSED (G-S07-1)
@@ -344,6 +345,8 @@ def apply(
         return _passthrough(session, turn_result, build_info_reply(turn_result.info_url))
     if intent == "out_of_context":
         return _passthrough(session, turn_result, OUT_OF_CONTEXT_REPLY_HI)
+    if intent == "status":  # S29: with a number the route already answered; without one, ask for it
+        return _passthrough(session, turn_result, NEED_ID_REPLY_HI)
 
     # --- 2. Which department? (S28 4.3). The active service is sticky: a follow-up in the middle of
     # a complaint never re-routes it, and only an explicit different service switches it.

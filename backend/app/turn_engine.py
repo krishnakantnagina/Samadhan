@@ -26,19 +26,20 @@ logger = logging.getLogger(__name__)
 PROVIDER_TIMEOUT_SECONDS = 6.0  # S04 section 5 / S05 provider table
 TURN_DEADLINE_SECONDS = 14.0  # S26 D-S26-4: stop starting new providers past this
 GENERAL_SERVICE = "general"  # S28 D-S28-4: the catch-all triage service id (specs/general.yaml)
-INTENTS = ("complaint", "information", "out_of_context")
+INTENTS = ("complaint", "information", "out_of_context", "status")
 
 SYSTEM_INSTRUCTIONS = """\
 You extract structured data from ONE message a citizen sent a government grievance chatbot.
 Output ONLY a JSON object, no prose, no markdown:
-{"intent": "complaint|information|out_of_context", "service_id": "<listed id or null>", \
+{"intent": "complaint|information|out_of_context|status", "service_id": "<listed id or null>", \
 "confidence": <0..1 or null>, "candidates": ["<service_id>", ...], "fields": {"<field_name>": "<value>"}, \
 "confirmed": true/false, "urgent": true/false, "ack": "<see rules>" or null, "info_url": "<see rules>" or null}
 
 Rules:
 - intent: "complaint" = reports a problem to be registered. "information" = asks how to get or apply for a
   government document, certificate, scheme or service (a question, not a problem). "out_of_context" =
-  greeting, chit-chat, joke, general knowledge, anything else. A short reply that answers the bot's last
+  greeting, chit-chat, joke, general knowledge, anything else. "status" = asks about the progress or status
+  of a complaint they already filed (leave fields empty). A short reply that answers the bot's last
   question (yes/no, a place name, a number, a choice) belongs to the current complaint: intent "complaint",
   keep the active service.
 - service_id: only for a complaint. The best specific service; "general" ONLY if none of the others fits;
@@ -91,7 +92,9 @@ class TurnResult(BaseModel):
     fields: dict[str, Any]
     confirmed: bool
     ack: str | None = None  # S25: untrusted, sanitised by the validator
-    intent: Literal["complaint", "information", "out_of_context"] = "complaint"  # S28 4.3a
+    intent: Literal["complaint", "information", "out_of_context", "status"] = (
+        "complaint"  # S28 4.3a, S29
+    )
     confidence: float | None = (
         None  # S28 4.3: LLM-reported, uncalibrated, only ever compared to thresholds
     )

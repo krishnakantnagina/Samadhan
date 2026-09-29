@@ -258,6 +258,14 @@ html, body {
   margin-top: 10px;
 }
 
+/* S29: link on the ticket card */
+.ticket-status-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .msg.system {
   align-self: center;
   background: transparent;

@@ -15,7 +15,7 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from pydantic import UUID4
 
 from app import schemas as api
-from app import session, ticketing, tts, turn_engine, validator, voice
+from app import session, status_reply, ticketing, tts, turn_engine, validator, voice
 from mock.errors import ApiError
 
 router = APIRouter()
@@ -65,6 +65,42 @@ def _command_response(
         summary=None,
         ticket=None,
         duplicate=False,
+    )
+
+
+def _status_turn(
+    *, complaint_id: str, session_id, message_id, transcript, row, text, audio, audio_path
+) -> api.MessageResponse:
+    """S29: answer a status question with the public status fields only, leaving the session untouched."""
+    reply = status_reply.build_status_reply(complaint_id, ticketing.get_status(complaint_id))
+    response = api.MessageResponse(
+        session_id=session_id,
+        message_id=message_id,
+        action=api.Action.OUT_OF_SCOPE,
+        ask_for=None,
+        reply_text=reply,
+        transcript=transcript,
+        summary=None,
+        ticket=None,
+        duplicate=False,
+    )
+    update = session.SessionUpdate(
+        collected_fields=row.collected_fields,
+        awaiting_confirmation=row.awaiting_confirmation,
+        lat=row.lat,
+        lng=row.lng,
+        status=session.SessionStatus.ACTIVE,
+        service_id=row.service_id,
+    )
+    return _persist(
+        session_id=session_id,
+        message_id=message_id,
+        input_type=session.InputType.AUDIO if audio is not None else session.InputType.TEXT,
+        text=text,
+        transcript=transcript,
+        audio_path=audio_path,
+        response=response,
+        update=update,
     )
 
 
@@ -177,6 +213,14 @@ def message(
             update=_command_update(command),
         )
 
+    # Step 5c: a complaint number in a short message is a status question (S29): answered here, no LLM.
+    status_id = status_reply.extract_complaint_id(effective_text)
+    if status_id is not None:
+        return _status_turn(
+            complaint_id=status_id, session_id=session_id, message_id=message_id,
+            transcript=transcript, row=row, text=text, audio=audio, audio_path=audio_path,
+        )  # fmt: skip
+
     # Step 6: Turn Engine (S05)
     state = turn_engine.SessionState(
         row.service_id, row.collected_fields, row.awaiting_confirmation
@@ -193,6 +237,15 @@ def message(
         )
     except turn_engine.TurnEngineUnavailable as exc:
         raise ApiError(api.ErrorCode.SERVICE_UNAVAILABLE, str(exc)) from exc
+
+    # Step 6b: the LLM says this is a status question (S29): use a bare number if there is one.
+    if turn_result.intent == "status":
+        status_id = status_reply.extract_complaint_id(effective_text, allow_bare=True)
+        if status_id is not None:
+            return _status_turn(
+                complaint_id=status_id, session_id=session_id, message_id=message_id,
+                transcript=transcript, row=row, text=text, audio=audio, audio_path=audio_path,
+            )  # fmt: skip
 
     # Step 7: Validator (S07)
     snapshot = validator.SessionSnapshot(

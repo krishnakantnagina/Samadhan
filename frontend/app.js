@@ -247,6 +247,12 @@ function appendTicketCard(botMsgEl, ticket) {
   card.appendChild(id);
   card.appendChild(dept);
   card.appendChild(office);
+  // S29: a link straight to this complaint's status page
+  const statusLink = document.createElement('a');
+  statusLink.className = 'ticket-status-link';
+  statusLink.href = `status.html?id=${encodeURIComponent(ticket.complaint_id)}`;
+  statusLink.textContent = 'स्थिति देखें';
+  card.appendChild(statusLink);
   if (ticket.status === 'needs_review') {
     const badge = document.createElement('div');
     badge.className = 'badge';
@@ -659,7 +665,7 @@ function appendGreeting() {
   greetingLine(hi, 'नमस्ते! मैं समाधान हूँ।', null, null);
   greetingLine(
     hi,
-    'आप अपनी पानी की समस्या हमें बताइए, हम उसे सही कार्यालय तक पहुँचाएँगे।',
+    'आप अपनी समस्या या शिकायत बताइए, किसी सरकारी जानकारी के बारे में पूछिए, या अपनी शिकायत की स्थिति जानिए।',
     null,
     null,
   );
@@ -678,7 +684,7 @@ function appendGreeting() {
   greetingLine(en, "Hello! I'm Samadhan.", null, null);
   greetingLine(
     en,
-    'Please tell me about your water problem and we will route it to the right office.',
+    'Tell me your problem or complaint, ask about a government service, or check the status of your complaint.',
     null,
     null,
   );
@@ -700,8 +706,8 @@ function appendGreeting() {
   // is passed, not the English. appendMessage's own textContent write becomes an empty text node
   // once cleared below, so the card is the only thing actually visible.
   const spokenHi =
-    'नमस्ते! मैं समाधान हूँ। आप अपनी पानी की समस्या हमें बताइए, हम उसे सही कार्यालय तक ' +
-    'पहुँचाएँगे। आप अपनी बात आवाज़ में बोलकर या लिखकर बता सकते हैं। हम आपकी सहायता ' +
+    'नमस्ते! मैं समाधान हूँ। आप अपनी समस्या या शिकायत बताइए, किसी सरकारी जानकारी के बारे में पूछिए, ' +
+    'या अपनी शिकायत की स्थिति जानिए। आप अपनी बात आवाज़ में बोलकर या लिखकर बता सकते हैं। हम आपकी सहायता ' +
     'करने की पूरी कोशिश करेंगे।';
   const wrapper = appendMessage('bot', spokenHi);
   wrapper.firstChild.textContent = ''; // clear the auto-created text node's visible content

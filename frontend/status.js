@@ -136,3 +136,10 @@ formEl.addEventListener('submit', (event) => {
   event.preventDefault();
   checkStatus(inputEl.value);
 });
+
+// S29: the chat's ticket card links here with ?id=SMD-xxxx -- fill the box and look it up straight away.
+const presetId = new URLSearchParams(location.search).get('id');
+if (presetId) {
+  inputEl.value = presetId;
+  checkStatus(presetId);
+}
