@@ -90,7 +90,7 @@ The dashboard is **not** a client: it reads and writes the database directly and
 | `session_id`, `message_id` | string | Echo of input |
 | `action` | enum | `ask` · `confirm` · `submitted` · `cancelled` · `out_of_scope` · `error` |
 | `reply_text` | string | In the citizen's language; always present, never empty |
-| `ask_for` | string \| null | The field being asked for when `action = ask` (e.g. `"location"`); lets the UI show a location button |
+| `ask_for` | string \| null | The field being asked for when `action = ask` (e.g. `"location"`); lets the UI show a location button. `"service"` (S28) means the bot is asking WHICH department (a clarify or reconfirm question); the UI needs no special handling |
 | `transcript` | string \| null | Only when the input was audio |
 | `summary` | object \| null | Only when `action = confirm`: collected fields for the citizen to check |
 | `ticket` | object \| null | Only when `action = submitted`. See 4.4 |

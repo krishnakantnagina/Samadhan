@@ -16,11 +16,12 @@ and tag `v1-mvp`. No changes to the submitted code until the event ends (10 Oct)
 | Build now | Not now |
 |---|---|
 | Website chatbot: text, in-browser voice, GPS, status page | WhatsApp, calls, mobile app |
-| 1 service: `water_supply` (Jal Vibhag) | Other services |
-| Pilot: Bhopal, 5 wards + 1 district fallback office | Statewide data |
+| Departments: `water_supply` (Jal Vibhag) plus DEMO `electricity`, `roads`, `sanitation` and a `general` triage service, each routed to its own office (S28, added 29 Sep) | Departments beyond these, real department contacts |
+| Pilot: Bhopal, 5 demo wards per department + 1 district fallback office each | Statewide data |
+| Every message is classified first: complaint, information question (fixed reply, validated `.gov.in` link, disclaimer) or out of context (fixed "unable to reply") | Answering government-information questions |
 | Anonymous citizen sessions | OTP / phone verification |
 | Dashboard: password login, list, detail, status, reassign, review queue, map | Officer accounts, per-department access |
-| ASR + LLM fallbacks; `cancel`, `restart`, 30-min timeout | TTS reply, rate limiting, analytics |
+| ASR + LLM fallbacks; `cancel`, `restart`, 30-min timeout | Rate limiting, analytics, push notifications to officers |
 
 ## 3. Repo Layout
 ```text

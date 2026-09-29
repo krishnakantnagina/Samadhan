@@ -116,3 +116,11 @@ Left unticked, on purpose:
 Unticketed work done since 28 Sep, for the record: T09 (ticked above), warm replies (`S25`), Groq model fallback chain
 (`S26`), generic-place guard (`S27`), location yes/no chips and the `sessions.service_id` fix (`S23`), voice-note bubbles and
 auto-speak (`S17` D-S17-4/5), auto-scroll from the hero page.
+
+### Added 29 Sep (evening): multi-department routing, S28
+Approved by the Lead and built: electricity, roads, sanitation and a general-triage service besides water; a message-kind step
+(complaint / information / out of context) with fixed replies and a validated `.gov.in` link plus disclaimer; clarify / reconfirm
+questions; dashboard cross-department reassign. Spec `docs/specs/S28`, live results and caveats in its BUILD LOG. Measured routing
+accuracy about 90% on 60 messages (synthetic data caveat). Groq free-tier capacity (8,000 tokens per minute per model) is the main
+demo risk. **T13 needs a new baseline** (it was written for a one-service bot). Restore point before this work: git tag
+`checkpoint-before-multidept`.

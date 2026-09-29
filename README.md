@@ -11,7 +11,15 @@ cd Samadhan
 
 ## Description
 
-_Add a short description of what Samadhan does and the problem it solves._
+Samadhan is a voice-first chatbot for citizen grievances in Madhya Pradesh. A citizen speaks or types a complaint in
+Hindi, Hinglish or a local dialect. The bot works out what kind of message it is (a complaint, a question about a
+government document, or something unrelated), picks the right **department**, asks only for what is missing, and after
+confirmation creates a ticket (`SMD-xxxx`) at the right **office**. The citizen can check status by complaint ID; officers
+manage tickets, corrections and a map on a dashboard. The idea is to understand a complaint well enough to route it, not to
+transcribe a dialect perfectly.
+
+Built for the MPOnline Idea & Innovation Hackathon 2026, Problem Statement 5. Pilot: Bhopal. Departments: water supply, plus
+DEMO electricity, roads, sanitation and a general triage desk (all office data for the extra departments is labelled DEMO).
 
 ## Features
 

@@ -3,6 +3,14 @@
 Optional notes on contract changes. Not required: we mostly discuss changes in chat.
 Either of us can change a contract; adding a line here is a nice-to-have. Newest first.
 
+## v1.0.0 (unchanged version) — 2026-09-29 — S28 multi-department routing
+
+Additive, `CONTRACT_VERSION` stays `1.0.0`; no new endpoint, no request or response shape change.
+- `ask_for` may now be `"service"` (clarify / reconfirm the department). It is already a free string, so clients are unaffected.
+- `action = out_of_scope` now also carries the fixed information reply (message, optional validated `.gov.in` link line,
+  disclaimer; lines separated by `\n`) and the fixed "unable to reply" reply. `reply_text` may therefore contain newlines and one URL.
+- `tickets.department` can differ from the department the ticket was created in after an officer reassigns it across departments.
+
 ## v1.0.0 (unchanged version) — 2026-09-29 — T28 / S20
 
 Additive clarification, no request/response shape change, `CONTRACT_VERSION` stays `1.0.0`.
