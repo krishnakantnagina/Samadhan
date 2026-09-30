@@ -10,7 +10,7 @@ ticket `SMD-xxxx` is created and routed to the correct **department + ward offic
 citizen checks status by complaint ID. Officers manage tickets on a dashboard.
 
 MPOnline Idea & Innovation Hackathon 2026, Problem Statement 5. Submit by **noon, 30 Sep 2026**
-and tag `v1-mvp`. No changes to the submitted code until the event ends (10 Oct).
+and tag `v1-mvp`.
 
 ## 2. Scope
 | Build now | Not now |

@@ -12,8 +12,7 @@ A voice-first AI chatbot for citizen grievances in Madhya Pradesh: a citizen spe
 (`SMD-xxxx`) is created and routed to the correct department + ward office → the citizen can check
 status by complaint ID. Officers manage tickets on a dashboard. Built for the MPOnline Idea &
 Innovation Hackathon 2026, Problem Statement 5, pilot scope: one service (`water_supply`), one city
-(Bhopal, 5 wards + district fallback). **Submission deadline: 30 Sep, noon**, then a code freeze
-until the event ends 10 Oct (`docs/PROJECT.md` §1).
+(Bhopal, 5 wards + district fallback). **Submission deadline: 30 Sep, noon** (`docs/PROJECT.md` §1).
 
 Two people: **Lead** (website, dashboard, data, submission docs) and **Dev** (backend, API,
 integrations) — though in practice tickets get picked up by whoever's available; either can touch

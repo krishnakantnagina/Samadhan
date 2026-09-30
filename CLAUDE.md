@@ -26,7 +26,7 @@ Docs: `docs/PROJECT.md` (source of truth), `docs/TICKETS.md` (checklist), `docs/
 
 - Never commit `.env` or API keys. Keep `.env.example` up to date.
 - List every library, API and template in the README (organizer requirement).
-- After the 30 Sep submission nothing in the project changes until the event ends (organizer rule). Tag `v1-mvp` at submission.
+- Tag `v1-mvp` at submission.
 
 ## Workflow
 

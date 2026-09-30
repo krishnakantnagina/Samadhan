@@ -80,7 +80,6 @@ Second problem: the greeting audio is fetched from Sarvam TTS on every load and 
 | Audio still blocked (iOS Safari, low-power mode) | "Listen" button fallback stays. |
 | Recording says different words than the card | Ear-check before ship; the card text is the source of truth. |
 | Two entry points confuse | Floating button hidden until first open on the home page. |
-| Freeze: nothing changes after the 30 Sep submission | Do it today, test, then tag `v1-mvp`; otherwise skip. |
 
 ## 7. Tests (manual, no test framework exists for the frontend)
 1. Home: only the hero shows, no scroll, no ↓, no floating button.

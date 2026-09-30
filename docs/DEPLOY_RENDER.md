@@ -101,5 +101,4 @@ The dashboard is password-gated (S13). Keep the URL private.
 ## 8. Safety notes
 - Keys live only in Render's Environment tab, never in git.
 - `/message` and `/speak` have no rate limit or login (G-S17-1). Don't post the API URL publicly.
-- After the 30 Sep submission nothing in the project changes until the event ends (organizer rule). Finish and test the deploy first.
 - Rollback: Render keeps previous deploys; use its deploy history to go back, or fall back to the local run.

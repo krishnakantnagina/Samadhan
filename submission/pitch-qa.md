@@ -67,8 +67,7 @@ explicitly on the roadmap, not a permanent choice.
 
 ## 10. What's the plan after 30 Sep?
 
-Per the hackathon rule, nothing changes in the submitted code until the event ends (10 Oct). After
-that: real ward centroid data, officer-verified jurisdiction, broader ASR/dialect testing, and — if
+The submitted state is tagged `v1-mvp`. Next: real ward centroid data, officer-verified jurisdiction, broader ASR/dialect testing, and — if
 selected — a conversation about integration with MPOnline's own systems.
 
 ## 11. What if the AI tries to invent a department or field that doesn't exist?

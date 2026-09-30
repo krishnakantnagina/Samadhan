@@ -23,6 +23,5 @@ Item 9 (the repo URL) needs no file: it is the GitHub link, `https://github.com/
 - **Videos are not committed to git** (`.gitignore` in this folder): they are too big and go to the portal directly.
   Keep the originals here on disk and upload them from here.
 - Never put keys, passwords or personal data in these files (CLAUDE.md rule).
-- After the 30 Sep submission nothing in the project changes until the event ends (organizer rule), so finish files before then.
 - The other files already in `submission/` (`T09-test-sentences.json`, `t09-voice-samples/`, the `T13-*` result files,
   `pitch-qa.md`) stay where they are.

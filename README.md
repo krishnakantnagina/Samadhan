@@ -185,7 +185,7 @@ microphone and location on **HTTPS**, which the hosts provide.
 - **No rate limit or login** on the citizen endpoints (`/message`, `/speak`).
 - **Spoken complaint numbers** are understood as digits and digit words, not as Hindi number words ("बाईस").
 - **Information questions** get a link and a disclaimer, not an answer: there is no verified knowledge base.
-- After the 30 Sep submission nothing in the project changes until the event ends (organizer rule); the submitted state is tagged `v1-mvp`.
+- The submitted state is tagged `v1-mvp`.
 
 ## Attribution
 

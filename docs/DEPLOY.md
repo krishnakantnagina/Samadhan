@@ -38,4 +38,3 @@ to create and paste; nothing here needs a secret committed to git. Env-var names
 - Re-check `GROQ_MODEL` / `GEMINI_MODEL` are still live (`.env.example` notes).
 - Supabase free tier pauses after 7 idle days (G-T06-1): open the project once before the freeze.
 - Open endpoints: `/message` and `/speak` have no rate limit (G-S17-1). Don't share the API URL publicly.
-- Freeze: nothing changes after the 30 Sep submission. Do the deploy and the fixes first.
