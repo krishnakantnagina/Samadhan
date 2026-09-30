@@ -982,3 +982,22 @@ body[data-hero] #samadhan-widget-panel {
   #samadhan-widget-toggle { animation: none; }
   #samadhan-widget-panel { animation: none; }
 }
+
+/* Widget, laptop only (>= 481px; phone layout untouched): smaller mic on top, the three chips right-aligned above the
+   भेजें button, smaller chips, smaller Hindi text in the greeting card. */
+@media (min-width: 481px) {
+  #samadhan-widget-composer .voice-row { order: 1; }
+  #samadhan-widget-composer .composer-actions { order: 2; justify-content: flex-end; }
+  #samadhan-widget-composer .composer-row { order: 3; }
+
+  #samadhan-widget-composer .mic-btn { width: 52px; height: 52px; }
+  #samadhan-widget-composer .mic-btn svg { width: 22px; height: 22px; }
+
+  #samadhan-widget-composer .chip-btn {
+    min-height: 34px;
+    font-size: 12px;
+    padding: 5px 11px;
+  }
+
+  #samadhan-widget-messages .greeting-hi { font-size: 14px; }
+}
