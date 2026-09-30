@@ -110,6 +110,7 @@ Left unticked, on purpose:
 - **T31** 10-scenario pass: not done.
 - **T32** deploy config is ready (`Dockerfile`, `vercel.json`, `docs/DEPLOY.md`, spec `S22`); nothing is deployed yet and the
   Docker image was never built (no Docker on the dev machine).
+- **S31 (30 Sep)**: home page is the hero only; chat opens as the widget from the hero mic; greeting plays `frontend/greeting-hi.wav` (no TTS). Restore point: tag `checkpoint-before-hero-widget`.
 - **T52** unchanged: 2 of 7 checklist items still need a human (real Android device, a spoken test through the press-and-hold mic).
 - **T33-T43** (submission documents, demo video, slides, submit + tag `v1-mvp`) and **T44-T49** (event prep) not started.
 

@@ -150,7 +150,7 @@ microphone and location on **HTTPS**, which the hosts provide.
 | `backend/app/` | FastAPI core: routes, turn engine, validator, jurisdiction, ticketing, session, voice, tts, status and info replies |
 | `backend/mock/` | canned-response mock API for website development and the shared contract tests |
 | `backend/tests/` | pytest, plus `tests/prompt/` live evaluation scripts |
-| `frontend/` | citizen website: `index.html` + `app.js` (chat), `status.html` + `status.js`, `widget.js` (floating chat), `style.css` |
+| `frontend/` | citizen website: `index.html` (hero; the chat is `widget.js`, S31; `app.js` is kept but unused), `status.html` + `status.js`, `widget.js` (floating chat), `style.css` |
 | `dashboard/` | Streamlit officer dashboard |
 | `specs/` | service definitions in YAML: `water_supply`, `electricity`, `roads`, `sanitation`, `general` |
 | `database/` | `schema.sql`, `seed.sql`, `seed_departments.sql`, `seed_tickets.sql` |

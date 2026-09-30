@@ -1,3 +1,4 @@
+// UNUSED since S31: index.html no longer loads this file (its chat page is hidden; widget.js is the chat). Kept so it can be turned back on.
 // Samadhan citizen chat — T21. Talks only to POST /api/v1/message (S01 contract).
 // No business logic here: every action/reply comes from the backend as-is.
 

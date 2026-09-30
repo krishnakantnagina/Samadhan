@@ -31,6 +31,9 @@ html, body {
   color: var(--bot-text);
 }
 
+/* S31: the hidden chat page must stay hidden (display:flex below would override the attribute) */
+.app-shell[hidden] { display: none; }
+
 .app-shell {
   display: flex;
   flex-direction: column;
@@ -165,6 +168,8 @@ html, body {
   border-radius: 999px;
   cursor: pointer;
 }
+
+.greeting-listen-btn[hidden] { display: none; } /* display:flex above would otherwise override `hidden` */
 
 .greeting-listen-btn:active {
   background: var(--ticket-border);
@@ -936,6 +941,41 @@ html, body {
 @media (max-width: 420px) {
   #samadhan-widget-root { right: 12px; bottom: 12px; }
   #samadhan-widget-panel { right: 12px; bottom: 84px; }
+}
+
+/* S31: on the home page (body[data-hero]) the hero mic is the entry point; the round button and its label
+   show only after the first open, so a citizen can reopen a closed panel. */
+body[data-hero] #samadhan-widget-root:not(.samadhan-widget-seen) #samadhan-widget-toggle,
+body[data-hero] #samadhan-widget-root:not(.samadhan-widget-seen) #samadhan-widget-label {
+  display: none;
+}
+
+body[data-hero] #samadhan-widget-panel {
+  width: min(420px, calc(100vw - 40px));
+  height: min(680px, calc(100vh - 120px));
+}
+
+@media (max-width: 480px) {
+  body[data-hero] #samadhan-widget-panel,
+  #samadhan-widget-panel {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+.hero-status-link {
+  display: inline-block;
+  margin-top: 18px;
+  font-size: 14px;
+  color: #c7d9f0;
+  text-decoration: underline;
 }
 
 @media (prefers-reduced-motion: reduce) {

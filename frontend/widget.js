@@ -777,8 +777,8 @@
     wrapper.insertBefore(card, wrapper.firstChild);
 
     async function playGreetingAudio() {
-      const audio = await fetchHindiAudio(spokenHi);
-      await audio.play();
+      // S31: pre-recorded file, no TTS call (same words as spokenHi above).
+      await new Audio('greeting-hi.wav').play();
     }
 
     listenBtn.addEventListener('click', async () => {
@@ -823,6 +823,7 @@
     opened = open;
     panel.hidden = !open;
     root.classList.toggle('samadhan-widget-open', open);
+    if (open) root.classList.add('samadhan-widget-seen'); // S31: home page shows the round button only after the first open
     toggleBtn.textContent = '';
     toggleBtn.appendChild(svgIcon(open ? CLOSE_PATH : CHAT_PATH));
     toggleBtn.setAttribute('aria-label', open ? 'बंद करें' : 'समाधान से बात करें');
@@ -840,6 +841,11 @@
       input.focus();
     }
   }
+
+  // S31: the hero's "Start Conversation" mic (index.html) opens the widget. Pages without it are unaffected.
+  const heroCta = document.getElementById('hero-cta');
+  if (heroCta) heroCta.addEventListener('click', () => setOpen(true));
+  window.SamadhanWidget = { open: () => setOpen(true) };
 
   toggleBtn.addEventListener('click', () => setOpen(!opened));
   closeBtn.addEventListener('click', () => setOpen(false));
