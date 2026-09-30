@@ -778,7 +778,7 @@
 
     async function playGreetingAudio() {
       // S31: pre-recorded file, no TTS call (same words as spokenHi above).
-      await new Audio('greeting-hi.wav').play();
+      await new Audio('greeting-hi.mp3').play();
     }
 
     listenBtn.addEventListener('click', async () => {
