@@ -1018,3 +1018,37 @@ body[data-hero] #samadhan-widget-panel {
   }
   #samadhan-widget-composer .composer-row { align-items: stretch; }
 }
+
+/* Full chat page (#app, hidden since S31): same laptop sizes as the widget, so it matches if it is ever turned back on. */
+@media (min-width: 481px) {
+  #app #composer .voice-row { order: 1; }
+  #app #composer .composer-actions { order: 2; justify-content: flex-end; }
+  #app #composer .composer-row { order: 3; align-items: stretch; }
+
+  #app #composer .mic-btn { width: 52px; height: 52px; }
+  #app #composer .mic-btn svg { width: 22px; height: 22px; }
+
+  #app #composer .chip-btn {
+    min-height: 34px;
+    font-size: 12px;
+    padding: 5px 11px;
+  }
+
+  #app #chat .greeting-hi { font-size: 14px; }
+  #app #chat .msg { font-size: 14px; }
+  #app #chat .card { font-size: 14px; }
+
+  #app #composer .input {
+    min-height: 36px;
+    padding: 7px 12px;
+    font-size: 14px;
+    line-height: 1.4;
+    border-radius: 10px;
+  }
+  #app #composer .send-btn {
+    height: 36px;
+    min-width: 64px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+}
