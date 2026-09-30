@@ -106,6 +106,14 @@
   actionsRow.appendChild(restartBtn);
   actionsRow.appendChild(cancelBtn);
   actionsRow.appendChild(locationBtn);
+  // Status check: opens the existing status page in a new tab, so the chat stays open (same session).
+  const statusLink = document.createElement('a');
+  statusLink.className = 'chip-btn chip-link';
+  statusLink.href = 'status.html';
+  statusLink.target = '_blank';
+  statusLink.rel = 'noopener';
+  statusLink.textContent = 'स्थिति जानें';
+  actionsRow.appendChild(statusLink);
 
   const voiceRow = document.createElement('div');
   voiceRow.className = 'voice-row';
@@ -498,8 +506,10 @@
   async function handleTurn(apiCall, citizenBubbleText, autoSpeak = false) {
     const citizenEl = appendMessage('citizen', citizenBubbleText);
     setBusy(true);
+    const waitingEl = appendTypingIndicator(); // three dots while the reply is on its way
     try {
       const result = await apiCall();
+      waitingEl.remove();
       if (result.transcript) {
         citizenEl.textContent = result.transcript;
       }
@@ -518,6 +528,7 @@
     } catch (err) {
       appendMessage('error', err.message || GENERIC_ERROR);
     } finally {
+      waitingEl.remove();
       setBusy(false);
       input.focus();
     }

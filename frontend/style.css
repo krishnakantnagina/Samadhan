@@ -1052,3 +1052,20 @@ body[data-hero] #samadhan-widget-panel {
     border-radius: 10px;
   }
 }
+
+/* Status chip is a link (opens status.html in a new tab): look like the other chips. */
+.chip-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+/* Phone widget only: four chips in one row, so each is a little smaller. The laptop sizes (above) are unchanged. */
+@media (max-width: 480px) {
+  #samadhan-widget-composer .composer-actions { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  #samadhan-widget-composer .chip-btn {
+    min-height: 34px;
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+}
