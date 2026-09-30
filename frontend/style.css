@@ -1000,4 +1000,21 @@ body[data-hero] #samadhan-widget-panel {
   }
 
   #samadhan-widget-messages .greeting-hi { font-size: 14px; }
+  #samadhan-widget-messages .msg { font-size: 14px; }
+  #samadhan-widget-messages .card { font-size: 14px; }
+
+  #samadhan-widget-composer .input {
+    min-height: 36px;
+    padding: 7px 12px;
+    font-size: 14px;
+    line-height: 1.4;
+    border-radius: 10px;
+  }
+  #samadhan-widget-composer .send-btn {
+    height: 36px;
+    min-width: 64px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+  #samadhan-widget-composer .composer-row { align-items: stretch; }
 }
