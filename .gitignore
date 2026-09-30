@@ -18,6 +18,7 @@ build/
 
 # Audio
 *.wav
+!frontend/greeting-hi.wav
 *.ogg
 
 # Streamlit secrets
