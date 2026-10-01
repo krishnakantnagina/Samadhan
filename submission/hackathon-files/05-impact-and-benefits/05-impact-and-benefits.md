@@ -8,7 +8,7 @@ This note separates **what we measured**, **what the design guarantees**, and **
 
 | Measure | Result | How measured | Caveat |
 |---|---|---|---|
-| Department routing accuracy | About **90% exact** on 60 messages: hand-written 25 of 26, synthetic Bundeli/Malvi 29 to 30 of 34 | `backend/tests/prompt/run_routing_eval.py`, results in `submission/routing-eval-results-*.json` | One run per data set. Synthetic data was written by an LLM and not checked by native speakers. Remaining misses are mostly debatable labels |
+| Department routing accuracy | About **90% exact** on 60 messages: hand-written 25 of 26, synthetic Bundeli/Malvi 29 to 30 of 34 | `backend/tests/prompt/run_routing_eval.py`, results in `submission/routing-eval-results-*.json` | Measured on our earlier LLM-based routing, before Jev was added. One run per data set. Synthetic data was written by an LLM and not checked by native speakers. Remaining misses are mostly debatable labels |
 | Water-issue extraction | 12 to 13 of 15 on the two best of six runs (11, 10, 9, 9, 13, 12) | `submission/T13-prompt-test-results-run*.json` | The 13/15 target was met once, not consistently |
 | Automated tests | 415 backend + 35 dashboard tests pass; Ruff clean | `uv run pytest` | Tests use no network or keys; they check logic, not live accuracy |
 | Definition-of-done scenarios | All ten exercised end to end with real providers; scenario 7 (GPS to the correct ward) cannot pass yet | Scripted run | Ward centre points are not available, so a GPS-only complaint goes to the district office |
@@ -56,3 +56,19 @@ This is one short test by our team, not a full evaluation, and we make no claim 
 2. Faster first response, measured by time from filing to first status change.
 3. Less officer triage time, measured by time spent on the review queue.
 4. Higher filing rate from citizens who avoid forms, measured by complaints filed by voice.
+
+## 6. Future plan and added benefits (our roadmap, not results)
+
+Samadhan solves the main problem today: a citizen speaks, and the complaint reaches the right department. The plan below shows what it adds next, and the benefit each step brings. These are goals, not measured results.
+
+| Stage | What we add | Added benefit |
+|---|---|---|
+| **Next** | Verified office and ward data, a real SMS OTP once the SMS licence is obtained, rate limits | Trusted complaints, fewer false or fake ones, and the right ward every time |
+| **Then** | WhatsApp and phone calls on the same engine | Reaches citizens without a smartphone or internet. A call is as easy as speaking in a village |
+| **Dialect data** | With clear consent and rules, keep the voice, the words, the department and officer corrections as organised data | The real dialect conversation data that Madhya Pradesh lacks today. The government, as the legal authority, would hold it only to improve public services |
+| **Future models** | Use that data to help train language models that talk to citizens like a real person | Government services that understand every dialect, in every district |
+| **Later** | More departments and districts, per-department officer accounts, hand-off to MPOnline channels | Statewide scale, and officers who see only their own department's tickets |
+
+**A stronger Madhya Pradesh.** A citizen who is heard trusts the system, a trusted system attracts business, and business builds the future of the state. This is our hope, and we have not measured it.
+
+Calls and recordings will be kept only with clear consent and a retention policy, which we will put in place before any public launch.

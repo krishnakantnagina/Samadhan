@@ -6,7 +6,7 @@
 | | |
 |---|---|
 | **Live website** | [https://samadhan-web.onrender.com/](https://samadhan-web.onrender.com/) |
-| **Source code** | [https://github.com/krishnakantnagina/Samadhan](https://github.com/krishnakantnagina/Samadhan) (tag `v1-mvp`) |
+| **Source code** | [https://github.com/krishnakantnagina/Samadhan](https://github.com/krishnakantnagina/Samadhan) |
 | **Officer dashboard** | [https://samadhan-dashboard.onrender.com](https://samadhan-dashboard.onrender.com) (tap **Demo** for sample data, no login) |
 
 The site runs on free hosting. If it has been idle, the first message can take up to a minute while the server wakes up.

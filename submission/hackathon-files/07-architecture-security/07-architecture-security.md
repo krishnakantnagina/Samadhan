@@ -13,7 +13,7 @@ FastAPI core ----> [voice] Sarvam ASR -> Groq Whisper fallback  (audio + transcr
    |  command ("cancel", "रद्द करो") -> handled here, no LLM
    |  complaint number in the message -> status answered here, no LLM
    v
-Turn Engine (ONE LLM call, strict JSON): intent, department, confidence, fields
+Turn Engine: Jev (TypeSafe) decides the department + confidence; the LLM extracts the fields (strict JSON)
    |   Groq gpt-oss-120b -> qwen3.8-27b -> gpt-oss-20b -> Gemini
    v
 Validator (pure code): checks every value against the service spec, then decides
@@ -35,6 +35,7 @@ Officer dashboard (Streamlit) reads and writes the DB directly, never calls the 
 | Layer | Choice |
 |---|---|
 | Backend | Python 3.12, uv, FastAPI, Uvicorn, Pydantic, httpx, PyYAML, RapidFuzz |
+| Decision model | Jev (TypeSafe): picks the department from a registry of 49 departments; falls back to the LLM path if unreachable |
 | LLM | Groq (`openai/gpt-oss-120b`, `qwen/qwen3.8-27b`, `openai/gpt-oss-20b`), Gemini as last fallback |
 | Voice | Sarvam `saaras:v4` (speech-to-text), `bulbul:v3` (text-to-speech); Groq `whisper-large-v3-turbo` fallback |
 | Data | Supabase Postgres with Row Level Security; private Storage bucket `audio` |

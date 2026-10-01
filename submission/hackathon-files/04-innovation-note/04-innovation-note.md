@@ -11,7 +11,7 @@ system, and keeps the AI on a short leash so it cannot make a mistake that becom
 ## What is different
 
 ### 1. An AI with a hard boundary
-A single LLM call returns strict JSON (intent, department, confidence, fields). **Plain code then validates every value against a service
+Jev (TypeSafe), our decision model, picks the department from a registry and gives a confidence. The LLM only extracts the details as strict JSON. **Plain code then validates every value against a service
 specification file** (`specs/*.yaml`). The model can never invent a service, field, department or office: anything not in the spec is
 dropped and asked again. This is enforced in code and covered by automated tests, not only by a prompt.
 

@@ -35,7 +35,7 @@ message and invites fake complaints.
 | Risk | Mitigation |
 |---|---|
 | AI misroutes a complaint | Validator against the spec; confidence threshold; `needs_review`; officer reassign with a logged correction |
-| Provider outage or rate limit | LLM chain of four models; ASR fallback; short timeouts; Hindi error messages |
+| Provider outage or rate limit | LLM chain of four models; if Jev is unreachable the earlier LLM path takes over; ASR fallback; short timeouts; Hindi error messages |
 | Spam or fake complaints | Phase 2: phone verification, rate limits, duplicate detection |
 | Wrong or unverified office data | Verified-or-labelled rule: every unverified row is marked DEMO; a registry with source and verified fields is proposed |
 | Privacy and DPDP Act compliance | Minimal data by design; a full review (consent, retention, grievance officer) is a Phase 2 task, and we do not claim compliance today |

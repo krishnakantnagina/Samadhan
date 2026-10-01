@@ -7,7 +7,7 @@ Citizens of Madhya Pradesh already have ways to complain: the CM Helpline, a tol
 Corporation (BMC) portal. What they lack is a way to **describe a problem in their own words and have it reach the right office
 without knowing how the government is organised**.
 
-### Evidence from Madhya Pradesh (Bhopal)
+### Evidence from Madhya Pradesh (Bhopal is our first example; the same pattern applies in every district)
 | Finding | Source | Confidence |
 |---|---|---|
 | BMC is the civic body for Bhopal; head office at Harshwardhan Complex, Mata Mandir, Bhopal 462001 | [bhopal.nic.in](https://bhopal.nic.in/en/public-utility/bhopal-municipal-corporation/) | High, official |
@@ -32,7 +32,7 @@ A voice-first AI chatbot **website** that turns a spoken or typed complaint into
 
 | Need | How Samadhan answers it |
 |---|---|
-| No need to know the department | The AI picks the department from the citizen's words; when unsure it asks "is this X or Y?" with questions we wrote |
+| No need to know the department | Jev, our decision model, picks the department from the citizen's words; when unsure it asks "is this X or Y?" with questions we wrote |
 | Own language | Hindi and Hinglish text and voice (Sarvam speech-to-text, Groq Whisper fallback) and spoken replies (Sarvam Bulbul) |
 | No need to know the ward | Ward name matched fuzzily to the ward office; GPS is captured for the officer map |
 | Wrong routing | Low confidence or unknown place goes to the district office as `needs_review`; officers can reassign, and every correction is logged |
