@@ -76,3 +76,18 @@ def test_demo_account_builder_covers_every_role_and_hashes_passwords():
     assert all("password" not in r and len(r["hash"]) == 64 for r in records)
     for (user, pw, _role, _d), rec in zip(plain, records, strict=True):
         assert user == rec["username"] and accounts.verify_password(pw, rec)
+
+
+def test_guest_demo_is_demo_only_and_cannot_open_admin_pages():
+    g = accounts.guest_demo()
+    assert g.demo_only and g.role == "cm_admin"
+    assert g.can_open("command") and g.can_open("tickets")
+    assert not g.can_open("accounts") and not g.can_open("data")
+    assert not accounts.Account("admin", "cm_admin").demo_only
+
+
+def test_guest_button_can_be_switched_off(monkeypatch):
+    monkeypatch.setenv("DASHBOARD_ALLOW_GUEST", "0")
+    assert not accounts.guest_allowed()
+    monkeypatch.delenv("DASHBOARD_ALLOW_GUEST")
+    assert accounts.guest_allowed()

@@ -34,5 +34,5 @@ def test_load_reads_real_files_and_computes_rate(tmp_path):
 
 def test_missing_files_fall_back_without_crashing(tmp_path):
     d = home.load(tmp_path)
-    assert d.registered is None and d.resolution_rate is None and "unavailable" in d.source_note
+    assert d.registered is None and d.resolution_rate is None and d.source_note == ""
     assert [s["scheme"] for s in home.spotlight(d)] == home.FEATURED  # names only, nothing invented

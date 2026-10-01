@@ -52,7 +52,14 @@ class Account:
     label: str = ""
     extra: dict[str, Any] = field(default_factory=dict, compare=False)
 
+    @property
+    def demo_only(self) -> bool:
+        """The public Demo button: sample data only, never the live database, and no account or data-source admin pages."""
+        return bool(self.extra.get("demo_only"))
+
     def can_open(self, page: str) -> bool:
+        if self.demo_only and page in ("accounts", "data"):
+            return False
         return self.role in PAGE_ACCESS.get(page, ())
 
     @property
@@ -112,3 +119,12 @@ def scope_tickets(df: pd.DataFrame, account: Account) -> pd.DataFrame:
             return df.iloc[0:0]
         return df[(df["department"] == account.department) & (df["office_name"] == account.office_name)]
     return df.iloc[0:0]
+
+
+def guest_demo() -> Account:
+    """Account behind the home page's Demo button: sees everything except accounts / data sources, on the invented demo dataset only."""
+    return Account("demo", "cm_admin", label="Demo visitor (sample data)", extra={"demo_only": True})
+
+
+def guest_allowed() -> bool:
+    return os.environ.get("DASHBOARD_ALLOW_GUEST", "1").strip().lower() not in ("0", "false", "no", "off")

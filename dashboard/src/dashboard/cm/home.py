@@ -34,7 +34,7 @@ class HomeData:
     resolved: int | None = None
     schemes: list[dict] = field(default_factory=list)
     by_department: list[tuple[str, int]] = field(default_factory=list)
-    source_note: str = "CM Helpline figures unavailable: scraped data not found on this machine."
+    source_note: str = ""
 
     @property
     def resolution_rate(self) -> float | None:

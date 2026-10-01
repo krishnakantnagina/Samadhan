@@ -72,6 +72,48 @@ hr {{ border-color:{GREY} !important; opacity:.35; }}
 .cm-hit .k {{ color:{BLUE}; font-size:.72rem; font-weight:700; letter-spacing:.8px; text-transform:uppercase; }}
 .cm-hit .t {{ color:{NAVY}; font-weight:600; }}
 .cm-hit .s {{ color:{MUTED}; font-size:.85rem; }}
+/* page spacing: Streamlit's default top gap is large */
+.block-container {{ padding-top:3.1rem !important; padding-bottom:2rem !important; max-width:1240px; }}
+[data-testid="stHeader"] {{ height:2.4rem; }}
+.cm-topbar {{ display:flex; align-items:center; gap:.7rem; padding:.2rem 0 .1rem; }}
+.cm-topbar .mark {{ width:38px; height:38px; border-radius:4px; background:{NAVY}; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.2rem; }}
+.cm-topbar .nm {{ font-weight:800; color:{NAVY}; font-size:1.15rem; line-height:1.1; }}
+.cm-topbar .sub {{ color:{MUTED}; font-size:.78rem; letter-spacing:.4px; }}
+.cm-stats {{ display:grid; grid-template-columns:repeat(3,1fr); gap:.7rem; margin-top:1.1rem; }}
+.cm-hero {{ margin-top:.5rem; }}
+.cm-steps {{ display:grid; grid-template-columns:repeat(3,1fr); gap:.8rem; margin:1rem 0 .4rem; }}
+.cm-step {{ background:#fff; border:1px solid {GREY_LIGHT}; border-top:3px solid {NAVY}; border-radius:3px; padding:.9rem 1rem; }}
+.cm-step .no {{ color:{BLUE}; font-weight:800; font-size:.8rem; letter-spacing:1px; }}
+.cm-step b {{ display:block; color:{NAVY}; margin:.15rem 0 .25rem; }}
+.cm-step small {{ color:{MUTED}; }}
+.cm-facts {{ display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.9rem; position:relative; z-index:1; }}
+.cm-facts span {{ background:rgba(255,255,255,.14); border-top:2px solid #fff; border-radius:3px; padding:.25rem .65rem; font-size:.8rem; color:#fff; }}
+/* motion: a gentle rise on the home page, a lift on every ticket-like card (switched off for people who prefer reduced motion) */
+@keyframes cm-rise {{ from {{ opacity:0; transform:translateY(16px); }} to {{ opacity:1; transform:none; }} }}
+@keyframes cm-drift {{ 0% {{ background-position:0% 50%; }} 50% {{ background-position:100% 50%; }} 100% {{ background-position:0% 50%; }} }}
+.cm-topbar {{ animation:cm-rise .45s ease both; }}
+.cm-hero {{ background-size:180% 180%; animation:cm-rise .6s ease both, cm-drift 18s ease-in-out infinite; }}
+.cm-stat {{ animation:cm-rise .6s ease both; transition:background .2s ease, transform .2s ease; }}
+.cm-stat:nth-child(1) {{ animation-delay:.12s; }} .cm-stat:nth-child(2) {{ animation-delay:.22s; }} .cm-stat:nth-child(3) {{ animation-delay:.32s; }}
+.cm-stat:hover {{ background:rgba(255,255,255,.2); transform:translateY(-2px); }}
+.cm-step {{ animation:cm-rise .6s ease both; }}
+.cm-step:nth-child(1) {{ animation-delay:.2s; }} .cm-step:nth-child(2) {{ animation-delay:.3s; }} .cm-step:nth-child(3) {{ animation-delay:.4s; }}
+.cm-card, .cm-step, .cm-hit, [data-testid="stMetric"], .cm-chip {{ transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }}
+.cm-card:hover, .cm-step:hover, .cm-hit:hover, [data-testid="stMetric"]:hover {{ transform:translateY(-4px); box-shadow:0 12px 24px rgba(11,46,89,.18); border-color:{BLUE}; }}
+.cm-card:hover {{ border-left-color:{BLUE}; }}
+.cm-hit:hover {{ border-left-color:{NAVY}; }}
+.cm-chip:hover {{ transform:translateY(-2px); border-color:{BLUE}; }}
+.stButton > button, .stFormSubmitButton > button {{ transition:transform .15s ease, box-shadow .15s ease, background .15s ease; }}
+.stButton > button:hover, .stFormSubmitButton > button:hover {{ transform:translateY(-2px); box-shadow:0 6px 14px rgba(11,46,89,.28); }}
+@media (prefers-reduced-motion: reduce) {{ *, *::before, *::after {{ animation:none !important; transition:none !important; }} }}
+@media (max-width: 700px) {{
+  .block-container {{ padding-left:.9rem !important; padding-right:.9rem !important; padding-top:3rem !important; }}
+  .cm-hero {{ padding:1.2rem 1.1rem; }}
+  .cm-hero h1 {{ font-size:1.7rem; }}
+  .cm-quote {{ font-size:1.02rem; margin-top:.7rem; }}
+  .cm-stats, .cm-steps {{ grid-template-columns:1fr; }}
+  .cm-stat .n {{ font-size:1.35rem; }}
+}}
 </style>
 """
 

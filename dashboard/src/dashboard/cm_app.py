@@ -48,41 +48,58 @@ def _home_data() -> home.HomeData:
     return home.load()
 
 
+@st.dialog("Sign in")
+def _sign_in_dialog() -> None:
+    """Pop-up so the login is reachable from the very top of the home page, including on a phone."""
+    user = st.text_input("Username")
+    pw = st.text_input("Password", type="password")
+    if st.button("Log in", type="primary", use_container_width=True):
+        found = accounts.authenticate(user, pw, accounts.load_accounts(), legacy_password=os.environ.get("DASHBOARD_PASSWORD"))
+        if found:
+            st.session_state["cm_account"] = found
+            st.rerun()
+        st.error("Wrong username or password.")
+    if accounts.guest_allowed():
+        st.caption("No account? Close this and press Demo to explore with sample data.")
+
+
 def _login_screen() -> accounts.Account:
-    """Home page + sign-in. Real CM Helpline figures and scheme names, original quotes; nothing else is invented."""
+    """Home page: top bar with Log in and Demo buttons, hero, how it works, scheme directory. Nothing is invented except the clearly labelled demo data."""
     if st.session_state.get("cm_account"):
         return st.session_state["cm_account"]
     theme.inject()
     hd = _home_data()
     seed = st.session_state.setdefault("quote_seed", random.randrange(1000))
     en, hi = home.pick_quote(seed)
-    left, right = st.columns([3, 2], gap="large")
-    with left:
-        stats = ""
-        if hd.registered:
-            stats = "".join(f'<div class="cm-stat"><div class="n">{n}</div><div class="l">{label}</div></div>' for n, label in (
-                (home.indian(hd.registered), "COMPLAINTS REGISTERED (CM HELPLINE 181)"), (home.indian(hd.resolved), "RESOLVED"), (f"{hd.resolution_rate}%", "RESOLUTION RATE")))
-            stats = f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;margin-top:1.2rem">{stats}</div>'
-        st.markdown(f'<div class="cm-hero"><div class="tag">Madhya Pradesh · CM Office</div><h1>समाधान · Samadhan</h1>'
-                    f'<div class="cm-quote">“{en}”</div><div class="cm-quote-hi">{hi}</div>{stats}</div>', unsafe_allow_html=True)
-        if st.button("↻ Another line"):
-            st.session_state["quote_seed"] = seed + 1
-            st.rerun()
+
+    brand, login_col, demo_col = st.columns([6, 1.3, 1.5], vertical_alignment="center")
+    brand.markdown('<div class="cm-topbar"><div class="mark">स</div><div><div class="nm">समाधान · Samadhan</div>'
+                   '<div class="sub">MADHYA PRADESH · CM OFFICE</div></div></div>', unsafe_allow_html=True)
+    if login_col.button("Log in", use_container_width=True):
+        _sign_in_dialog()
+    if accounts.guest_allowed() and demo_col.button("▶ Demo", type="primary", use_container_width=True):
+        st.session_state["cm_account"] = accounts.guest_demo()
+        st.rerun()
+
+    stats = ""
+    if hd.registered:
+        cells = "".join(f'<div class="cm-stat"><div class="n">{n}</div><div class="l">{label}</div></div>' for n, label in (
+            (home.indian(hd.registered), "COMPLAINTS REGISTERED (CM HELPLINE 181)"), (home.indian(hd.resolved), "RESOLVED"), (f"{hd.resolution_rate}%", "RESOLUTION RATE")))
+        stats = f'<div class="cm-stats">{cells}</div>'
+    facts = '<div class="cm-facts"><span>55 districts</span><span>49 departments</span><span>Hindi and local dialects</span><span>Voice and text</span></div>'
+    st.markdown(f'<div class="cm-hero"><div class="tag">One place for every grievance</div><h1>समाधान · Samadhan</h1>'
+                f'<div class="cm-quote">“{en}”</div><div class="cm-quote-hi">{hi}</div>{stats or facts}</div>', unsafe_allow_html=True)
+    if st.button("↻ Another line"):
+        st.session_state["quote_seed"] = seed + 1
+        st.rerun()
+    if hd.source_note:
         st.caption(hd.source_note)
-    with right:
-        st.subheader("Sign in")
-        user = st.text_input("Username")
-        pw = st.text_input("Password", type="password")
-        if st.button("Log in", use_container_width=True):
-            found = accounts.authenticate(user, pw, accounts.load_accounts(), legacy_password=os.environ.get("DASHBOARD_PASSWORD"))
-            if found:
-                st.session_state["cm_account"] = found
-                st.rerun()
-            st.error("Wrong username or password.")
-        st.caption("Demo accounts are listed in local-research/DEMO_ACCOUNTS.md.")
-        st.markdown('<div class="cm-card"><b>What Samadhan does</b><br><small>1. A citizen describes the problem in their own words.<br>'
-                    '2. Samadhan confirms what it understood and finds the right department and office.<br>'
-                    '3. The complaint lands on an officer\'s desk, and the CM office can see it all in one place.</small></div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="cm-steps">'
+                '<div class="cm-step"><div class="no">STEP 1</div><b>The citizen speaks or types</b><small>In their own words and dialect, on the website; WhatsApp and phone calls are next.</small></div>'
+                '<div class="cm-step"><div class="no">STEP 2</div><b>Samadhan understands and confirms</b><small>It finds the right department and office, asks only what is missing, and reads the complaint back.</small></div>'
+                '<div class="cm-step"><div class="no">STEP 3</div><b>The right officer acts</b><small>The complaint lands on one desk, the officer calls the citizen back, and the CM office sees everything in one view.</small></div>'
+                '</div>', unsafe_allow_html=True)
     if hd.schemes:
         st.markdown("### From the CM Helpline scheme directory")
         cards = st.columns(4)
@@ -111,14 +128,18 @@ def main() -> None:
     theme.inject()
     conn = _registry()
     if not conn.execute("SELECT 1 FROM departments LIMIT 1").fetchone():
-        st.error("The registry is empty. Run `uv run python -m dashboard.cm.build_cli` from dashboard/, then reload.")
+        st.warning("The department and service registry is not loaded on this server. Build it with `uv run python -m dashboard.cm.build_cli` from dashboard/, then reload.")
         st.stop()
 
     with st.sidebar:
         st.markdown("### 🏛️ Samadhan")
         st.caption(f"**{account.username}** · {account.role}")
         st.text_input("🔍 Search everything", key="global_q_input", placeholder="bijli, पानी, SMD-0007 …", on_change=lambda: st.session_state.update(go_search=True, global_q=st.session_state["global_q_input"]))
-        demo = st.radio("Data", [DEMO_LABEL, LIVE_LABEL], key="dataset") == DEMO_LABEL
+        if account.demo_only:
+            demo = True
+            st.info("Demo mode: sample data only.")
+        else:
+            demo = st.radio("Data", [DEMO_LABEL, LIVE_LABEL], key="dataset") == DEMO_LABEL
         if st.button("Log out"):
             for k in ("cm_account", "demo_df", "search_index"):
                 st.session_state.pop(k, None)

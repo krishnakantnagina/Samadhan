@@ -13,6 +13,7 @@ are replaced on rebuild. Every manual edit is written to `audit_log`.
 import csv
 import difflib
 import json
+import os
 import re
 import sqlite3
 import unicodedata
@@ -23,7 +24,15 @@ from typing import Any
 from dashboard.cm.departments import ALL_DEPARTMENTS, DEPARTMENTS, LIVE_MAP
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-DATA_DIR = REPO_ROOT / "local-research" / "data"
+def _data_dir() -> Path:
+    """DASHBOARD_DATA_DIR, else the git-excluded local-research/data when it has a registry (a developer laptop), else the committed snapshot in dashboard/data (hosted servers)."""
+    if os.environ.get("DASHBOARD_DATA_DIR"):
+        return Path(os.environ["DASHBOARD_DATA_DIR"])
+    local = REPO_ROOT / "local-research" / "data"
+    return local if (local / "cm_registry.db").exists() else REPO_ROOT / "dashboard" / "data"
+
+
+DATA_DIR = _data_dir()
 DEFAULT_DB = DATA_DIR / "cm_registry.db"
 
 DEPT_STATUSES = ("catalogued", "planned", "demo", "live")  # catalogued = known to exist, not onboarded in Samadhan
