@@ -1,8 +1,9 @@
 """S24 map (T30): pure helpers + the folium map, no Streamlit and no network."""
 
 from dashboard.map_view import (
-    BHOPAL_CENTER,
+    MP_CENTER,
     DEFAULT_ZOOM,
+    STATE_ZOOM,
     SINGLE_PIN_ZOOM,
     build_map,
     center_and_zoom,
@@ -72,7 +73,7 @@ def test_issue_label_uses_english_label_and_survives_missing_fields():
 
 
 def test_center_and_zoom_cases():
-    assert center_and_zoom([]) == (BHOPAL_CENTER, DEFAULT_ZOOM)
+    assert center_and_zoom([]) == (MP_CENTER, STATE_ZOOM)
     assert center_and_zoom([{"lat": 23.2, "lng": 77.4}]) == ((23.2, 77.4), SINGLE_PIN_ZOOM)
     (lat, lng), zoom = center_and_zoom([{"lat": 23.0, "lng": 77.0}, {"lat": 24.0, "lng": 78.0}])
     assert (lat, lng, zoom) == (23.5, 77.5, DEFAULT_ZOOM)

@@ -1,6 +1,6 @@
 """S09 -- Jurisdiction resolver (T16). Spec: docs/specs/S09-jurisdiction.md.
 
-Bhopal, water_supply only (S09 SCOPE). Maps a confirmed complaint's GPS or place name to a ward
+Statewide design: offices come from the database, so any district or city works once its offices are added (S09). Maps a confirmed complaint's GPS or place name to a ward
 office, or to the department's district fallback, for S10's create_ticket to finish routing.
 
 Either of us can change this file. If you do, update docs/specs/S09-jurisdiction.md and tell the

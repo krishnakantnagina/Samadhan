@@ -17,7 +17,7 @@ and tag `v1-mvp`.
 |---|---|
 | Website chatbot: text, in-browser voice, GPS, status page | WhatsApp, calls, mobile app |
 | Departments: `water_supply` (Jal Vibhag) plus DEMO `electricity`, `roads`, `sanitation`, each routed to its own office (S28, added 29 Sep); anything the AI cannot place goes to a **Human Evaluation** queue (S30/S31, replaces General Triage) | Departments beyond these, real department contacts |
-| Pilot: Bhopal, 5 demo wards per department + 1 district fallback office each | Statewide data |
+| Statewide design (any district is added as data); demo offices seeded for Bhopal: 5 wards per department + 1 district fallback office each | Real offices outside Bhopal until their data is added |
 | Every message is classified first: complaint, information question (fixed reply, validated `.gov.in` link, disclaimer) or out of context (fixed "unable to reply") | Answering government-information questions |
 | Registration by phone (demo PIN 5555) required ONLY to file a complaint; saved login; officer calls back (S31). Enquiries and status checks stay anonymous | Real OTP, Aadhaar (only when the government approves), SMS/WhatsApp notification |
 | Dashboard: password login, list, detail, status, reassign, review queue, map | Officer accounts, per-department access |

@@ -54,16 +54,17 @@ def data_dir(tmp_path):
 
 
 LIVE = [{"id": 1, "department": "Bijli Vibhag", "level": "ward", "name": "मिसरोद", "office_name": "Ward Bijli", "active": True},
-        {"id": 2, "department": "Human Evaluation", "level": "district", "name": "Bhopal", "office_name": "Desk", "active": True}]
+        {"id": 2, "department": "Human Evaluation", "level": "district", "name": "Bhopal", "office_name": "Desk", "active": True},
+        {"id": 3, "department": "Bijli Vibhag", "level": "district", "name": "Bhopal", "office_name": "Bijli District", "active": True}]
 
 
 def test_build_loads_everything_and_reports_unmatched(data_dir, tmp_path):
     conn = R.connect(tmp_path / "r.db")
     s = R.build(conn, data_dir, LIVE)
-    assert s["mp.gov.in"] == 2 and s["mpedistrict"] == 1 and s["districts"] == 2 and s["offices_from_supabase"] == 2
+    assert s["mp.gov.in"] == 2 and s["mpedistrict"] == 1 and s["districts"] == 2 and s["offices_from_supabase"] == 3
     assert "अज्ञात विभाग" in s["unmatched_departments"]["mp.gov.in"]
     ov = {d["id"]: d for d in R.departments_overview(conn)}
-    assert ov["energy"]["services_mp"] == 1 and ov["energy"]["services_mped"] == 1 and ov["energy"]["offices"] == 1
+    assert ov["energy"]["services_mp"] == 1 and ov["energy"]["services_mped"] == 1 and ov["energy"]["offices"] == 2
     assert ov["energy"]["status"] == "demo" and ov["revenue"]["status"] == "catalogued"
     svc = R.department_services(conn, "energy", "mpedistrict")[0]
     assert svc["deadline_urban"] == "5 कार्य दिवस" and svc["documents"] == ["आधार"]

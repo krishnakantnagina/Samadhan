@@ -20,7 +20,7 @@ out_of_scope:
     en: Sorry, this does not look like a sanitation problem.
 
 pilot:
-  city: Bhopal
+  city: Madhya Pradesh
   wards: 5
 
 routing:

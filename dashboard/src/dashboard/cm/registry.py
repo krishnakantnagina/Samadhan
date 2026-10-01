@@ -261,9 +261,10 @@ def build(conn: sqlite3.Connection, data_dir: Path = DATA_DIR, live_offices: lis
             conn.execute("INSERT INTO districts VALUES (?,?,?,?,?,?,?)", (r["district"], r["division"], r["std_code"], _int(r["area_sq_km"]),
                                                                           _int(r["population_2011"]), r["headquarters"], r["district_email"]))
         summary["districts"] = conn.execute("SELECT COUNT(*) FROM districts").fetchone()[0]
+    home = {o["department"]: o.get("name") for o in live_offices or [] if o["level"] == "district"}  # a ward lies in its department's district office
     for o in live_offices or []:
         dept = LIVE_MAP.get(o["department"])
-        district = o.get("name") if o["level"] == "district" else "Bhopal"  # every live office today is a Bhopal DEMO row (seed SQL)
+        district = o.get("name") if o["level"] == "district" else home.get(o["department"], "Madhya Pradesh")
         conn.execute(
             "INSERT INTO offices (dept_id, level, district, name, status, source, live_office_id, notes) VALUES (?,?,?,?,?,'supabase',?,?)",
             (dept, o["level"], district, o.get("office_name") or o["name"], "demo", o["id"],

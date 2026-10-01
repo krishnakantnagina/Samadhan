@@ -98,6 +98,9 @@ def _clean(span: str | None) -> str | None:
     return out[:80] or None
 
 
+_FILLER = {"मेरा", "मेरी", "मेरे", "है", "हमारा", "हमारी", "हमारे", "का", "की", "के"}
+
+
 def parse(text: str) -> LocationDetails:
     """Turn a free answer into district / tehsil / nearest place. Never raises; an unreadable answer is kept as the nearest place."""
     raw = (text or "").strip()[:120]
@@ -106,10 +109,17 @@ def parse(text: str) -> LocationDetails:
     low = raw
     unknown = bool(UNKNOWN_RE.search(low))
     district = None
+    named = None
     for pattern in (rf"(\S+(?:\s+\S+)?)\s*{DISTRICT_MARKERS}", rf"{DISTRICT_MARKERS}\s*(?:है|:|-)?\s*(\S+(?:\s+\S+)?)"):
         m = re.search(pattern, low, re.I)
         if m and (district := match_district(m.group(1))):
             break
+        if m and named is None:
+            words = (_clean(m.group(1)) or "").split()
+            while words and words[-1] in _FILLER:
+                words.pop()
+            if words and words[0] not in _FILLER:
+                named = " ".join(words)  # a district was named but it is not one of the 55 (e.g. outside MP): keep just its name
     if district is None:
         district = match_district(low, strict=len(low.split()) > 2)
     tehsil = None
@@ -124,6 +134,8 @@ def parse(text: str) -> LocationDetails:
         if m:
             nearest = _clean(m.group(1))
             break
+    if named and not (district or tehsil or nearest):
+        nearest = f"{named} (जिला)"
     if not (district or tehsil or nearest) and not unknown:
         nearest = _clean(raw)  # something place-like we could not classify: keep it for the officer
     return LocationDetails(district.name_en if district else None, district.name_hi if district else None, district.division if district else None,

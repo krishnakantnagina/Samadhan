@@ -30,7 +30,7 @@ out_of_scope:
     en: Sorry, I can only register water-related problems right now. For other issues such as electricity or roads, please contact the concerned department. If you have a water problem, tell me.
 
 pilot:
-  city: Bhopal
+  city: Madhya Pradesh
   wards: 5                          # office rows live in database/seed.sql (T05)
 
 routing:

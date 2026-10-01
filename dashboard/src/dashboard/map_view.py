@@ -12,8 +12,9 @@ import folium
 
 from dashboard.labels import ISSUE_TYPE_LABELS_EN
 
-BHOPAL_CENTER = (23.2599, 77.4126)
+MP_CENTER = (23.4733, 77.9470)  # centre of Madhya Pradesh
 DEFAULT_ZOOM = 11
+STATE_ZOOM = 6
 SINGLE_PIN_ZOOM = 15
 
 # Colour + name per status. The legend and popups always print the name: colour is never the only cue.
@@ -68,10 +69,10 @@ def popup_html(row: dict[str, Any]) -> str:
 
 
 def center_and_zoom(points: list[dict[str, Any]]) -> tuple[tuple[float, float], int]:
-    """No pins -> Bhopal at the default zoom; one pin -> that pin, close; 2+ -> the mean (build_map
+    """No pins -> the whole state; one pin -> that pin, close; 2+ -> the mean (build_map
     then also fits the bounds)."""
     if not points:
-        return BHOPAL_CENTER, DEFAULT_ZOOM
+        return MP_CENTER, STATE_ZOOM
     lat = sum(p["lat"] for p in points) / len(points)
     lng = sum(p["lng"] for p in points) / len(points)
     return (lat, lng), SINGLE_PIN_ZOOM if len(points) == 1 else DEFAULT_ZOOM

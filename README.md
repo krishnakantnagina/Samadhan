@@ -7,7 +7,7 @@ spoken. Officers manage tickets, corrections and a map on a dashboard.
 
 > **The idea:** understand a complaint well enough to *route* it. We do not need to transcribe a dialect perfectly.
 
-Built for the **MPOnline Idea & Innovation Hackathon 2026, Problem Statement 5**. Pilot city: **Bhopal**.
+Built for the **MPOnline Idea & Innovation Hackathon 2026, Problem Statement 5**. Target: all of **Madhya Pradesh** (the demo data currently covers a few Bhopal offices; more districts are added as data, not code).
 
 > **Read this honestly.** Water supply (Jal Vibhag) was the original pilot service. Electricity, roads, sanitation and a general-triage
 > desk were added for the demo, and **all of their office data is DEMO** (constructed, labelled `(DEMO)` in the office name; nothing is

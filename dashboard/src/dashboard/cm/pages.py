@@ -259,7 +259,7 @@ def page_geography(ctx: Context) -> None:
     cells = matrix[["department"] + districts]
     onboarded = int((cells[districts] != "not onboarded").sum().sum())
     st.caption(f"{onboarded} of {cells[districts].size} department-district cells have an office ({len(districts)} districts in {sel}).")
-    colour = {"demo": "background-color:#fde68a", "unverified": "background-color:#bfdbfe", "verified": "background-color:#bbf7d0"}
+    colour = {"demo": "background-color:#d5dbe3", "unverified": "background-color:#bfd3ea", "verified": "background-color:#0b5cab;color:#fff"}
     ui.table(cells.style.map(lambda v: colour.get(v, "color:#9ca3af")), width="stretch", hide_index=True)
 
 
