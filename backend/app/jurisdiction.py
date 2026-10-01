@@ -37,6 +37,11 @@ class JurisdictionMatch:
     matched_via: Literal["gps", "name", "fallback"]
 
 
+# S31: General Triage was renamed Human Evaluation. Until migration 002 (new desk) / 003 (cutover) has run on a database, the old desk still serves, so a
+# server deployed before the migration never fails to file a complaint. Remove once every database has been cut over.
+LEGACY_DEPARTMENTS = {"Human Evaluation": "General Triage"}
+
+
 class JurisdictionError(RuntimeError):
     """No active office at all for a department -- a seed/spec misconfiguration (S09 ERRORS),
     not a per-request condition to swallow."""
@@ -109,6 +114,8 @@ def resolve_office(
     Confidence: gps -> 1.0, name -> score/100, fallback -> 0.0."""
     client = client or get_client()
     offices = _fetch_offices(department, client=client)
+    if not any(o["level"] == "district" for o in offices) and department in LEGACY_DEPARTMENTS:
+        offices = _fetch_offices(LEGACY_DEPARTMENTS[department], client=client)
     wards = [o for o in offices if o["level"] == "ward"]
     districts = [o for o in offices if o["level"] == "district"]
     if not districts:

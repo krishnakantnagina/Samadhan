@@ -23,7 +23,7 @@ def test_demo_human_evaluation_fields_are_consistent():
     queue = df[df["status"] == "needs_review"]
     assert len(queue) > 0 and (queue["eval_reason"] != "").all()  # waiting means there is a reason
     assert set(df["eval_reason"]) <= {"", "department_unconfirmed", "location_unclear", "vague_description"}
-    triage = queue[queue["department"] == "General Triage"]
+    triage = queue[queue["department"] == "Human Evaluation"]
     assert (triage["eval_reason"] == "department_unconfirmed").all()  # only an unconfirmed department sits at the triage desk
     assert (df["jev_top_p"] + df["jev_second_p"] <= 1.011).all() and (df["jev_top_p"] <= 1).all()
     assert (queue.loc[queue["eval_reason"] == "department_unconfirmed", "jev_top_p"] < 0.65).all()  # genuinely unsure
@@ -35,11 +35,11 @@ def test_demo_human_evaluation_fields_are_consistent():
 def test_insights_counts_agreement_and_confused_pairs():
     now = NOW.isoformat()
     rows = [  # 2 waiting, 3 decided (2 kept Jev's first choice)
-        dict(status="needs_review", created_at=now, questions_asked=1, jev_top="School Education", jev_second="Higher Education", department="General Triage", evaluated_by=""),
-        dict(status="needs_review", created_at=now, questions_asked=2, jev_top="School Education", jev_second="Higher Education", department="General Triage", evaluated_by=""),
-        dict(status="new", created_at=now, questions_asked=1, jev_top="Energy", jev_second="Finance", department="Energy", evaluated_by="triage.desk"),
-        dict(status="new", created_at=now, questions_asked=1, jev_top="Home", jev_second="Finance", department="Home", evaluated_by="triage.desk"),
-        dict(status="new", created_at=now, questions_asked=1, jev_top="Higher Education", jev_second="School Education", department="School Education", evaluated_by="triage.desk"),
+        dict(status="needs_review", created_at=now, questions_asked=1, jev_top="School Education", jev_second="Higher Education", department="Human Evaluation", evaluated_by=""),
+        dict(status="needs_review", created_at=now, questions_asked=2, jev_top="School Education", jev_second="Higher Education", department="Human Evaluation", evaluated_by=""),
+        dict(status="new", created_at=now, questions_asked=1, jev_top="Energy", jev_second="Finance", department="Energy", evaluated_by="evaluator.desk"),
+        dict(status="new", created_at=now, questions_asked=1, jev_top="Home", jev_second="Finance", department="Home", evaluated_by="evaluator.desk"),
+        dict(status="new", created_at=now, questions_asked=1, jev_top="Higher Education", jev_second="School Education", department="School Education", evaluated_by="evaluator.desk"),
     ]
     info = pages_eval.insights(pd.DataFrame(rows))
     assert (info["waiting"], info["evaluated"], info["agree_pct"], info["avg_questions"]) == (2, 3, 66.7, 1.5)
@@ -51,9 +51,9 @@ def test_a_human_decision_assigns_the_department_and_records_who_and_why():
     store = demo().copy()
     cid = store.loc[store["status"] == "needs_review", "complaint_id"].iloc[0]
     others_before = store[store["complaint_id"] != cid].copy()
-    pages_eval._decide(store, cid, "School Education", "triage.desk", "student is in class 9")
+    pages_eval._decide(store, cid, "School Education", "evaluator.desk", "student is in class 9")
     r = store[store["complaint_id"] == cid].iloc[0]
-    assert (r["status"], r["department"], r["evaluated_by"], r["evaluated_dept"], r["eval_note"]) == ("new", "School Education", "triage.desk", "School Education", "student is in class 9")
+    assert (r["status"], r["department"], r["evaluated_by"], r["evaluated_dept"], r["eval_note"]) == ("new", "School Education", "evaluator.desk", "School Education", "student is in class 9")
     assert "School Education office" in r["office_name"]
     pd.testing.assert_frame_equal(store[store["complaint_id"] != cid].drop(columns=["eval_note"], errors="ignore").reset_index(drop=True), others_before.drop(columns=["eval_note"], errors="ignore").reset_index(drop=True))
 
@@ -61,13 +61,13 @@ def test_a_human_decision_assigns_the_department_and_records_who_and_why():
 def test_not_a_grievance_closes_the_ticket_without_a_department():
     store = demo().copy()
     cid = store.loc[store["status"] == "needs_review", "complaint_id"].iloc[0]
-    pages_eval._decide(store, cid, None, "triage.desk", "just a greeting")
+    pages_eval._decide(store, cid, None, "evaluator.desk", "just a greeting")
     r = store[store["complaint_id"] == cid].iloc[0]
     assert (r["status"], r["evaluated_dept"]) == ("resolved", "(not a grievance)")
 
 
 def test_only_cm_office_and_triage_may_open_the_page():
-    assert accounts.Account("a", "cm_admin").can_open("human_eval") and accounts.Account("t", "triage").can_open("human_eval")
+    assert accounts.Account("a", "cm_admin").can_open("human_eval") and accounts.Account("t", "evaluator").can_open("human_eval")
     assert not accounts.Account("h", "dept_head", department="Jal Vibhag").can_open("human_eval")
     assert not accounts.Account("o", "office_officer", department="Jal Vibhag", office_name="x").can_open("human_eval")
 
@@ -94,7 +94,7 @@ def _script():
         df = df[["complaint_id", "status", "department", "office_name", "created_at", "updated_at", "summary_en"]]
     else:
         st.session_state["demo_df"] = df.copy()
-    acct = accounts.Account("t", "triage") if os.environ.get("CM_EVAL_ROLE") == "triage" else accounts.Account("a", "cm_admin")
+    acct = accounts.Account("t", "evaluator") if os.environ.get("CM_EVAL_ROLE") == "evaluator" else accounts.Account("a", "cm_admin")
     ctx = pages.Context(acct, registry.connect(os.environ["CM_TEST_DB"]), accounts.scope_tickets(df, acct), None, Legacy, is_demo=not live)
     pages.page_human_eval(ctx)
 
@@ -109,7 +109,7 @@ def db(tmp_path, monkeypatch):
     return path
 
 
-@pytest.mark.parametrize("role", ["cm_admin", "triage"])
+@pytest.mark.parametrize("role", ["cm_admin", "evaluator"])
 def test_human_evaluation_page_opens_in_demo_mode(db, monkeypatch, role):
     monkeypatch.setenv("CM_EVAL_ROLE", role)
     at = AppTest.from_function(_script, default_timeout=90).run()
@@ -121,7 +121,7 @@ def test_human_evaluation_page_opens_in_demo_mode(db, monkeypatch, role):
 
 def test_human_evaluation_page_falls_back_to_the_plain_queue_for_live_data(db, monkeypatch):
     monkeypatch.setenv("CM_EVAL_LIVE", "1")
-    monkeypatch.setenv("CM_EVAL_ROLE", "triage")
+    monkeypatch.setenv("CM_EVAL_ROLE", "evaluator")
     at = AppTest.from_function(_script, default_timeout=90).run()
     assert not at.exception, [e.value for e in at.exception]
     assert any("LIVE QUEUE" in m.value for m in at.markdown)

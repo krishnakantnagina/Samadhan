@@ -192,3 +192,25 @@ def test_no_active_district_raises():
 
     with pytest.raises(JurisdictionError):
         resolve_office(DEPARTMENT, None, None, "Misrod", 5.0, client=client)
+
+
+# --- S31: legacy desk fallback ----------------------------------------------------------------
+
+
+def test_human_evaluation_falls_back_to_legacy_general_triage_desk():
+    legacy = {**DISTRICT, "id": 7, "department": "General Triage", "office_name": "Triage Desk"}
+    office = resolve_office("Human Evaluation", None, None, None, 5, client=FakeOfficesClient([legacy]))
+    assert office.office.id == 7
+
+
+def test_human_evaluation_prefers_its_own_desk_when_present():
+    legacy = {**DISTRICT, "id": 7, "department": "General Triage"}
+    new = {**DISTRICT, "id": 8, "department": "Human Evaluation"}
+    office = resolve_office("Human Evaluation", None, None, None, 5, client=FakeOfficesClient([legacy, new]))
+    assert office.office.id == 8
+
+
+def test_other_departments_never_fall_back():
+    legacy = {**DISTRICT, "id": 7, "department": "General Triage"}
+    with pytest.raises(JurisdictionError):
+        resolve_office(DEPARTMENT, None, None, None, 5, client=FakeOfficesClient([legacy]))

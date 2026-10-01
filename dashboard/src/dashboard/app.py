@@ -13,10 +13,11 @@ from dotenv import load_dotenv
 from streamlit_folium import st_folium
 
 from dashboard.analytics import DEFAULT_SLA_DAYS, ageing, daily_trend, department_summary, totals
+from dashboard.cm.ui import table as ui_table
 from dashboard.config import get_dashboard_config
 from dashboard.db import get_client
 from dashboard.gov_catalogue import department_coverage, load_services
-from dashboard.labels import display_field
+from dashboard.labels import display_field, intake_notes
 from dashboard.table_state import selected_row, table_key
 from dashboard.map_view import build_map, issue_label, legend_markdown, office_name, split_points
 from dashboard.tickets import (
@@ -72,7 +73,7 @@ def _render_map_tab(df: pd.DataFrame, filtered: pd.DataFrame) -> None:
     if without_gps:
         st.warning(f"{len(without_gps)} ticket(s) have no GPS and are not on the map.")
         with st.expander("Tickets without GPS"):
-            st.dataframe(
+            ui_table(
                 pd.DataFrame(
                     {
                         "complaint_id": [r["complaint_id"] for r in without_gps],
@@ -126,7 +127,7 @@ def _render_overview_tab(df: pd.DataFrame) -> None:
 
     st.subheader("Departments")
     st.caption("Most overdue first. Click a department in the All Tickets tab to work its tickets.")
-    st.dataframe(summary, use_container_width=True, hide_index=True)
+    ui_table(summary, use_container_width=True, hide_index=True)
 
     left, right = st.columns(2)
     with left:
@@ -153,7 +154,7 @@ def _render_structure_tab(df: pd.DataFrame) -> None:
     b.metric("Services in catalogue", len(services))
     c.metric("Handled by Samadhan", int((coverage["samadhan_status"] == "live").sum()))
     st.caption("Source: mp.gov.in/services. Department names are Hindi there, so 'live' only matches exact names.")
-    st.dataframe(coverage, use_container_width=True, hide_index=True)
+    ui_table(coverage, use_container_width=True, hide_index=True)
 
     st.subheader("Search services")
     q1, q2 = st.columns(2)
@@ -163,7 +164,7 @@ def _render_structure_tab(df: pd.DataFrame) -> None:
     if text:
         found = found[found["title"].str.contains(text, case=False, na=False)]
     st.caption(f"{len(found)} service(s)")
-    st.dataframe(found, use_container_width=True, hide_index=True)
+    ui_table(found, use_container_width=True, hide_index=True)
 
 
 def _require_login() -> None:
@@ -210,10 +211,24 @@ def _render_detail(
     st.subheader(detail["complaint_id"])
 
     for name, value in (detail["fields"] or {}).items():
+        if name.startswith("_"):  # internal notes (S30), shown below
+            continue
         label, display = display_field(name, value)
         st.write(f"**{label}:** {display}")
+    notes = intake_notes((detail["fields"] or {}).get("_intake"))
+    if notes:
+        with st.expander("AI intake notes (why this ticket is here)", expanded=detail["status"] == "needs_review"):
+            for line in notes:
+                st.write(line)
     if detail["lat"] is not None:
         st.write(f"**GPS:** {detail['lat']}, {detail['lng']}")
+    phone = (detail.get("users") or {}).get("phone")
+    if phone:  # S31: the registered citizen; the officer handling this ticket calls back on this number
+        st.markdown(f"**📞 Citizen phone (call back):** [{phone}](tel:{phone})")
+    place = [f"district {detail['district']}" if detail.get("district") else None, f"tehsil {detail['tehsil']}" if detail.get("tehsil") else None,
+             f"near {detail['nearest_place']}" if detail.get("nearest_place") else None]
+    if any(place) or detail.get("location_precision"):
+        st.write("**Area:** " + (", ".join(p for p in place if p) or "not given") + (f"  ·  precision: {detail['location_precision']}" if detail.get("location_precision") else ""))
     st.write(f"**Original message:** {detail['original_text']}")
     st.write(f"**Routing confidence:** {detail['routing_confidence']}")
 
@@ -279,7 +294,7 @@ def _ticket_table(df: pd.DataFrame, *, key: str, **detail_options) -> None:
         "complaint_id", "status", "department", "office_name", "summary_en", "created_at", "updated_at",
     ]
     widget_key = table_key(key, df)  # a changed list drops any stale selection (see table_state.py)
-    event = st.dataframe(
+    event = ui_table(
         df[display_cols],
         use_container_width=True,
         hide_index=True,
@@ -326,9 +341,7 @@ def main() -> None:
         st.title("Tickets")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            statuses = st.multiselect(
-                "Status", sorted(df["status"].unique()), default=list(df["status"].unique())
-            )
+            status = st.selectbox("Status", ["All", *sorted(df["status"].unique())])
         with col2:
             departments = ["All"] + sorted(df["department"].unique())
             department = st.selectbox("Department", departments)
@@ -339,7 +352,7 @@ def main() -> None:
         with col4:
             search = st.text_input("Search complaint ID")
 
-        filtered = df[df["status"].isin(statuses)]
+        filtered = df if status == "All" else df[df["status"] == status]
         if department != "All":
             filtered = filtered[filtered["department"] == department]
         if office != "All":

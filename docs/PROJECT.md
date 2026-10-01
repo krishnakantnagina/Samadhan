@@ -16,10 +16,10 @@ and tag `v1-mvp`.
 | Build now | Not now |
 |---|---|
 | Website chatbot: text, in-browser voice, GPS, status page | WhatsApp, calls, mobile app |
-| Departments: `water_supply` (Jal Vibhag) plus DEMO `electricity`, `roads`, `sanitation` and a `general` triage service, each routed to its own office (S28, added 29 Sep) | Departments beyond these, real department contacts |
+| Departments: `water_supply` (Jal Vibhag) plus DEMO `electricity`, `roads`, `sanitation`, each routed to its own office (S28, added 29 Sep); anything the AI cannot place goes to a **Human Evaluation** queue (S30/S31, replaces General Triage) | Departments beyond these, real department contacts |
 | Pilot: Bhopal, 5 demo wards per department + 1 district fallback office each | Statewide data |
 | Every message is classified first: complaint, information question (fixed reply, validated `.gov.in` link, disclaimer) or out of context (fixed "unable to reply") | Answering government-information questions |
-| Anonymous citizen sessions | OTP / phone verification |
+| Registration by phone (demo PIN 5555) required ONLY to file a complaint; saved login; officer calls back (S31). Enquiries and status checks stay anonymous | Real OTP, Aadhaar (only when the government approves), SMS/WhatsApp notification |
 | Dashboard: password login, list, detail, status, reassign, review queue, map | Officer accounts, per-department access |
 | ASR + LLM fallbacks; `cancel`, `restart`, 30-min timeout | Rate limiting, analytics, push notifications to officers |
 
@@ -103,7 +103,7 @@ cd frontend; python -m http.server 5500
 - Service key server-side only (core, dashboard). Anon key has **no** access (RLS on, no public policies). The website holds no DB keys.
 - CORS allows only origins in `ALLOWED_ORIGINS`.
 - Status endpoint returns only complaint ID, status, department, updated time.
-- Keep original audio + transcript unchanged. No citizen contact details stored.
+- Keep original audio + transcript unchanged. The only citizen contact detail stored is the registered phone number (S31: demo, kept permanently; production needs consent text and a retention rule). The Aadhaar number is never stored.
 
 ## 9. Coding Rules for Claude Code
 1. Implement only the current ticket; follow its spec's ACCEPTANCE list.
@@ -127,5 +127,5 @@ All 10 scenarios pass:
 10. Two browsers at once → sessions never mix
 
 ## 11. Open (TBD)
-Citizen verification method · officer per-department access · dialects beyond Hindi/Hinglish ·
+Real OTP provider and Aadhaar (needs government approval) · phone retention period · officer per-department access · dialects beyond Hindi/Hinglish ·
 custom domain · data retention.

@@ -1,6 +1,6 @@
 """Demo-grade accounts and roles for the CM-office system.
 
-Roles:  cm_admin (everything) | dept_head (one department) | office_officer (one office, no reassigning) | triage (General Triage + review queue).
+Roles:  cm_admin (everything) | dept_head (one department) | office_officer (one office, no reassigning) | evaluator (Human Evaluation queue + every needs_review ticket).
 Accounts live in a JSON file (PBKDF2-SHA256, per-account salt) outside git; the plain-text demo passwords live in a separate git-excluded
 note for testers. The shared DASHBOARD_PASSWORD keeps working as user `admin` (cm_admin) so nothing that exists today breaks.
 
@@ -20,7 +20,7 @@ from typing import Any
 
 import pandas as pd
 
-ROLES = ("cm_admin", "dept_head", "office_officer", "triage")
+ROLES = ("cm_admin", "dept_head", "office_officer", "evaluator")
 ITERATIONS = 200_000
 DEFAULT_ACCOUNTS_FILE = Path(__file__).resolve().parents[4] / "local-research" / "demo_accounts.json"
 
@@ -28,14 +28,14 @@ DEFAULT_ACCOUNTS_FILE = Path(__file__).resolve().parents[4] / "local-research" /
 PAGE_ACCESS: dict[str, tuple[str, ...]] = {
     "command": ROLES,
     "search": ROLES,
-    "human_eval": ("cm_admin", "triage"),
+    "human_eval": ("cm_admin", "evaluator"),
     "area": ("cm_admin", "dept_head"),
     "departments": ("cm_admin",),
     "my_department": ("dept_head",),
     "geography": ("cm_admin",),
-    "services": ("cm_admin", "dept_head", "triage"),
+    "services": ("cm_admin", "dept_head", "evaluator"),
     "tickets": ROLES,
-    "routing_lab": ("cm_admin", "triage"),
+    "routing_lab": ("cm_admin", "evaluator"),
     "public_flow": ("cm_admin",),
     "data": ("cm_admin",),
     "accounts": ("cm_admin",),
@@ -57,10 +57,10 @@ class Account:
 
     @property
     def can_reassign(self) -> bool:
-        return self.role in ("cm_admin", "dept_head", "triage")
+        return self.role in ("cm_admin", "dept_head", "evaluator")
 
     def reassign_departments(self) -> set[str] | None:
-        """Departments this account may reassign TO: None = any (admin, triage), its own department only for a head."""
+        """Departments this account may reassign TO: None = any (admin, evaluator), its own department only for a head."""
         if self.role == "dept_head" and self.department:
             return {self.department}
         return None
@@ -103,8 +103,8 @@ def scope_tickets(df: pd.DataFrame, account: Account) -> pd.DataFrame:
     """The tickets this account may see (df has `department`, `office_name`, `status`). Fails closed: a scoped role with no scope sees nothing."""
     if df.empty or account.role == "cm_admin":
         return df
-    if account.role == "triage":
-        return df[(df["department"] == "General Triage") | (df["status"] == "needs_review")]
+    if account.role == "evaluator":
+        return df[(df["department"] == "Human Evaluation") | (df["status"] == "needs_review")]
     if account.role == "dept_head":
         return df[df["department"] == account.department] if account.department else df.iloc[0:0]
     if account.role == "office_officer":

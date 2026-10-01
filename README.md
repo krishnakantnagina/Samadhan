@@ -67,6 +67,7 @@ core, not the website; the dashboard only shows stored data; secrets never reach
 | Backend | Python 3.12, uv, FastAPI, Uvicorn, Pydantic, httpx, PyYAML, RapidFuzz |
 | LLM | Groq (`openai/gpt-oss-120b`, `qwen/qwen3.8-27b`, `openai/gpt-oss-20b`), Google Gemini as last fallback; called over HTTP, no SDK |
 | Voice | Sarvam `saaras:v4` (speech-to-text) and `bulbul:v3` (text-to-speech); Groq `whisper-large-v3-turbo` as ASR fallback; no FFmpeg |
+| Intake decisions (experimental, off by default) | TypeSafe AI Jev (`jev-latest`) over HTTP: department choice and yes/no judgements only; see `docs/specs/S30-intake-v2.md` |
 | Data | Supabase (Postgres, Row Level Security, private Storage bucket `audio`) |
 | Website | HTML, CSS and vanilla JavaScript (no build step); MediaRecorder and Geolocation browser APIs |
 | Dashboard | Streamlit, pandas, folium and streamlit-folium (OpenStreetMap tiles) |
@@ -118,6 +119,8 @@ Copy `.env.example`; every variable is commented there. Main ones:
 | Variable | Used by | Notes |
 |---|---|---|
 | `GROQ_API_KEY`, `GEMINI_API_KEY` | API | LLM providers; `GROQ_MODEL`, `GEMINI_MODEL`, `GROQ_FALLBACK_MODELS`, `GROQ_REASONING_EFFORT`, `LLM_PROVIDER` tune them |
+| `AUTH_PROVIDER`, `AUTH_REQUIRED` | API | phone registration (S31): `demo` = any phone + fixed PIN 5555, for the hackathon demo only and refused on a production host; `AUTH_REQUIRED=1` makes a login necessary to file a complaint; `AUTH_IDLE_DAYS`, `AUTH_MAX_DAYS` tune the saved login; apply `database/migrations/002` first |
+| `INTAKE_V2`, `TYPESAFE_API_KEY` | API | experimental guided intake (Jev decides the department); off unless both are set, never enable on real citizen data before the data terms are read; `TYPESAFE_MODEL` tunes it |
 | `SARVAM_API_KEY` | API | speech-to-text and text-to-speech; `SARVAM_MODEL`, `SARVAM_TTS_MODEL`, `SARVAM_TTS_SPEAKER`, `GROQ_WHISPER_MODEL` |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | API, dashboard | server-side only; the website never holds a database key |
 | `ALLOWED_ORIGINS` | API | comma-separated website origins allowed by CORS |
@@ -210,6 +213,7 @@ Every library, API, data source and template used (hackathon organizer requireme
 - [Groq API](https://console.groq.com/docs): LLM (`openai/gpt-oss-120b`, `qwen/qwen3.8-27b`, `openai/gpt-oss-20b`) and Whisper speech-to-text fallback (`whisper-large-v3-turbo`)
 - [Google Gemini API](https://ai.google.dev/gemini-api/docs): last-resort LLM fallback
 - [Sarvam AI](https://docs.sarvam.ai/): speech-to-text (`saaras:v4`) and text-to-speech Bulbul (`bulbul:v3`)
+- [TypeSafe AI](https://docs.typesafe.ai/): Jev decision model for department routing (experimental, behind `INTAKE_V2`)
 - [Supabase](https://supabase.com/): Postgres and Storage
 
 **Hosting and build**: [Railway](https://railway.com/), [Vercel](https://vercel.com/), [Render](https://render.com/), [Streamlit Community Cloud](https://streamlit.io/cloud); container base image [`ghcr.io/astral-sh/uv`](https://github.com/astral-sh/uv); [uv](https://docs.astral.sh/uv/).

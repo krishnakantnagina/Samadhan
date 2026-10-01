@@ -6,7 +6,7 @@ from dashboard.cm.make_demo_accounts import build
 TICKETS = pd.DataFrame(
     {
         "complaint_id": ["SMD-1", "SMD-2", "SMD-3", "SMD-4", "SMD-5"],
-        "department": ["Jal Vibhag", "Jal Vibhag", "Bijli Vibhag", "General Triage", "Lok Nirman Vibhag"],
+        "department": ["Jal Vibhag", "Jal Vibhag", "Bijli Vibhag", "Human Evaluation", "Lok Nirman Vibhag"],
         "office_name": ["Ward A", "Ward B", "Ward A", "Desk", "Ward A"],
         "status": ["new", "needs_review", "new", "needs_review", "needs_review"],
     }
@@ -47,7 +47,7 @@ def test_office_officer_sees_only_their_office_and_cannot_reassign():
 
 
 def test_triage_sees_general_and_every_review_ticket():
-    triage = accounts.Account("t", "triage")
+    triage = accounts.Account("t", "evaluator")
     assert set(accounts.scope_tickets(TICKETS, triage)["complaint_id"]) == {"SMD-2", "SMD-4", "SMD-5"}
     assert triage.reassign_departments() is None
 

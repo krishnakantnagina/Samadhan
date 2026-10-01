@@ -4,7 +4,7 @@ Writes, both git-excluded (local-research/ is excluded via .git/info/exclude):
   local-research/demo_accounts.json  hashed credentials the app reads
   local-research/DEMO_ACCOUNTS.md    plain-text usernames and passwords for testers (DEMO ONLY: never reuse these passwords anywhere)
 Refuses to overwrite existing accounts unless --force, so a teammate's passwords are not silently changed.
-One dept_head per Samadhan department, one office_officer per ward-52 office (the demo ward used in the seed data), a triage desk, a CM admin.
+One dept_head per Samadhan department, one office_officer per ward-52 office (the demo ward used in the seed data), an evaluator desk, a CM admin.
 """
 
 import json
@@ -39,7 +39,7 @@ def build() -> tuple[list[dict], list[tuple[str, str, str, str]]]:
         add(f"{short}.head", "dept_head", f"Head of {dept}: that department only", department=dept, dept_id=dept_id)
         office = WATER_WARD_OFFICE if dept == "Jal Vibhag" else WARD_OFFICE.format(short={"Bijli Vibhag": "Bijli", "Lok Nirman Vibhag": "PWD", "Nagar Nigam Sanitation": "Sanitation"}[dept])
         add(f"{short}.ward52", "office_officer", f"{dept}, ward 52 (Misrod) office officer: that office only, cannot reassign", department=dept, dept_id=dept_id, office_name=office)
-    add("triage.desk", "triage", "Triage desk: General Triage queue + every needs_review ticket, can reassign to any department")
+    add("evaluator.desk", "evaluator", "Human Evaluation desk: the Human Evaluation queue + every needs_review ticket, can reassign to any department")
     return records, plain
 
 

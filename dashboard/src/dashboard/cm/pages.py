@@ -16,6 +16,7 @@ import streamlit as st
 
 from dashboard.analytics import DEFAULT_SLA_DAYS, ageing, daily_trend, department_summary, totals
 from dashboard.cm import registry as R
+from dashboard.cm import ui
 from dashboard.cm import theme  # noqa: F401  (used by pages_extra)
 from dashboard.cm.accounts import Account
 from dashboard.cm.departments import ALL_DEPARTMENTS, LIVE_MAP, ROUTING_HINTS
@@ -84,7 +85,7 @@ def page_command(ctx: Context) -> None:
     st.caption(f"Signed in as **{ctx.account.username}** ({ctx.account.role}). You see: " + {
         "cm_admin": "all departments.", "dept_head": f"{ctx.account.department} only.",
         "office_officer": f"{ctx.account.department}, {ctx.account.office_name} only.",
-        "triage": "the General Triage queue and every ticket that needs review."}[ctx.account.role])
+        "evaluator": "the Human Evaluation queue and every ticket that needs review."}[ctx.account.role])
     if ctx.account.role == "cm_admin":
         ov = R.departments_overview(ctx.conn)
         c = st.columns(5)
@@ -114,7 +115,7 @@ def page_command(ctx: Context) -> None:
         col.metric(label, k[key])
     cols[4].metric("Resolution rate", f"{k['resolution_rate']}%")
     st.subheader("By department")
-    st.dataframe(summary, width="stretch", hide_index=True)
+    ui.table(summary, width="stretch", hide_index=True)
     left, right = st.columns(2)
     left.subheader("Pending by age")
     left.bar_chart(ageing(ctx.df, now).set_index("age"))
@@ -133,7 +134,7 @@ def _department_detail(ctx: Context, dept_id: str, *, editable: bool) -> None:
     with t_sum:
         aliases = R.rows(ctx.conn, "SELECT source, alias, score FROM aliases WHERE dept_id=? ORDER BY source", (dept_id,))
         st.write("**Names used for this department on other portals** (score 1.0 exact, 0.9 reviewed alias, else fuzzy):")
-        st.dataframe(pd.DataFrame(aliases), width="stretch", hide_index=True) if aliases else st.caption("none matched")
+        ui.table(pd.DataFrame(aliases), width="stretch", hide_index=True) if aliases else st.caption("none matched")
         if editable:
             with st.form(f"dept-edit-{dept_id}"):
                 status = st.selectbox("Onboarding status", R.DEPT_STATUSES, index=R.DEPT_STATUSES.index(d["status"]))
@@ -151,11 +152,11 @@ def _department_detail(ctx: Context, dept_id: str, *, editable: bool) -> None:
         st.caption(f"{len(svc)} from {src}")
         if svc:
             cols = ["title", "category", "deadline_urban", "deadline_rural", "fee", "apply_url"] if src == "mpedistrict" else ["title", "category", "apply_url"]
-            st.dataframe(pd.DataFrame(svc)[cols], width="stretch", hide_index=True)
+            ui.table(pd.DataFrame(svc)[cols], width="stretch", hide_index=True)
     with t_off:
         offices = R.rows(ctx.conn, "SELECT id, level, district, name, status, source, notes FROM offices WHERE dept_id=? ORDER BY district, level", (dept_id,))
         if offices:
-            st.dataframe(pd.DataFrame(offices), width="stretch", hide_index=True)
+            ui.table(pd.DataFrame(offices), width="stretch", hide_index=True)
         else:
             st.info("No sub-offices registered. They are never guessed: add one only when you have it from an official source.")
         if editable:
@@ -187,7 +188,7 @@ def _department_detail(ctx: Context, dept_id: str, *, editable: bool) -> None:
             mine = ctx.df[ctx.df["department"] == live]
             st.caption(f"{len(mine)} ticket(s) for {live}")
             if not mine.empty:
-                st.dataframe(mine[["complaint_id", "status", "office_name", "summary_en", "created_at"]], width="stretch", hide_index=True)
+                ui.table(mine[["complaint_id", "status", "office_name", "summary_en", "created_at"]], width="stretch", hide_index=True)
 
 
 def page_departments(ctx: Context) -> None:
@@ -208,17 +209,17 @@ def page_departments(ctx: Context) -> None:
     ov["tickets"] = ov["tickets"].fillna(0).astype(int)
     ov["pending"] = ov["pending"].fillna(0).astype(int)
     c = st.columns([2, 2, 1])
-    statuses = c[0].multiselect("Status", list(R.DEPT_STATUSES), default=list(R.DEPT_STATUSES))
+    status = c[0].selectbox("Status", ["All", *R.DEPT_STATUSES])
     text = c[1].text_input("Search name")
     official = c[2].checkbox("Official 45 only", value=False)
-    f = ov[ov["status"].isin(statuses)]
+    f = ov if status == "All" else ov[ov["status"] == status]
     if official:
         f = f[f["official45"] == 1]
     if text:
         f = f[f["name_en"].str.contains(text, case=False) | f["name_hi"].str.contains(text, case=False)]
     show = f[["name_en", "name_hi", "status", "services_mp", "services_mped", "schemes_cmh", "offices", "districts_covered", "tickets", "pending"]]
     st.caption(f"{len(f)} of {len(ov)} departments. Select a row to manage it.")
-    ev = st.dataframe(show, width="stretch", hide_index=True, on_select="rerun", selection_mode="single-row", key="dept-table")
+    ev = ui.table(show, width="stretch", hide_index=True, on_select="rerun", selection_mode="single-row", key="dept-table")
     rows = ev.selection["rows"]
     if rows:
         st.divider()
@@ -244,11 +245,11 @@ def page_geography(ctx: Context) -> None:
         st.info("No geography loaded. Run the geography scraper and rebuild the registry (see Data and Sources).")
         return
     st.subheader("Divisions")
-    st.dataframe(div, width="stretch", hide_index=True)
+    ui.table(div, width="stretch", hide_index=True)
     st.subheader("Districts")
     choice = st.selectbox("Division", ["All"] + list(div["division"]))
     dist = pd.DataFrame(R.rows(ctx.conn, "SELECT name AS district, division, headquarters, std_code, area_sq_km, population_2011, email FROM districts ORDER BY division, name"))
-    st.dataframe(dist if choice == "All" else dist[dist["division"] == choice], width="stretch", hide_index=True)
+    ui.table(dist if choice == "All" else dist[dist["division"] == choice], width="stretch", hide_index=True)
     st.caption("Source: mpinfo.org (office structure only, no officials' names or numbers).")
     st.subheader("Department coverage by district")
     st.caption("Each cell is the office status for that department in that district. 'not onboarded' means no office is registered, never a guess.")
@@ -259,7 +260,7 @@ def page_geography(ctx: Context) -> None:
     onboarded = int((cells[districts] != "not onboarded").sum().sum())
     st.caption(f"{onboarded} of {cells[districts].size} department-district cells have an office ({len(districts)} districts in {sel}).")
     colour = {"demo": "background-color:#fde68a", "unverified": "background-color:#bfdbfe", "verified": "background-color:#bbf7d0"}
-    st.dataframe(cells.style.map(lambda v: colour.get(v, "color:#9ca3af")), width="stretch", hide_index=True)
+    ui.table(cells.style.map(lambda v: colour.get(v, "color:#9ca3af")), width="stretch", hide_index=True)
 
 
 # --- 4. Services ------------------------------------------------------------------------------------------------
@@ -287,7 +288,7 @@ def page_services(ctx: Context) -> None:
         return
     df = pd.DataFrame(found)
     cols = ["title", "category", "deadline_urban", "deadline_rural", "fee"] if source == "mpedistrict" else ["title", "category", "apply_url"]
-    ev = st.dataframe(df[cols], width="stretch", hide_index=True, on_select="rerun", selection_mode="single-row", key="svc-table")
+    ev = ui.table(df[cols], width="stretch", hide_index=True, on_select="rerun", selection_mode="single-row", key="svc-table")
     if ev.selection["rows"]:
         s = found[ev.selection["rows"][0]]
         st.subheader(s["title"])
@@ -314,17 +315,17 @@ def page_tickets(ctx: Context) -> None:
         st.info("No tickets in your scope.")
         return
     opts = {"can_reassign": acct.can_reassign, "allowed_departments": acct.reassign_departments()}
-    tabs = ["All tickets", "Review queue"] + (["Map"] if acct.role in ("cm_admin", "triage") and not ctx.is_demo else [])
+    tabs = ["All tickets", "Review queue"] + (["Map"] if acct.role in ("cm_admin", "evaluator") and not ctx.is_demo else [])
     table = (lambda frame, key, **o: demo_ticket_table(ctx, frame, key)) if ctx.is_demo else legacy._ticket_table
     t = st.tabs(tabs)
     with t[0]:
         c = st.columns(4)
-        statuses = c[0].multiselect("Status", sorted(df["status"].unique()), default=list(df["status"].unique()))
+        status = c[0].selectbox("Status", ["All", *sorted(df["status"].unique())])
         depts = c[1].selectbox("Department", ["All", *sorted(df["department"].unique())])
         pool = df if depts == "All" else df[df["department"] == depts]
         office = c[2].selectbox("Office", ["All", *sorted(pool["office_name"].dropna().unique())])
         q = c[3].text_input("Search complaint ID", value=st.session_state.pop("ticket_q", ""))
-        f = df[df["status"].isin(statuses)]
+        f = df if status == "All" else df[df["status"] == status]
         f = f if depts == "All" else f[f["department"] == depts]
         f = f if office == "All" else f[f["office_name"] == office]
         f = f[f["complaint_id"].str.contains(q, case=False, na=False)] if q else f
@@ -358,7 +359,7 @@ def jev_route(text: str, key: str, timeout: float = 30.0) -> dict:
 
 def gate(confidence: float) -> str:
     """The S28 tiers: route / reconfirm with the citizen / hand to a person."""
-    return "route" if confidence >= 0.8 else "reconfirm" if confidence >= 0.5 else "triage"
+    return "route" if confidence >= 0.8 else "reconfirm" if confidence >= 0.5 else "human_evaluation"
 
 
 def page_routing_lab(ctx: Context) -> None:
@@ -381,11 +382,11 @@ def page_routing_lab(ctx: Context) -> None:
         action = gate(ans["confidence"])
         st.metric("Top department", names[ans["choice"]], f"confidence {ans['confidence']:.2f}")
         st.write({"route": "✅ Confident: create the ticket for this department.", "reconfirm": "❓ Ask the citizen to confirm between the top choices.",
-                  "triage": "🧑 Too uncertain: send to the triage desk (General Triage)."}[action])
-        st.dataframe(pd.DataFrame([{"department": names[k], "probability": round(v, 3), "in Samadhan today": _name_for_live(k) or "no"} for k, v in top]),
+                  "human_evaluation": "🧑 Too uncertain: send to Human Evaluation (a person decides)."}[action])
+        ui.table(pd.DataFrame([{"department": names[k], "probability": round(v, 3), "in Samadhan today": _name_for_live(k) or "no"} for k, v in top]),
                      width="stretch", hide_index=True)
         if not _name_for_live(ans["choice"]):
-            st.info("Samadhan has no live routing for this department yet: today the ticket would go to General Triage.")
+            st.info("Samadhan has no live routing for this department yet: today the ticket would go to Human Evaluation.")
 
 
 # --- 7. Public flow (scraped portal totals) ---------------------------------------------------------------------
@@ -434,7 +435,7 @@ def page_data(ctx: Context) -> None:
              ("mpedistrict live stats", next(iter(sorted(SNAPSHOT_DIR.glob("live_stats_snapshot_*.json"))), SNAPSHOT_DIR / "live_stats_snapshot.json")),
              ("CM Helpline schemes", R.DATA_DIR / "cmhelpline_schemes.csv"), ("Geography (districts)", R.DATA_DIR / "geography" / "districts.csv"),
              ("Registry database", R.DEFAULT_DB)]
-    st.dataframe(pd.DataFrame([{"dataset": n, "file": str(p.relative_to(R.REPO_ROOT)) if p.exists() else f"{p.name} (missing)",
+    ui.table(pd.DataFrame([{"dataset": n, "file": str(p.relative_to(R.REPO_ROOT)) if p.exists() else f"{p.name} (missing)",
                                 "last updated": datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M") if p.exists() else "-"} for n, p in files]),
                  width="stretch", hide_index=True)
     st.subheader("Rebuild the registry")
@@ -456,9 +457,9 @@ def page_data(ctx: Context) -> None:
     st.caption("Scrapers run from the command line on purpose (politeness delays, curl for the old TLS on government servers). Public pages only; officer logins and captcha pages are never touched.")
     st.subheader("Names that could not be matched to a department")
     un = R.rows(ctx.conn, "SELECT source, raw_department, COUNT(*) AS services FROM services WHERE dept_id IS NULL GROUP BY source, raw_department ORDER BY services DESC")
-    st.dataframe(pd.DataFrame(un), width="stretch", hide_index=True) if un else st.success("Every service is linked to a department.")
+    ui.table(pd.DataFrame(un), width="stretch", hide_index=True) if un else st.success("Every service is linked to a department.")
     st.subheader("Audit log (latest 200)")
-    st.dataframe(pd.DataFrame(R.rows(ctx.conn, "SELECT ts, actor, action, target, detail FROM audit_log ORDER BY id DESC LIMIT 200")), width="stretch", hide_index=True)
+    ui.table(pd.DataFrame(R.rows(ctx.conn, "SELECT ts, actor, action, target, detail FROM audit_log ORDER BY id DESC LIMIT 200")), width="stretch", hide_index=True)
 
 
 # --- 9. Accounts ------------------------------------------------------------------------------------------------
@@ -471,13 +472,13 @@ def page_accounts(ctx: Context) -> None:
             "row-level security). Real separation needs Supabase Auth and row-level security per department.")
     accts = load_accounts()
     if accts:
-        st.dataframe(pd.DataFrame([{"username": a["username"], "role": a["role"], "department": a.get("department", ""), "office": a.get("office_name", ""),
+        ui.table(pd.DataFrame([{"username": a["username"], "role": a["role"], "department": a.get("department", ""), "office": a.get("office_name", ""),
                                     "description": a.get("label", "")} for a in accts]), width="stretch", hide_index=True)
     else:
         st.warning("No accounts file. Create demo accounts: `uv run python -m dashboard.cm.make_demo_accounts`")
     st.write("**Roles**")
     st.markdown("- **cm_admin**: everything, including this page.\n- **dept_head**: one department's tickets and page; can reassign only inside the department.\n"
-                "- **office_officer**: one office's tickets; can change status, cannot reassign.\n- **triage**: General Triage plus every ticket needing review; can reassign to any department.")
+                "- **office_officer**: one office's tickets; can change status, cannot reassign.\n- **evaluator**: the Human Evaluation queue plus every ticket needing review; can reassign to any department.")
     st.caption("Plain-text demo passwords are in local-research/DEMO_ACCOUNTS.md (git-excluded).")
 
 

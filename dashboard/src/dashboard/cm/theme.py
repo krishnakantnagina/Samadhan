@@ -11,12 +11,12 @@ BLUE = "#0b5cab"
 SKY = "#3b8fd9"
 BRIGHT = "#008eff"
 LIGHT = "#e3eefa"
-LIGHTER = "#eaf0f8"
+LIGHTER = "#86A5B8"  # page background chosen by the Lead
 ORANGE = "#f28c1b"
 DEEP_ORANGE = "#d9531e"
 ALERT = "#c4472f"
-INK = "#10263d"
-MUTED = "#5b7088"
+INK = "#0b1f33"
+MUTED = "#12304d"
 CHART_COLOURS = [BLUE, SKY, NAVY, BRIGHT, ORANGE, ALERT]
 
 CSS = f"""
@@ -39,6 +39,18 @@ h1 {{ border-bottom:4px solid {BLUE}; padding-bottom:.25rem; display:inline-bloc
 .stButton > button, .stFormSubmitButton > button {{ background:{BLUE}; color:#fff; border:0; border-radius:8px; font-weight:600; }}
 .stButton > button:hover, .stFormSubmitButton > button:hover {{ background:{NAVY}; color:#fff; }}
 [data-baseweb="tab"][aria-selected="true"] {{ color:{NAVY}; border-bottom:3px solid {BLUE}; }}
+/* inputs, selects and text areas: thick, dark borders */
+.stTextInput [data-baseweb="input"], .stNumberInput [data-baseweb="input"], .stTextArea [data-baseweb="textarea"], .stSelectbox [data-baseweb="select"] > div,
+.stMultiSelect [data-baseweb="select"] > div, .stDateInput [data-baseweb="input"] {{ border:1.5px solid {NAVY} !important; border-radius:6px !important; background:#ffffff !important; }}
+.stTextInput input, .stNumberInput input, .stTextArea textarea {{ color:{INK} !important; }}
+[data-testid="stSidebar"] .stTextInput [data-baseweb="input"], [data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] > div {{ border:1.5px solid #9fc3e8 !important; }}
+/* tables: dark frame; header colours come from .streamlit/config.toml */
+[data-testid="stDataFrame"] {{ border:1.5px solid {NAVY}; border-radius:6px; background:#ffffff; }}
+/* readable text on the #86A5B8 page */
+[data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] *, .stCaption, .stCaption *, [data-testid="stAppViewContainer"] small {{ color:#0b1f33 !important; opacity:1 !important; }}
+[data-testid="stAppViewContainer"] label, [data-testid="stAppViewContainer"] [data-testid="stWidgetLabel"] p {{ color:{INK} !important; font-weight:600; }}
+[data-baseweb="tab"] {{ color:{INK}; font-weight:600; }}
+hr {{ border-color:{NAVY} !important; opacity:.35; }}
 .cm-hero {{ background:linear-gradient(120deg,{NAVY} 0%,{BLUE} 62%,{SKY} 100%); color:#fff; border-radius:16px; padding:2rem 2.2rem; position:relative; overflow:hidden; }}
 .cm-hero:after {{ content:""; position:absolute; right:-70px; top:-70px; width:300px; height:300px; border-radius:50%; background:radial-gradient(circle, rgba(120,190,255,.55) 0%, rgba(120,190,255,.22) 40%, rgba(120,190,255,0) 70%); }}
 .cm-hero h1 {{ color:#fff; border:0; font-size:2.6rem; margin:0; }}

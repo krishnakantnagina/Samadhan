@@ -1,17 +1,16 @@
-# Service spec: general (S28 D-S28-4, 29 Sep). The catch-all triage service: a REAL complaint that fits none of the
-# listed departments is registered here (description + location) instead of being declined. Always ends up in the
-# district office with needs_review (there are no ward rows for this department, so routing always falls back).
-# Used only when the Turn Engine finds no other service; the prompt says so explicitly.
+# Service spec: human_evaluation (S30/S31). NOT a department: the queue for complaints the AI could not place with confidence (and for departments
+# that have no spec or offices yet). The citizen still gives a description and a location; a person in the CM office (Human Evaluation) assigns the
+# department, using the suggestion and Jev's notes stored with the ticket. Always lands at the Human Evaluation desk with needs_review.
 
 spec_version: 1
-service: general
-department: General Triage          # DEMO name, see S28
+service: human_evaluation
+department: Human Evaluation       # a queue, not a government department
 label:
-  hi: अन्य शिकायत
-  en: Other complaint
+  hi: मानव समीक्षा
+  en: Human evaluation
 
 recognise:
-  - any genuine complaint that fits none of the other listed services (health, education, police, ration, pension, ...)
+  - a genuine complaint the AI could not place with confidence, or one for a department with no service spec or offices yet (health, education, police, ration, pension, ...)
 
 out_of_scope:
   examples: [नमस्ते, मज़ाक, सामान्य ज्ञान]
@@ -53,3 +52,11 @@ fields:
     question:
       hi: 'क्या आप अभी उसी जगह पर हैं जहाँ यह समस्या है? अगर हाँ, तो "हाँ, मैं यहीं हूँ" दबाइए। अगर नहीं, तो अपने गाँव या वार्ड का नाम बताइए।'
       en: 'Are you at the place where this problem is? If yes, tap "Yes, I am here". If not, tell me your village or ward name.'
+
+  - name: duration_days
+    type: integer
+    required: false
+    min: 0
+    max: 365
+    label: {hi: कितने दिनों से, en: Days affected}
+    hint: "'3 दिन से' → 3, 'कल से' → 1, 'हफ्ते भर से' → 7"

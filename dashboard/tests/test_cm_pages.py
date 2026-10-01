@@ -11,7 +11,7 @@ from dashboard.cm import accounts, registry as R
 from dashboard.cm.pages import gate
 
 LIVE = [{"id": 1, "department": "Jal Vibhag", "level": "district", "name": "Bhopal", "office_name": "BMC Head Office", "active": True},
-        {"id": 2, "department": "General Triage", "level": "district", "name": "Bhopal", "office_name": "Desk", "active": True}]
+        {"id": 2, "department": "Human Evaluation", "level": "district", "name": "Bhopal", "office_name": "Desk", "active": True}]
 
 
 def _script():
@@ -34,7 +34,7 @@ def _script():
     now = pd.Timestamp.now(tz="UTC")
     df = pd.DataFrame({
         "complaint_id": ["SMD-1", "SMD-2", "SMD-3"], "status": ["new", "needs_review", "resolved"],
-        "department": ["Jal Vibhag", "General Triage", "Jal Vibhag"], "office_name": ["BMC Head Office", "Desk", "BMC Head Office"],
+        "department": ["Jal Vibhag", "Human Evaluation", "Jal Vibhag"], "office_name": ["BMC Head Office", "Desk", "BMC Head Office"],
         "summary_en": ["a", "b", "c"], "created_at": [(now - pd.Timedelta(days=d)).isoformat() for d in (30, 4, 6)],
         "updated_at": [(now - pd.Timedelta(days=d)).isoformat() for d in (30, 4, 5)],
     })
@@ -51,7 +51,7 @@ def _script():
     acct = {"cm_admin": accounts.Account("a", "cm_admin"),
             "dept_head": accounts.Account("h", "dept_head", department="Jal Vibhag", dept_id="phe"),
             "office_officer": accounts.Account("o", "office_officer", department="Jal Vibhag", office_name="BMC Head Office", dept_id="phe"),
-            "triage": accounts.Account("t", "triage")}[role]
+            "evaluator": accounts.Account("t", "evaluator")}[role]
     ctx = pages.Context(acct, registry.connect(os.environ["CM_TEST_DB"]), accounts.scope_tickets(df, acct), None, Legacy, is_demo=demo)
     getattr(pages, os.environ["CM_TEST_PAGE"])(ctx)
 
@@ -88,7 +88,7 @@ def test_dept_head_ticket_page_is_scoped_and_reassign_limited(db, monkeypatch):
     monkeypatch.setenv("CM_TEST_PAGE", "page_tickets")
     at = AppTest.from_function(_script, default_timeout=60).run()
     text = " ".join(m.value for m in at.markdown)
-    assert "TICKET TABLE 2 rows" in text  # Jal Vibhag only: the General Triage ticket is hidden
+    assert "TICKET TABLE 2 rows" in text  # Jal Vibhag only: the Human Evaluation ticket is hidden
     assert "allowed_departments': {'Jal Vibhag'}" in text and "can_reassign': True" in text
 
 
@@ -102,7 +102,7 @@ def test_office_officer_cannot_reassign(db, monkeypatch):
 def test_confidence_gate_matches_s28_tiers():
     assert gate(0.95) == "route" and gate(0.8) == "route"
     assert gate(0.79) == "reconfirm" and gate(0.5) == "reconfirm"
-    assert gate(0.49) == "triage"
+    assert gate(0.49) == "human_evaluation"
 
 
 def test_routing_lab_asks_for_a_key_when_missing(db, monkeypatch):
@@ -133,8 +133,8 @@ def test_demo_tickets_page_is_scoped_for_a_department_head(db, monkeypatch):
     monkeypatch.setenv("CM_TEST_DEMO", "1")
     at = AppTest.from_function(_script, default_timeout=90).run()
     assert not at.exception, [e.value for e in at.exception]
-    shown = pd.concat([d.value for d in at.dataframe if "department" in d.value])
-    assert set(shown["department"]) == {"Jal Vibhag"}  # never another department's tickets
+    shown = pd.concat([d.value for d in at.dataframe if "DEPARTMENT" in d.value])  # column names are shown in CAPITALS
+    assert set(shown["DEPARTMENT"]) == {"Jal Vibhag"}  # never another department's tickets
 
 
 def test_search_page_finds_a_department_in_english_and_hindi(db, monkeypatch):
@@ -157,3 +157,36 @@ def test_search_hides_other_departments_from_a_department_head(db, monkeypatch):
     at.run()
     assert not at.exception
     assert "Energy" not in " ".join(m.value for m in at.markdown)
+
+
+def _tickets_at(monkeypatch, role="cm_admin"):
+    monkeypatch.setenv("CM_TEST_ROLE", role)
+    monkeypatch.setenv("CM_TEST_PAGE", "page_tickets")
+    monkeypatch.setenv("CM_TEST_DEMO", "1")
+    return AppTest.from_function(_script, default_timeout=90).run()
+
+
+def _shown(at):
+    """The ticket list the filters control: the FIRST ticket table on the page (the second is the Review queue tab, which always shows needs_review)."""
+    return next(d.value for d in at.dataframe if "STATUS" in d.value and "DEPARTMENT" in d.value)
+
+
+def test_status_filter_selects_one_status_at_a_time(db, monkeypatch):
+    at = _tickets_at(monkeypatch)
+    status = next(s for s in at.selectbox if s.label == "Status")  # a single select, not a multiselect
+    assert status.options[0] == "All" and not [m for m in at.multiselect if m.label == "Status"]
+    assert set(_shown(at)["STATUS"]) > {"resolved"}  # All: several statuses visible
+    status.select("resolved").run()
+    assert set(_shown(at)["STATUS"]) == {"resolved"}
+
+
+def test_department_filter_selects_one_department_at_a_time(db, monkeypatch):
+    at = _tickets_at(monkeypatch)
+    dept = next(s for s in at.selectbox if s.label == "Department")
+    assert dept.options[0] == "All" and not [m for m in at.multiselect if m.label == "Department"]
+    dept.select("Jal Vibhag").run()
+    assert set(_shown(at)["DEPARTMENT"]) == {"Jal Vibhag"}
+    status = next(s for s in at.selectbox if s.label == "Status")
+    status.select("resolved").run()  # both filters at once
+    rows = _shown(at)
+    assert set(rows["DEPARTMENT"]) == {"Jal Vibhag"} and set(rows["STATUS"]) == {"resolved"}

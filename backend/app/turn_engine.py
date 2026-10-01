@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 PROVIDER_TIMEOUT_SECONDS = 6.0  # S04 section 5 / S05 provider table
 TURN_DEADLINE_SECONDS = 14.0  # S26 D-S26-4: stop starting new providers past this
-GENERAL_SERVICE = "general"  # S28 D-S28-4: the catch-all triage service id (specs/general.yaml)
+HUMAN_EVALUATION_SERVICE = "human_evaluation"  # S31: the Human Evaluation queue (specs/human_evaluation.yaml); was the S28 "general" triage service
 INTENTS = ("complaint", "information", "out_of_context", "status")
 
 SYSTEM_INSTRUCTIONS = """\
@@ -42,10 +42,10 @@ Rules:
   of a complaint they already filed (leave fields empty). A short reply that answers the bot's last
   question (yes/no, a place name, a number, a choice) belongs to the current complaint: intent "complaint",
   keep the active service.
-- service_id: only for a complaint. The best specific service; "general" ONLY if none of the others fits;
+- service_id: only for a complaint. The best specific service; "human_evaluation" ONLY if none of the others fits;
   null if not a complaint, or if you cannot decide between specific services (then fill candidates).
   Never invent a service.
-- confidence: how sure you are about service_id. candidates: up to 3 specific ids (never "general") you are
+- confidence: how sure you are about service_id. candidates: up to 3 specific ids (never "human_evaluation") you are
   torn between, else [].
 - fields: only the matched service's field names, only what the citizen gave or changed THIS turn, never a
   value outside the allowed values. Empty unless intent is "complaint".
@@ -178,7 +178,7 @@ Listed services:
 
 Session state:
 - active service_id so far: {session.service_id or "none yet"}
-- already collected fields: {json.dumps(session.collected_fields, ensure_ascii=False)}
+- already collected fields: {json.dumps({k: v for k, v in session.collected_fields.items() if not k.startswith("_")}, ensure_ascii=False)}
 - awaiting confirmation: {"true" if session.awaiting_confirmation else "false"}
 
 Recent turns (oldest first):
@@ -274,7 +274,7 @@ def _clean_candidates(value: Any, specs: dict[str, ServiceSpec]) -> list[str]:
         return []
     seen: list[str] = []
     for item in value:
-        if isinstance(item, str) and item in specs and item != GENERAL_SERVICE and item not in seen:
+        if isinstance(item, str) and item in specs and item != HUMAN_EVALUATION_SERVICE and item not in seen:
             seen.append(item)
     return seen[:3]
 

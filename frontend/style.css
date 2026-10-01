@@ -1069,3 +1069,36 @@ body[data-hero] #samadhan-widget-panel {
     padding: 4px 8px;
   }
 }
+
+
+/* --- S31 login screen (frontend/auth.js) ---------------------------------------------------------------------------- */
+#samadhan-auth-overlay {
+  position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center;
+  padding: 16px; background: rgba(15, 42, 74, 0.55);
+}
+.samadhan-auth-card {
+  width: min(380px, 100%); background: #fff; color: var(--bot-text); border-radius: 14px; padding: 20px 18px 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3); font-family: inherit;
+}
+.samadhan-auth-card h2 { margin: 0 0 6px; font-size: 1.25rem; color: var(--header-bg); }
+.samadhan-auth-why { margin: 0 0 12px; font-size: 0.95rem; line-height: 1.5; color: var(--muted); }
+.samadhan-auth-card label { display: block; margin: 8px 0 6px; font-weight: 600; font-size: 0.95rem; }
+.samadhan-auth-row { display: flex; align-items: center; border: 2px solid var(--header-bg); border-radius: 10px; background: #fff; }
+.samadhan-auth-row:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25); }
+.samadhan-auth-prefix { padding: 0 10px 0 12px; font-weight: 700; color: var(--header-bg); }
+.samadhan-auth-card input {
+  flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; padding: 12px 12px 12px 4px; font-size: 1.15rem;
+  letter-spacing: 0.04em; color: var(--bot-text);
+}
+.samadhan-auth-status { min-height: 1.3em; margin: 8px 0 0; font-size: 0.9rem; color: var(--muted); }
+.samadhan-auth-status.samadhan-auth-error { color: var(--error-text); font-weight: 600; }
+.samadhan-auth-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.samadhan-auth-primary, .samadhan-auth-secondary { min-height: 46px; padding: 0 16px; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+.samadhan-auth-primary { flex: 1; border: 0; background: var(--header-bg); color: #fff; }
+.samadhan-auth-primary:disabled { opacity: 0.6; cursor: wait; }
+.samadhan-auth-secondary { border: 2px solid var(--header-bg); background: #fff; color: var(--header-bg); }
+#samadhan-widget-auth {
+  margin-left: auto; margin-right: 8px; padding: 4px 10px; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 999px;
+  background: transparent; color: var(--header-text); font-size: 0.8rem; cursor: pointer; white-space: nowrap;
+}
+#samadhan-widget-auth:hover { background: rgba(255, 255, 255, 0.15); }

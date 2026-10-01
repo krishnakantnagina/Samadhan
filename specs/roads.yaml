@@ -62,3 +62,11 @@ fields:
     max_length: 200
     label: {hi: पता / लैंडमार्क, en: Address or landmark}
     hint: street or landmark exactly as the citizen said it
+
+  - name: duration_days
+    type: integer
+    required: false
+    min: 0
+    max: 365
+    label: {hi: कितने दिनों से, en: Days affected}
+    hint: "'3 दिन से' → 3, 'कल से' → 1, 'हफ्ते भर से' → 7"

@@ -9,6 +9,7 @@ import streamlit as st
 from dashboard.analytics import DEFAULT_SLA_DAYS
 from dashboard.cm import area, search as S, theme
 from dashboard.cm import registry as R
+from dashboard.cm import ui
 from dashboard.cm.departments import ALL_DEPARTMENTS
 
 DEMO_STATUSES = ["new", "in_progress", "resolved", "needs_review"]
@@ -17,7 +18,7 @@ DEMO_STATUSES = ["new", "in_progress", "resolved", "needs_review"]
 def demo_ticket_table(ctx, df: pd.DataFrame, key: str) -> None:
     """Ticket list + detail for the DEMO dataset. Edits change the session copy only: nothing is written anywhere."""
     cols = [c for c in ("complaint_id", "status", "department", "district", "issue", "office_name", "created_at") if c in df]
-    ev = st.dataframe(df[cols], width="stretch", hide_index=True, on_select="rerun", selection_mode="single-row", key=f"demo-tbl-{key}-{len(df)}")
+    ev = ui.table(df[cols], width="stretch", hide_index=True, on_select="rerun", selection_mode="single-row", key=f"demo-tbl-{key}-{len(df)}")
     rows = ev.selection["rows"]
     if not rows:
         return
@@ -60,7 +61,8 @@ def page_area(ctx) -> None:
         return
     c = st.columns([2, 1, 1])
     depts = sorted(df["department"].unique())
-    chosen = c[0].multiselect("Departments", depts, default=depts, key="area-depts")
+    chosen_one = c[0].selectbox("Department", ["All", *depts], key="area-depts")
+    chosen = depts if chosen_one == "All" else [chosen_one]
     window = c[1].selectbox("Period", ["Last 30 days", "Last 60 days", "Last 90 days", "All"], index=3, key="area-window")
     sla = c[2].number_input("Overdue after (days)", 1, 90, DEFAULT_SLA_DAYS, key="area-sla")
     now = pd.Timestamp.now(tz="UTC")
@@ -88,13 +90,13 @@ def page_area(ctx) -> None:
         a.bar_chart(ds.sort_values("per_100k", ascending=False).head(15).set_index("district")["per_100k"], color=theme.BLUE)
         b.subheader("Overdue tickets")
         b.bar_chart(ds.sort_values("overdue", ascending=False).head(15).set_index("district")["overdue"], color=theme.ALERT)
-        st.dataframe(ds, width="stretch", hide_index=True)
+        ui.table(ds, width="stretch", hide_index=True)
         st.caption("Per-100,000 rates use 2011 population from the registry. They show who reaches the system (phone, internet, awareness), not only where problems are. "
                    "No map yet: official boundaries are behind NIC tokens (see the State GIS Portal findings).")
     with t_div:
         dv = area.division_summary(ds)
         st.bar_chart(dv.set_index("division")[["received", "pending", "overdue"]], color=[theme.BLUE, theme.SKY, theme.ALERT])
-        st.dataframe(dv, width="stretch", hide_index=True)
+        ui.table(dv, width="stretch", hide_index=True)
     with t_hot:
         c1, c2 = st.columns(2)
         win = c1.slider("Window (days)", 7, 60, 30, key="hot-win")
@@ -105,12 +107,12 @@ def page_area(ctx) -> None:
         if hs.empty:
             st.success("No hotspots with these settings.")
         else:
-            st.dataframe(hs, width="stretch", hide_index=True)
+            ui.table(hs, width="stretch", hide_index=True)
     with t_heat:
         by = st.radio("Columns", ["department", "issue"], horizontal=True, key="heat-by")
         ht = area.heat_table(f, "district", by, top_rows=15, top_cols=8)
         vmax = float(ht.to_numpy().max()) if not ht.empty else 0
-        st.dataframe(ht.style.map(lambda v: theme.blue_scale(v, vmax)), width="stretch")
+        ui.table(ht.style.map(lambda v: theme.blue_scale(v, vmax)), width="stretch")
         st.caption("Busiest 15 districts by busiest 8 departments (or issues). Darker = more complaints.")
     with t_loc:
         st.bar_chart(area.location_mix(f), color=theme.SKY)

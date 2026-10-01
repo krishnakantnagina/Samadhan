@@ -78,7 +78,13 @@
   closeBtn.id = 'samadhan-widget-close';
   closeBtn.setAttribute('aria-label', 'बंद करें');
   closeBtn.appendChild(svgIcon(CLOSE_PATH));
+  // S31: shows the logged-in phone (masked); tap to log out. Hidden until the citizen has logged in.
+  const authChip = document.createElement('button');
+  authChip.type = 'button';
+  authChip.id = 'samadhan-widget-auth';
+  authChip.hidden = true;
   header.appendChild(title);
+  header.appendChild(authChip);
   header.appendChild(closeBtn);
 
   const messagesEl = document.createElement('div');
@@ -414,7 +420,12 @@
 
     let response;
     try {
-      response = await fetch(`${API_BASE}/api/v1/message`, { method: 'POST', body: form });
+      // S31: the saved login (if any) rides along; the backend only needs it when a complaint is about to be filed.
+      response = await fetch(`${API_BASE}/api/v1/message`, {
+        method: 'POST',
+        body: form,
+        headers: window.SamadhanAuth ? window.SamadhanAuth.headers() : {},
+      });
     } catch {
       throw new Error(GENERIC_ERROR);
     }
@@ -503,7 +514,20 @@
     botEl.appendChild(row);
   }
 
+  // S31: after a confirmed complaint the backend answers ask_for='login' when nobody is logged in. Show the login screen, then confirm again so
+  // the same draft is filed (the backend kept it). Closing the screen keeps the draft too: typing 'हाँ' later asks to log in again.
+  async function promptLogin() {
+    if (!window.SamadhanAuth) return;
+    const loggedIn = await window.SamadhanAuth.showLogin();
+    if (loggedIn) {
+      await handleTurn(() => postToApi((form) => form.append('text', 'हाँ')), 'हाँ, मेरी शिकायत दर्ज करें');
+    } else {
+      appendMessage('bot', 'ठीक है। जब आप तैयार हों, "हाँ" लिखें और लॉगिन करके शिकायत दर्ज करें। आपकी जानकारी सुरक्षित है।');
+    }
+  }
+
   async function handleTurn(apiCall, citizenBubbleText, autoSpeak = false) {
+    let needsLogin = false;
     const citizenEl = appendMessage('citizen', citizenBubbleText);
     setBusy(true);
     const waitingEl = appendTypingIndicator(); // three dots while the reply is on its way
@@ -525,6 +549,7 @@
       if (awaitingLocationChoice) appendLocationChoiceChips(botEl);
       if (result.action === 'confirm' && result.summary) appendSummaryCard(botEl, result.summary);
       if (result.action === 'submitted' && result.ticket) appendTicketCard(botEl, result.ticket);
+      needsLogin = result.ask_for === 'login';
     } catch (err) {
       appendMessage('error', err.message || GENERIC_ERROR);
     } finally {
@@ -532,6 +557,19 @@
       setBusy(false);
       input.focus();
     }
+    if (needsLogin) await promptLogin();
+  }
+
+  if (window.SamadhanAuth) {
+    window.SamadhanAuth.onChange((auth) => {
+      authChip.hidden = !auth;
+      authChip.textContent = auth ? `📱 ${auth.phone_masked} ✕` : '';
+      authChip.setAttribute('aria-label', auth ? `लॉगआउट करें, ${auth.phone_masked}` : 'लॉगआउट');
+    });
+    authChip.addEventListener('click', async () => {
+      await window.SamadhanAuth.logout();
+      appendMessage('bot', 'आप लॉगआउट हो गए हैं।');
+    });
   }
 
   async function send(text) {

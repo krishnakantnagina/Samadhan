@@ -54,7 +54,7 @@ def data_dir(tmp_path):
 
 
 LIVE = [{"id": 1, "department": "Bijli Vibhag", "level": "ward", "name": "मिसरोद", "office_name": "Ward Bijli", "active": True},
-        {"id": 2, "department": "General Triage", "level": "district", "name": "Bhopal", "office_name": "Desk", "active": True}]
+        {"id": 2, "department": "Human Evaluation", "level": "district", "name": "Bhopal", "office_name": "Desk", "active": True}]
 
 
 def test_build_loads_everything_and_reports_unmatched(data_dir, tmp_path):

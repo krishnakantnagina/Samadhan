@@ -25,6 +25,20 @@ TICKET_DETAIL_COLUMNS = (
 )
 
 
+# S31: columns added by database/migrations/002. Read when present; a database that has not run the migration yet answers with an error and we fall back to the
+# base columns, so the dashboard never breaks on an older schema. The citizen's phone is selected ONLY for one deliberately opened ticket (the officer calls back).
+LIST_EXTRA_COLUMNS = ",district,tehsil,location_precision"
+DETAIL_EXTRA_COLUMNS = ",district,tehsil,nearest_place,location_precision,users(phone)"
+
+
+def _with_fallback(run, columns: str, extra: str):
+    """run(columns) with the S31 extras first; on any database error (missing column or table) run it again with the base columns."""
+    try:
+        return run(columns + extra)
+    except Exception:  # noqa: BLE001 -- postgrest APIError for an unknown column/relation
+        return run(columns)
+
+
 # S24 section 4: the map's own column list. Adds lat/lng (the list view deliberately omits them) and
 # `fields` (issue label / location text); still never original_text, audio_path or session_id.
 MAP_COLUMNS = "complaint_id,status,department,fields,lat,lng,created_at,offices(office_name)"
@@ -45,24 +59,17 @@ def list_map_points(*, client: Client | None = None) -> list[dict[str, Any]]:
 def list_tickets(*, client: Client | None = None) -> list[dict[str, Any]]:
     """Up to 500 tickets, newest first, joined to their office's name/level (S13 BEHAVIOR 1)."""
     client = client or get_client()
-    return (
-        client.table("tickets")
-        .select(TICKET_COLUMNS)
-        .order("created_at", desc=True)
-        .limit(500)
-        .execute()
-    ).data
+    return _with_fallback(
+        lambda cols: client.table("tickets").select(cols).order("created_at", desc=True).limit(500).execute().data, TICKET_COLUMNS, LIST_EXTRA_COLUMNS
+    )
 
 
 def get_ticket_detail(complaint_id: str, *, client: Client | None = None) -> dict[str, Any] | None:
     """One ticket, every column an officer reviewing it needs (S14 BEHAVIOR 2)."""
     client = client or get_client()
-    rows = (
-        client.table("tickets")
-        .select(TICKET_DETAIL_COLUMNS)
-        .eq("complaint_id", complaint_id)
-        .execute()
-    ).data
+    rows = _with_fallback(
+        lambda cols: client.table("tickets").select(cols).eq("complaint_id", complaint_id).execute().data, TICKET_DETAIL_COLUMNS, DETAIL_EXTRA_COLUMNS
+    )
     return rows[0] if rows else None
 
 

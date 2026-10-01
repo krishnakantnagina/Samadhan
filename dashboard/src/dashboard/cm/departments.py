@@ -125,4 +125,4 @@ LIVE_MAP: dict[str, str] = {  # Samadhan department text -> registry id (propose
     'Nagar Nigam Sanitation': 'urban_development_housing',
 }
 
-GENERAL_TRIAGE = 'General Triage'  # system desk, not a government department
+HUMAN_EVALUATION = 'Human Evaluation'  # the queue for unplaced complaints: a system desk, not a government department

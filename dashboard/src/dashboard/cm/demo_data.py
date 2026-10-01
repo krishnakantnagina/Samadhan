@@ -78,7 +78,7 @@ RELATED = {"phe": ["panchayat_rural_development", "urban_development_housing"], 
            "school_education": ["higher_education", "tribal_affairs"], "tribal_affairs": ["school_education", "sc_welfare"], "social_justice_disabled": ["sc_welfare", "women_child"],
            "home": ["finance", "general_administration"], "revenue": ["general_administration", "agriculture"], "agriculture": ["horticulture_food_processing", "cooperative"]}
 EVAL_REASONS = [("department_unconfirmed", 0.55), ("location_unclear", 0.30), ("vague_description", 0.15)]
-HUMAN_EVALUATORS = ["triage.desk"]
+HUMAN_EVALUATORS = ["evaluator.desk"]
 ISSUE_DAYS = {issue: d for items in ISSUES.values() for issue, _w, d in items}
 LIVE_OFFICE_BY_DEPT = {"Jal Vibhag": "Ward मिसरोद Office", "Bijli Vibhag": "Ward मिसरोद Bijli Office (DEMO)",
                        "Lok Nirman Vibhag": "Ward मिसरोद PWD Office (DEMO)", "Nagar Nigam Sanitation": "Ward मिसरोद Sanitation Office (DEMO)"}
@@ -133,12 +133,12 @@ def generate(districts: Sequence[dict], names: dict[str, str], n: int = 360, see
         jev_second_id = dept_id if jev_wrong else second_id
         sits_in_triage = needs_human and reason == "department_unconfirmed"
         if sits_in_triage:
-            department, office = "General Triage", "General Triage Desk (DEMO)"
+            department, office = "Human Evaluation", "Human Evaluation Desk (DEMO)"
         else:
             office = office or f"{department} office, {district} (demo)"
         return {
             "created_at": created.isoformat(timespec="seconds"), "updated_at": updated.isoformat(timespec="seconds"),
-            "status": status, "department": department, "dept_id": "general" if sits_in_triage else dept_id, "office_name": office,
+            "status": status, "department": department, "dept_id": "human_evaluation" if sits_in_triage else dept_id, "office_name": office,
             "issue": issue, "district": district, "division": division[district],
             "area_type": "urban" if district in URBAN_DISTRICTS and rng.random() < 0.7 else "rural", "location_quality": quality,
             "citizen_message": ISSUE_HI.get(issue, issue), "eval_reason": reason,

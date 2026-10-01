@@ -27,5 +27,5 @@ VALUES
   ('Bijli Vibhag',           'district', 'ELEC-HQ',  'Bhopal', ARRAY['Bhopal'], NULL, NULL, 'Bijli Vibhag District Office (DEMO)',      NULL, true),
   ('Lok Nirman Vibhag',      'district', 'PWD-HQ',   'Bhopal', ARRAY['Bhopal'], NULL, NULL, 'Lok Nirman Vibhag District Office (DEMO)', NULL, true),
   ('Nagar Nigam Sanitation', 'district', 'SAN-HQ',   'Bhopal', ARRAY['Bhopal'], NULL, NULL, 'Nagar Nigam Sanitation Office (DEMO)',     NULL, true),
-  ('General Triage',         'district', 'GEN-HQ',   'Bhopal', ARRAY['Bhopal'], NULL, NULL, 'General Triage Desk (DEMO)',               NULL, true)
+  ('Human Evaluation',       'district', 'HE-HQ',    'Bhopal', ARRAY['Bhopal'], NULL, NULL, 'Human Evaluation Desk (DEMO)',             NULL, true)
 ON CONFLICT (department, level, code) DO NOTHING;

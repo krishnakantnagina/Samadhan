@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from app.info_reply import OUT_OF_CONTEXT_REPLY_HI, URGENT_LINE_HI, build_info_reply
 from app.service_spec import FieldSpec, LocationField, ServiceSpec
 from app.status_reply import NEED_ID_REPLY_HI
-from app.turn_engine import GENERAL_SERVICE, TurnResult
+from app.turn_engine import HUMAN_EVALUATION_SERVICE, TurnResult
 
 CONFIRM_PROMPT_HI = "कृपया जानकारी जाँचें और पुष्टि करें (हाँ/ठीक है), या सुधार बताएं।"  # PROPOSED (G-S07-1)
 GPS_LOCATION_LABEL_HI = "साझा लोकेशन (GPS)"  # PROPOSED (G-S07-2)
@@ -352,12 +352,12 @@ def apply(
     # a complaint never re-routes it, and only an explicit different service switches it.
     active = session.service_id if session.service_id in specs else None
     service_id = turn_result.service_id
-    candidates = [c for c in turn_result.candidates if c in specs and c != GENERAL_SERVICE]
+    candidates = [c for c in turn_result.candidates if c in specs and c != HUMAN_EVALUATION_SERVICE]
 
     if (
         service_id is not None
         and service_id != active
-        and service_id != GENERAL_SERVICE
+        and service_id != HUMAN_EVALUATION_SERVICE
         and turn_result.confidence is not None
         and turn_result.confidence < CONFIDENT
     ):
@@ -398,10 +398,10 @@ def apply(
                 reply_text=_urgent(turn_result, f"क्या आप {spec.label.hi} बता रहे हैं?"),
                 summary=None,
             )
-        if GENERAL_SERVICE in specs:
+        if HUMAN_EVALUATION_SERVICE in specs:
             # Multi-department mode (S28). No new routing information mid-complaint: stay in it;
-            # otherwise a real complaint that fits no department goes to triage (D-S28-4).
-            service_id = active if active is not None else GENERAL_SERVICE
+            # otherwise a real complaint that fits no department goes to Human Evaluation (D-S28-4, S31).
+            service_id = active if active is not None else HUMAN_EVALUATION_SERVICE
         else:
             # Single-service deployment (no general spec): the pre-S28 behaviour, unchanged.
             fallback_id = next(iter(specs))

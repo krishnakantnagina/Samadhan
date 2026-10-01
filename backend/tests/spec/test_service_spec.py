@@ -74,7 +74,7 @@ def test_field_lookup():
 
 def test_load_specs_keys_by_service_id():
     specs = load_specs(SPECS_DIR)
-    assert sorted(specs) == ["electricity", "general", "roads", "sanitation", "water_supply"]  # S28
+    assert sorted(specs) == ["electricity", "human_evaluation", "roads", "sanitation", "water_supply"]  # S28
 
 
 def test_load_specs_rejects_a_directory_without_specs(tmp_path):

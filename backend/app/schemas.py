@@ -75,6 +75,10 @@ class ErrorCode(StrEnum):
     UNSUPPORTED_AUDIO = "UNSUPPORTED_AUDIO"
     SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
     INTERNAL_ERROR = "INTERNAL_ERROR"
+    AUTH_REQUIRED = "AUTH_REQUIRED"  # S31: no login token
+    AUTH_EXPIRED = "AUTH_EXPIRED"  # S31: token unknown, expired or logged out: log in again
+    AUTH_INVALID_CODE = "AUTH_INVALID_CODE"  # S31: wrong or expired PIN/OTP
+    AUTH_RATE_LIMITED = "AUTH_RATE_LIMITED"  # S31: too many attempts
 
 
 ERROR_STATUS: dict[ErrorCode, int] = {
@@ -85,6 +89,10 @@ ERROR_STATUS: dict[ErrorCode, int] = {
     ErrorCode.UNSUPPORTED_AUDIO: 415,
     ErrorCode.SERVICE_UNAVAILABLE: 503,
     ErrorCode.INTERNAL_ERROR: 500,
+    ErrorCode.AUTH_REQUIRED: 401,
+    ErrorCode.AUTH_EXPIRED: 401,
+    ErrorCode.AUTH_INVALID_CODE: 401,
+    ErrorCode.AUTH_RATE_LIMITED: 429,
 }
 
 # Citizen-safe: no stack traces, keys, or internal names (S01 section 9, rule 3).
@@ -96,6 +104,10 @@ ERROR_REPLY_TEXT: dict[ErrorCode, str] = {
     ErrorCode.UNSUPPORTED_AUDIO: "यह ऑडियो प्रारूप समर्थित नहीं है। कृपया टेक्स्ट में लिखें।",
     ErrorCode.SERVICE_UNAVAILABLE: "सेवा अभी उपलब्ध नहीं है। कृपया कुछ देर बाद प्रयास करें।",
     ErrorCode.INTERNAL_ERROR: "कुछ गड़बड़ हो गई। कृपया दोबारा प्रयास करें।",
+    ErrorCode.AUTH_REQUIRED: "कृपया पहले अपना मोबाइल नंबर बताकर लॉगिन करें।",
+    ErrorCode.AUTH_EXPIRED: "आपका लॉगिन समाप्त हो गया है। कृपया दोबारा लॉगिन करें।",
+    ErrorCode.AUTH_INVALID_CODE: "कोड सही नहीं है। कृपया दोबारा प्रयास करें।",
+    ErrorCode.AUTH_RATE_LIMITED: "बहुत ज़्यादा प्रयास हो गए हैं। कृपया कुछ देर बाद दोबारा प्रयास करें।",
 }
 
 

@@ -132,12 +132,12 @@ def test_torn_between_two_departments_asks_which_one():
 
 
 def test_three_candidates_are_listed_and_unknown_or_general_ids_are_ignored():
-    result = run(candidates=["water_supply", "electricity", "roads", "general", "nonsense"])
+    result = run(candidates=["water_supply", "electricity", "roads", "human_evaluation", "nonsense"])
     labels = [SPECS[k].label.hi for k in ("water_supply", "electricity", "roads")]
     assert result.reply_text == f"क्या यह {labels[0]}, {labels[1]} या {labels[2]} है?"
 
-    only_general = run(candidates=["general", "nonsense"])
-    assert only_general.service_id == "general"  # nothing valid left -> triage
+    only_general = run(candidates=["human_evaluation", "nonsense"])
+    assert only_general.service_id == "human_evaluation"  # nothing valid left -> Human Evaluation
 
 
 def test_clarify_keeps_the_location_the_citizen_already_gave():
@@ -159,13 +159,13 @@ def test_clarify_drops_a_field_that_is_not_valid_for_every_candidate():
 def test_a_complaint_that_fits_nothing_goes_to_general_triage_not_a_decline():
     result = run(fields={"description": "स्कूल में टीचर नहीं आते"})
 
-    assert result.service_id == "general"
+    assert result.service_id == "human_evaluation"
     assert result.action == ValidatedAction.ASK and result.ask_for == "location"
 
 
 def test_general_asks_for_the_description_first():
     result = run()
-    assert result.service_id == "general" and result.ask_for == "description"
+    assert result.service_id == "human_evaluation" and result.ask_for == "description"
 
 
 def test_general_with_description_and_location_reaches_the_summary():

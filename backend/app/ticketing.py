@@ -10,6 +10,7 @@ Either of us can change this file. If you do, update docs/specs/S10-ticket-routi
 docs/specs/S11-status-lookup.md and tell the other.
 """
 
+import logging
 import uuid
 from typing import Any
 
@@ -64,6 +65,34 @@ def _build_summary_en(
     return "; ".join(parts)
 
 
+logger = logging.getLogger(__name__)
+INTAKE_META_KEY = "_intake"  # S30: notes kept by app/intake.py inside the ticket's fields
+NEW_COLUMNS = ("district", "tehsil", "nearest_place", "location_precision", "user_id")  # S31 migration 002; absent in older databases
+
+
+def _location_columns(validated_fields: dict[str, Any], location_name: str, lat: float | None, lng: float | None) -> dict[str, Any]:
+    """Structured location columns from the intake notes (S31). Only when intake v2 wrote notes; precision: exact (GPS) > village (a named place and a district) > district > unknown."""
+    meta = validated_fields.get(INTAKE_META_KEY)
+    if not meta:
+        return {}
+    loc = meta.get("location_details") or {}
+    has_gps = lat is not None and lng is not None
+    precision = "exact" if has_gps else "village" if (validated_fields.get(location_name) and loc.get("district")) else "district" if loc.get("district") else "unknown"
+    return {"district": loc.get("district"), "tehsil": loc.get("tehsil"), "nearest_place": loc.get("nearest_place"), "location_precision": precision}
+
+
+def _insert_ticket(client: Client, row: dict[str, Any]) -> dict[str, Any]:
+    """Insert the ticket. If the database does not have the S31 columns yet (migration 002 not applied) retry without them: a complaint is never lost to a missing column."""
+    try:
+        return client.table("tickets").insert(row).execute().data[0]
+    except Exception as exc:  # noqa: BLE001 -- postgrest raises APIError; match on the message, not the type
+        message = str(exc).lower()
+        if not any(col in row for col in NEW_COLUMNS) or not ("column" in message or "schema cache" in message):
+            raise
+        logger.warning("tickets insert without the S31 columns (apply database/migrations/002): %s", exc.__class__.__name__)
+        return client.table("tickets").insert({k: v for k, v in row.items() if k not in NEW_COLUMNS}).execute().data[0]
+
+
 def create_ticket(
     *,
     session_id: uuid.UUID,
@@ -73,6 +102,7 @@ def create_ticket(
     lng: float | None,
     original_text: str,
     audio_path: str | None,
+    user_id: uuid.UUID | str | None = None,
     client: Client | None = None,
 ) -> schemas.Ticket:
     client = client or get_client()
@@ -94,27 +124,24 @@ def create_ticket(
     )
     summary_en = _build_summary_en(spec, validated_fields, lat, lng)
 
-    row = (
-        client.table("tickets")
-        .insert(
-            {
-                "session_id": str(session_id),
-                "service_id": spec.service,
-                "department": spec.department,
-                "office_id": match.office.id,
-                "status": status,
-                "fields": validated_fields,
-                "summary_en": summary_en,
-                "original_text": original_text,
-                "audio_path": audio_path,
-                "lat": lat,
-                "lng": lng,
-                "routing_confidence": match.confidence,
-            }
-        )
-        .execute()
-        .data[0]
-    )
+    new_row = {
+        "session_id": str(session_id),
+        "service_id": spec.service,
+        "department": spec.department,
+        "office_id": match.office.id,
+        "status": status,
+        "fields": validated_fields,
+        "summary_en": summary_en,
+        "original_text": original_text,
+        "audio_path": audio_path,
+        "lat": lat,
+        "lng": lng,
+        "routing_confidence": match.confidence,
+        **_location_columns(validated_fields, location_field.name, lat, lng),
+    }
+    if user_id is not None:
+        new_row["user_id"] = str(user_id)  # S31: the registered citizen (phone) who filed it; the officer calls back on this number
+    row = _insert_ticket(client, new_row)
 
     return schemas.Ticket(
         complaint_id=row["complaint_id"],

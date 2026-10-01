@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import config, schemas, service_spec
+from app.auth_routes import router as auth_router
 from app.routes import router
 from mock.errors import register_error_handlers
 
@@ -35,6 +36,7 @@ def create_app(specs_dir: Path = SPECS_DIR) -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(router, prefix="/api/v1")
+    app.include_router(auth_router, prefix="/api/v1")  # S31 phone registration / saved login
 
     @app.get("/health", response_model=schemas.HealthResponse)
     def health() -> schemas.HealthResponse:

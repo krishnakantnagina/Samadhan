@@ -11,16 +11,17 @@ via `audio.file.read()` (sync, blocking) rather than `await audio.read()`, exact
 import re
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, File, Form, Header, Request, UploadFile
 from pydantic import UUID4
 
 from app import schemas as api
-from app import session, status_reply, ticketing, tts, turn_engine, validator, voice
+from app import auth, intake, session, status_reply, ticketing, tts, turn_engine, validator, voice
 from mock.errors import ApiError
 
 router = APIRouter()
 
 REPLY_EMPTY_TRANSCRIPT = "मुझे आपकी बात समझ नहीं आई। कृपया दोबारा बोलें या लिखकर बताएं।"  # S01 D-A6
+REPLY_LOGIN_HI = "शिकायत दर्ज करने के लिए कृपया अपना मोबाइल नंबर बताकर लॉगिन करें। इसी नंबर पर संबंधित अधिकारी आपसे संपर्क करेंगे।"  # S31
 
 
 def _submitted_reply(complaint_id: str) -> str:
@@ -121,6 +122,23 @@ def _command_update(command: api.Command) -> session.SessionUpdate:
     )
 
 
+def _intake_ask(*, pre, row, session_id, message_id, text, audio, audio_path, transcript) -> api.MessageResponse:
+    """S30: intake v2 asks its one department question instead of running the validator. The session keeps its intake notes."""
+    response = api.MessageResponse(
+        session_id=session_id, message_id=message_id, action=api.Action.ASK, ask_for=pre.ask_for, reply_text=pre.ask,
+        transcript=transcript, summary=None, ticket=None, duplicate=False,
+    )
+    update = session.SessionUpdate(
+        collected_fields={**row.collected_fields, intake.META_KEY: pre.meta}, awaiting_confirmation=False, lat=row.lat, lng=row.lng,
+        status=session.SessionStatus.ACTIVE, service_id=row.service_id,
+    )
+    input_type = session.InputType.AUDIO if audio is not None else session.InputType.TEXT if text is not None else session.InputType.LOCATION
+    return _persist(
+        session_id=session_id, message_id=message_id, input_type=input_type, text=text, transcript=transcript,
+        audio_path=audio_path, response=response, update=update,
+    )
+
+
 @router.post("/message", response_model=api.MessageResponse)
 def message(
     request: Request,
@@ -130,6 +148,7 @@ def message(
     audio: Annotated[UploadFile | None, File()] = None,
     lat: Annotated[float | None, Form(ge=-90, le=90)] = None,
     lng: Annotated[float | None, Form(ge=-180, le=180)] = None,
+    authorization: Annotated[str | None, Header()] = None,
 ) -> api.MessageResponse:
     # Step 1: validate input (S04 section 2 step 1)
     problem = api.check_message_inputs(text=text, has_audio=audio is not None, lat=lat, lng=lng)
@@ -247,6 +266,16 @@ def message(
                 transcript=transcript, row=row, text=text, audio=audio, audio_path=audio_path,
             )  # fmt: skip
 
+    # Step 6c: intake v2 (S30, flag INTAKE_V2, off by default): Jev decides the department; it may ask ONE question here
+    # or send the complaint to the Human Evaluation queue. Disabled / no key / Jev down: returns the turn unchanged.
+    pre = intake.prestep(row=row, specs=request.app.state.specs, text=effective_text, recent=recent, turn_result=turn_result)
+    turn_result = pre.turn_result
+    if pre.ask is not None:
+        return _intake_ask(
+            pre=pre, row=row, session_id=session_id, message_id=message_id, text=text, audio=audio,
+            audio_path=audio_path, transcript=transcript,
+        )
+
     # Step 7: Validator (S07)
     snapshot = validator.SessionSnapshot(
         row.service_id, row.collected_fields, row.awaiting_confirmation, row.lat, row.lng
@@ -254,6 +283,13 @@ def message(
     result = validator.apply(
         specs=request.app.state.specs, session=snapshot, turn_result=turn_result, lat=lat, lng=lng
     )
+    result = intake.poststep(result=result, pre=pre, specs=request.app.state.specs, lat=lat, lng=lng, row=row)  # S30: notes + location detail / duration asks
+
+    # Step 7b: S31 registration. Filing a complaint needs a logged-in citizen (AUTH_REQUIRED=1): the confirmed draft is KEPT and the client is asked to
+    # log in, then to confirm again. Enquiries, status checks and every earlier question never need login.
+    user = auth.user_from_header(authorization)
+    if result.action == validator.ValidatedAction.READY_TO_SUBMIT and auth.required() and user is None:
+        result = result.model_copy(update={"action": validator.ValidatedAction.ASK, "ask_for": "login", "reply_text": REPLY_LOGIN_HI, "awaiting_confirmation": True})
 
     # Step 8: ticket creation, or a normal ask/confirm/out_of_scope reply
     if result.action == validator.ValidatedAction.READY_TO_SUBMIT:
@@ -267,6 +303,7 @@ def message(
             lng=lng,
             original_text=original_text,
             audio_path=audio_path,
+            user_id=user.id if user else None,
         )
         response = api.MessageResponse(
             session_id=session_id,

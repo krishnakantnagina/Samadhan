@@ -191,7 +191,7 @@ def search(index: list[Entry], query: str, kinds: tuple[str, ...] = KINDS, per_k
 
 
 def allowed_kinds(role: str) -> tuple[str, ...]:
-    return {"cm_admin": KINDS, "triage": KINDS, "dept_head": ("department", "service", "scheme", "district", "office", "ticket"),
+    return {"cm_admin": KINDS, "evaluator": KINDS, "dept_head": ("department", "service", "scheme", "district", "office", "ticket"),
             "office_officer": ("service", "scheme", "ticket")}.get(role, ())
 
 

@@ -118,7 +118,7 @@ def test_list_tickets_requests_expected_shape():
 
     assert result == CANNED_ROWS
     query = store.queries[-1]
-    assert query.requested_columns == TICKET_COLUMNS
+    assert query.requested_columns.startswith(TICKET_COLUMNS)  # S31 appends optional columns after the base list
     assert query.order_calls == [("created_at", True)]
     assert query.limit_n == 500
 
@@ -153,7 +153,7 @@ def test_get_ticket_detail_found():
     store = FakeStore(tickets=[DETAIL_ROW])
 
     assert get_ticket_detail("SMD-0002", client=store) == DETAIL_ROW
-    assert store.queries[-1].requested_columns == TICKET_DETAIL_COLUMNS
+    assert store.queries[-1].requested_columns.startswith(TICKET_DETAIL_COLUMNS)  # S31 appends optional columns after the base list
 
 
 def test_get_ticket_detail_not_found():

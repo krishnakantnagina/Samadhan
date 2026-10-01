@@ -11,7 +11,7 @@ not store Jev's candidates or the follow-up questions yet (the intake loop is no
 import pandas as pd
 import streamlit as st
 
-from dashboard.cm import theme
+from dashboard.cm import theme, ui
 from dashboard.cm.departments import ALL_DEPARTMENTS
 
 REASON_LABEL = {
@@ -87,15 +87,15 @@ def page_human_eval(ctx) -> None:
         if queue.empty:
             st.success("Nothing is waiting for evaluation.")
             return
-        reasons = st.multiselect("Why it is here", list(REASON_LABEL), default=list(REASON_LABEL), format_func=REASON_LABEL.get, key="he-reasons")
-        queue = queue[queue["eval_reason"].isin(reasons)]
+        reason = st.selectbox("Why it is here", ["all", *REASON_LABEL], format_func=lambda r: "All reasons" if r == "all" else REASON_LABEL[r], key="he-reasons")
+        queue = queue if reason == "all" else queue[queue["eval_reason"] == reason]
         queue["waiting_days"] = _age_days(queue["created_at"])
         queue["jev_first"] = queue["jev_top"] + " (" + (queue["jev_top_p"] * 100).round(0).astype(int).astype(str) + "%)"
         queue["jev_second_choice"] = queue["jev_second"] + " (" + (queue["jev_second_p"] * 100).round(0).astype(int).astype(str) + "%)"
         queue = queue.sort_values("waiting_days", ascending=False)
         show = queue[["complaint_id", "eval_reason", "jev_first", "jev_second_choice", "questions_asked", "district", "location_quality", "waiting_days"]]
         st.caption(f"{len(queue)} waiting, longest first. Select one to decide.")
-        ev = st.dataframe(show, width="stretch", hide_index=True, on_select="rerun", selection_mode="single-row", key=f"he-table-{len(queue)}")
+        ev = ui.table(show, width="stretch", hide_index=True, on_select="rerun", selection_mode="single-row", key=f"he-table-{len(queue)}")
         rows = ev.selection["rows"]
         if not rows:
             return
@@ -112,7 +112,7 @@ def page_human_eval(ctx) -> None:
         c2.write("**What Jev suggested**")
         c2.dataframe(pd.DataFrame([{"department": row["jev_top"], "probability": row["jev_top_p"]}, {"department": row["jev_second"], "probability": row["jev_second_p"]}]),
                      width="stretch", hide_index=True)
-        names = sorted({d[1] for d in ALL_DEPARTMENTS} | set(df["department"].unique()) - {"General Triage"})
+        names = sorted({d[1] for d in ALL_DEPARTMENTS} | set(df["department"].unique()) - {"Human Evaluation"})
         choice = st.radio("Decision", [f"Jev's first choice: {row['jev_top']}", f"Jev's second choice: {row['jev_second']}", "Another department", "Not a government grievance (close it)"],
                           key=f"he-choice-{row['complaint_id']}")
         other = st.selectbox("Department", names, key=f"he-other-{row['complaint_id']}") if choice == "Another department" else None
@@ -133,4 +133,4 @@ def page_human_eval(ctx) -> None:
         if info["confused"].empty:
             st.success("No confusion recorded yet.")
         else:
-            st.dataframe(info["confused"], width="stretch", hide_index=True)
+            ui.table(info["confused"], width="stretch", hide_index=True)
