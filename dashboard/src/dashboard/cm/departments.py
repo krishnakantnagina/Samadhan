@@ -1,0 +1,128 @@
+"""The 45 departments listed on mp.gov.in/services: stable id, English name, Hindi name exactly as published there.
+Public names only (no officers, no contacts). Ids are the keys used by the registry, routing tests and the CM dashboard.
+
+LIVE_MAP links the department names Samadhan's own database uses today (specs/*.yaml, offices.department) to a registry id.
+These links are PROPOSED (the repo itself says the Jal/Bijli/PWD/Sanitation names are DEMO); confirm before relying on them.
+"""
+
+DEPARTMENTS: list[tuple[str, str, str]] = [  # (id, name_en, name_hi)
+    ('sc_welfare', 'Scheduled Caste Welfare', 'अनुसूचित जाति कल्याण विभाग'),
+    ('anand', 'Happiness (Anand) department', 'आनंद विभाग'),
+    ('ayush', 'AYUSH, traditional medicine', 'आयुष विभाग'),
+    ('higher_education', 'Higher Education, colleges, universities', 'उच्च शिक्षा विभाग'),
+    ('horticulture_food_processing', 'Horticulture and Food Processing, fruits, vegetables', 'उद्यानिकी तथा खाद्य प्रसंस्करण विभाग'),
+    ('industry_investment', 'Industrial Policy and Investment Promotion', 'उद्योग नीति एवं निवेश प्रोत्साहन विभाग'),
+    ('energy', 'Energy', 'ऊर्जा विभाग'),
+    ('agriculture', 'Farmer Welfare and Agriculture Development', 'किसान कल्याण तथा कृषि विकास विभाग'),
+    ('mineral', 'Mineral Resources, mining', 'खनिज साधन विभाग'),
+    ('food_civil_supplies', 'Food, Civil Supplies and Consumer Protection', 'खाद्य, नागरिक आपूर्ति एवं उपभोक्ता संरक्षण विभाग'),
+    ('home', 'Home department', 'गृह विभाग'),
+    ('medical_education', 'Medical Education, medical colleges', 'चिकित्सा शिक्षा विभाग'),
+    ('tribal_affairs', 'Tribal Affairs', 'जनजातीय कार्य विभाग'),
+    ('public_relations', 'Public Relations', 'जनसम्पर्क विभाग'),
+    ('jail', 'Jail department, prisons', 'जेल विभाग'),
+    ('technical_education_skill_employment', 'Technical Education, Skill Development and Employment', 'तकनीकी शिक्षा, कौशल विकास एवं रोजगार विभाग'),
+    ('urban_development_housing', 'Urban Development and Housing', 'नगरीय विकास एवं आवास विभाग'),
+    ('narmada_valley', 'Narmada Valley Development', 'नर्मदा घाटी विकास विभाग'),
+    ('panchayat_rural_development', 'Panchayat and Rural Development', 'पंचायत और ग्रामीण विकास विभाग'),
+    ('transport', 'Transport', 'परिवहन विभाग'),
+    ('tourism', 'Tourism', 'पर्यटन विभाग'),
+    ('animal_husbandry', 'Animal Husbandry', 'पशुपालन विभाग'),
+    ('obc_minority', 'Backward Classes and Minority Welfare', 'पिछड़ा वर्ग एवं अल्पसंख्यक कल्याण विभाग'),
+    ('election_commission', 'State Election Commission', 'मध्यप्रदेश राज्य निर्वाचन आयोग'),
+    ('public_service_commission', 'Public Service Commission, recruitment exams', 'मध्यप्रदेश लोक सेवा आयोग'),
+    ('women_child', 'Women and Child Development', 'महिला एवं बाल विकास विभाग'),
+    ('planning_statistics', 'Planning, Economics and Statistics', 'योजना आर्थिक एवं सांख्यिकी विभाग'),
+    ('revenue', 'Revenue', 'राजस्व विभाग'),
+    ('public_works', 'Public Works (PWD)', 'लोक निर्माण विभाग'),
+    ('public_service_management', 'Public Service Management', 'लोक सेवा प्रबंधन विभाग'),
+    ('phe', 'Public Health Engineering (PHE)', 'लोक स्वास्थ्य यांत्रिकी विभाग'),
+    ('public_health_family_welfare', 'Public Health and Family Welfare', 'लोक स्\u200dवास्\u200dथ्\u200dय एवं परिवार कल्\u200dयाण विभाग'),
+    ('forest', 'Forest department', 'वन विभाग'),
+    ('commercial_tax', 'Commercial Tax, GST', 'वाणिज्यिक कर विभाग'),
+    ('science_technology', 'Science and Technology', 'विज्ञान एवं टेक्नोलॉजी विभाग'),
+    ('finance', 'Finance department', 'वित्\u200dत विभाग'),
+    ('law_legislative', 'Law and Legislative Affairs, courts', 'विधि और विधायी कार्य विभाग'),
+    ('civil_aviation', 'Civil Aviation', 'विमानन विभाग'),
+    ('labour', 'Labour', 'श्रम विभाग'),
+    ('culture', 'Culture', 'संस्कृति विभाग'),
+    ('cooperative', 'Cooperative', 'सहकारिता विभाग'),
+    ('social_justice_disabled', 'Social Justice and Disabled Welfare', 'सामाजिक न्याय एवं निःशक्तजन कल्याण विभाग'),
+    ('general_administration', 'General Administration', 'सामान्\u200dय प्रशासन विभाग'),
+    ('msme', 'Micro, Small and Medium Enterprises', 'सूक्ष्म, लघु और मध्यम उद्यम विभाग'),
+    ('school_education', 'School Education', 'स्कूल शिक्षा विभाग'),
+]
+
+# Departments that other MP portals list (CM Helpline, mpedistrict) but mp.gov.in's list of 45 does not. Hindi names as those portals publish them.
+# Kept separate and flagged so the CM office sees the fuller picture without pretending they are part of the official 45.
+EXTRA_DEPARTMENTS: list[tuple[str, str, str]] = [  # (id, name_en, name_hi)
+    ('cottage_village_industries', 'Cottage and Village Industries', 'कुटीर एवं ग्रामोद्योग विभाग'),
+    ('renewable_energy', 'New and Renewable Energy', 'नवीन एवं नवकरणीय ऊर्जा विभाग'),
+    ('fisheries', 'Fishermen Welfare and Fisheries Development', 'मछुआ कल्याण एवं मत्स्य विकास विभाग'),
+    ('food_drug_administration', 'Food and Drug Administration', 'खाद्य एवं औषधि प्रशासन'),
+]
+
+ALL_DEPARTMENTS = DEPARTMENTS + EXTRA_DEPARTMENTS
+
+# One plain-English line per department: what citizens complain about there. Used by the Routing Lab to tell similar departments apart
+# (the same hints gave 94% first-pick / 98.9% top-3 on the dialect test set, see local-research/data/jev_benchmark/FINDINGS.md).
+ROUTING_HINTS: dict[str, str] = {
+    'sc_welfare': '',
+    'anand': '',
+    'ayush': '',
+    'higher_education': '',
+    'horticulture_food_processing': '',
+    'industry_investment': '',
+    'energy': 'electricity, power supply, transformer, meter, bill',
+    'agriculture': 'farming, seeds, fertiliser, crop',
+    'mineral': '',
+    'food_civil_supplies': 'ration shop, ration card',
+    'home': 'police, crime, fraud, cyber crime, fire, law and order',
+    'medical_education': '',
+    'tribal_affairs': '',
+    'public_relations': '',
+    'jail': '',
+    'technical_education_skill_employment': 'jobs, ITI',
+    'urban_development_housing': 'city/town drains, sewage, garbage, street lights, municipal services, housing',
+    'narmada_valley': '',
+    'panchayat_rural_development': 'village roads, village water schemes, gram panchayat, rural housing',
+    'transport': 'buses, vehicles, driving licence',
+    'tourism': '',
+    'animal_husbandry': 'cattle, livestock, veterinary',
+    'obc_minority': '',
+    'election_commission': '',
+    'public_service_commission': '',
+    'women_child': 'anganwadi, nutrition, women safety',
+    'planning_statistics': '',
+    'revenue': 'land records, land dispute, khasra, patwari, certificates',
+    'public_works': 'main roads, bridges, government buildings',
+    'public_service_management': '',
+    'phe': 'drinking water, handpumps, tube wells, water supply',
+    'public_health_family_welfare': 'hospitals, doctors, health centres, medicine',
+    'forest': '',
+    'commercial_tax': '',
+    'science_technology': '',
+    'finance': '',
+    'law_legislative': '',
+    'civil_aviation': '',
+    'labour': 'workers, wages, labour welfare',
+    'culture': '',
+    'cooperative': 'cooperative societies, credit societies',
+    'social_justice_disabled': 'pension, old age, disability',
+    'general_administration': 'caste certificate, domicile, collector office',
+    'msme': '',
+    'school_education': 'schools, teachers, students, mid-day meal',
+    'cottage_village_industries': 'cottage industries, handloom, village industries',
+    'renewable_energy': 'solar, wind and other renewable energy projects',
+    'fisheries': 'fishermen welfare, fish farming, ponds',
+    'food_drug_administration': 'food safety, adulteration, medicine shops and drug licences',
+}
+
+LIVE_MAP: dict[str, str] = {  # Samadhan department text -> registry id (proposed)
+    'Jal Vibhag': 'phe',
+    'Bijli Vibhag': 'energy',
+    'Lok Nirman Vibhag': 'public_works',
+    'Nagar Nigam Sanitation': 'urban_development_housing',
+}
+
+GENERAL_TRIAGE = 'General Triage'  # system desk, not a government department

@@ -12,8 +12,10 @@ import streamlit as st
 from dotenv import load_dotenv
 from streamlit_folium import st_folium
 
+from dashboard.analytics import DEFAULT_SLA_DAYS, ageing, daily_trend, department_summary, totals
 from dashboard.config import get_dashboard_config
 from dashboard.db import get_client
+from dashboard.gov_catalogue import department_coverage, load_services
 from dashboard.labels import display_field
 from dashboard.table_state import selected_row, table_key
 from dashboard.map_view import build_map, issue_label, legend_markdown, office_name, split_points
@@ -29,8 +31,6 @@ from dashboard.tickets import (
 )
 
 load_dotenv()  # repo-root .env -- Streamlit does not auto-load it
-
-st.set_page_config(page_title="Samadhan — Officer Dashboard", layout="wide")
 
 STATUSES = ["new", "in_progress", "resolved", "needs_review"]
 
@@ -105,6 +105,67 @@ def _render_department_counts(df: pd.DataFrame) -> None:
         column.metric(department, int(waiting.get(department, 0)), help="new + needs review")
 
 
+def _render_overview_tab(df: pd.DataFrame) -> None:
+    """State -> department view: KPI tiles, department league table, ageing, 30-day trend.
+    Same four numbers (received / resolved / pending / overdue) at every level, like CPGRAMS."""
+    st.title("Overview")
+    sla_days = st.number_input(
+        "Overdue after (days)", min_value=1, max_value=90, value=DEFAULT_SLA_DAYS,
+        help="21 days is CPGRAMS's national resolution time. MP Lok Seva Guarantee deadlines vary per service.",
+    )
+    now = pd.Timestamp.now(tz="UTC")
+    summary = department_summary(df, now, sla_days)
+    kpi = totals(summary)
+
+    cols = st.columns(5)
+    cols[0].metric("Received", kpi["received"])
+    cols[1].metric("Resolved", kpi["resolved"])
+    cols[2].metric("Pending", kpi["pending"])
+    cols[3].metric("Overdue", kpi["overdue"], help=f"pending for more than {sla_days} days")
+    cols[4].metric("Resolution rate", f"{kpi['resolution_rate']}%")
+
+    st.subheader("Departments")
+    st.caption("Most overdue first. Click a department in the All Tickets tab to work its tickets.")
+    st.dataframe(summary, use_container_width=True, hide_index=True)
+
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Pending by age")
+        st.bar_chart(ageing(df, now).set_index("age"))
+    with right:
+        st.subheader("Received, last 30 days")
+        st.line_chart(daily_trend(df, now))
+
+
+def _render_structure_tab(df: pd.DataFrame) -> None:
+    """Which MP departments exist and which ones Samadhan handles. Needs local-research/ data."""
+    st.title("Govt Structure")
+    services = load_services()
+    if services is None:
+        st.info(
+            "The MP service catalogue is not on this machine. Put the `local-research/` folder in the repo "
+            "root (it is git-excluded and shared by hand) to see all 45 departments and 2,070 services."
+        )
+        return
+    coverage = department_coverage(services, set(df["department"].unique()))
+    a, b, c = st.columns(3)
+    a.metric("Departments in catalogue", len(coverage))
+    b.metric("Services in catalogue", len(services))
+    c.metric("Handled by Samadhan", int((coverage["samadhan_status"] == "live").sum()))
+    st.caption("Source: mp.gov.in/services. Department names are Hindi there, so 'live' only matches exact names.")
+    st.dataframe(coverage, use_container_width=True, hide_index=True)
+
+    st.subheader("Search services")
+    q1, q2 = st.columns(2)
+    dept = q1.selectbox("Department", ["All", *sorted(coverage["department"])], key="catalogue-dept")
+    text = q2.text_input("Search title", key="catalogue-text")
+    found = services if dept == "All" else services[services["department"] == dept]
+    if text:
+        found = found[found["title"].str.contains(text, case=False, na=False)]
+    st.caption(f"{len(found)} service(s)")
+    st.dataframe(found, use_container_width=True, hide_index=True)
+
+
 def _require_login() -> None:
     if st.session_state.get("authenticated"):
         return
@@ -130,9 +191,14 @@ def _render_audio(audio_path: str) -> None:
         st.warning(f"Could not load audio: {exc}")
 
 
-def _render_detail(row: pd.Series, source: str) -> None:
+def _render_detail(
+    row: pd.Series, source: str, *, can_reassign: bool = True, allowed_departments: set[str] | None = None
+) -> None:
     """Everything S13's list view deliberately left out, for one deliberately opened ticket
     (S14 BEHAVIOR 2) -- fields, original text, status/reassign forms, reassignment history.
+
+    CM-office roles (dashboard/cm/accounts.py): `can_reassign=False` hides the reassign form, and
+    `allowed_departments` limits which departments a ticket may be reassigned TO (None = any).
 
     `source` names the tab that opened it and prefixes every widget key: Streamlit runs all tabs on
     every rerun, so the same ticket opened from two tabs would otherwise collide (S24 review)."""
@@ -173,8 +239,9 @@ def _render_detail(row: pd.Series, source: str) -> None:
         o["id"]: f"{o['department']}: {o['office_name']}"
         for o in offices
         if o["id"] != detail["office_id"]
+        and (allowed_departments is None or o["department"] in allowed_departments)
     }
-    if options:
+    if options and can_reassign:
         to_office_id = st.selectbox(
             "Reassign to",
             list(options),
@@ -207,7 +274,7 @@ def _render_detail(row: pd.Series, source: str) -> None:
             st.write(f"- {c['created_at']}: {from_name} → {to_name}{note}")
 
 
-def _ticket_table(df: pd.DataFrame, *, key: str) -> None:
+def _ticket_table(df: pd.DataFrame, *, key: str, **detail_options) -> None:
     display_cols = [
         "complaint_id", "status", "department", "office_name", "summary_en", "created_at", "updated_at",
     ]
@@ -223,10 +290,11 @@ def _ticket_table(df: pd.DataFrame, *, key: str) -> None:
     row = selected_row(df, event.selection["rows"])
     if row is not None:
         st.divider()
-        _render_detail(row, key)
+        _render_detail(row, key, **detail_options)
 
 
 def main() -> None:
+    st.set_page_config(page_title="Samadhan — Officer Dashboard", layout="wide")  # inside main() so cm_app can import this module
     _require_login()
 
     with st.sidebar:
@@ -244,7 +312,15 @@ def main() -> None:
 
     _render_department_counts(df)
 
-    tab_all, tab_review, tab_map = st.tabs(["All Tickets", "Review Queue", "Map"])
+    tab_overview, tab_all, tab_review, tab_map, tab_structure = st.tabs(
+        ["Overview", "All Tickets", "Review Queue", "Map", "Govt Structure"]
+    )
+
+    with tab_overview:
+        _render_overview_tab(df)
+
+    with tab_structure:
+        _render_structure_tab(df)
 
     with tab_all:
         st.title("Tickets")

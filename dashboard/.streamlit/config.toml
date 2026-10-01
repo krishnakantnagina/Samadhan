@@ -1,0 +1,8 @@
+# Government-style theme: blue-led, soft blue-grey page, white cards, orange only as a thin accent (see src/dashboard/cm/theme.py).
+# Applies to every dashboard app started from this folder, including the older officer dashboard (app.py).
+[theme]
+primaryColor = "#0b5cab"
+backgroundColor = "#eaf0f8"
+secondaryBackgroundColor = "#dce8f6"
+textColor = "#10263d"
+font = "sans serif"
