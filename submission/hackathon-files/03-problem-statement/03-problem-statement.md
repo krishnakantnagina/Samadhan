@@ -40,9 +40,9 @@ A voice-first AI chatbot **website** that turns a spoken or typed complaint into
 | Officer workload | Tickets arrive classified, with department, office, a summary and the original audio, plus a review queue and a map |
 
 ## 3. Scope of the prototype
-- **Departments:** water supply (the original pilot) plus electricity, roads, sanitation and a general triage desk. **Office data for the
+- **Departments:** water supply (the original pilot) plus electricity, roads, sanitation and a Human Evaluation desk for unclear cases. **Office data for the
   last four is DEMO** and labelled so. Ward names are unverified.
-- **City:** Bhopal, 5 demo wards per department plus one district fallback office each.
+- **Coverage:** built for all of Madhya Pradesh. The demo data covers Bhopal (5 demo wards per department plus one district fallback office each). Adding a district means adding data rows, not code.
 - **Channels:** website (text, in-browser voice, GPS). WhatsApp, calls and a mobile app are out of scope for now.
 - **Information questions** ("how do I get an income certificate?"): a fixed honest reply, a validated `.gov.in` link and a disclaimer.
   Samadhan does **not** answer government-information questions itself and does **not** read or verify any document.

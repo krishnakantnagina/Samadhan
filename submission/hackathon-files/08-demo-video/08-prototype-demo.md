@@ -7,8 +7,7 @@
 |---|---|
 | **Live website** | [https://samadhan-web.onrender.com/](https://samadhan-web.onrender.com/) |
 | **Source code** | [https://github.com/krishnakantnagina/Samadhan](https://github.com/krishnakantnagina/Samadhan) (tag `v1-mvp`) |
-| **Officer dashboard** | [add the dashboard URL here if deployed] |
-| **Demo video (optional)** | [add the video link here, or delete this row] |
+| **Officer dashboard** | [https://samadhan-dashboard.onrender.com](https://samadhan-dashboard.onrender.com) (tap **Demo** for sample data, no login) |
 
 The site runs on free hosting. If it has been idle, the first message can take up to a minute while the server wakes up.
 
@@ -22,27 +21,28 @@ The site runs on free hosting. If it has been idle, the first message can take u
 Try a different department (electricity, roads, sanitation) and an information question ("how do I get an income certificate?") to see the routing and the fixed, honest reply with an official link.
 
 ## Screenshots
-**1. Home page: the citizen taps "Start Conversation"**
 
-![Home page](shot-01-home.jpg)
+<table style="border:none"><tr>
+<td style="border:none;width:32%"><img src="../02-presentation-pdf/img/ph-widget.jpg"><br><small><b>1.</b> Mobile: the chat opens with a Hindi and English greeting, voice, location and status buttons</small></td>
+<td style="border:none;width:32%"><img src="../02-presentation-pdf/img/ph-verify.jpg"><br><small><b>2.</b> Before a complaint is filed, the citizen gives a mobile number, so the officer can call back and false complaints are discouraged</small></td>
+<td style="border:none;width:32%"><img src="../02-presentation-pdf/img/ph-ticket.jpg"><br><small><b>3.</b> The complaint is registered: ticket SMD-0049, department, office and a status link</small></td>
+</tr></table>
 
-**2. The chat opens with a bilingual greeting, voice input, location and status buttons**
+**4. The central dashboard home page** (public CM Helpline 181 totals, labelled as not Samadhan's own data)
 
-![Chat widget with greeting](shot-02-widget-greeting.jpg)
+![Dashboard home](../02-presentation-pdf/img/dash-home.jpg)
 
-**3. A complaint conversation ending in a ticket number** — [screenshot to be added]
+**5. Tickets and routing**, with filters and a review queue (invented demo data, clearly labelled)
 
-**4. The officer dashboard: tickets, review queue and map** — [screenshot to be added]
-
-**5. The status page: complaint number lookup** — [screenshot to be added]
+![Tickets and routing](../02-presentation-pdf/img/dash-tickets.jpg)
 
 ## What works today
 - Hindi and Hinglish text and voice in; spoken replies out (Sarvam speech-to-text and text-to-speech, with a Groq Whisper fallback).
 - One LLM call proposes the intent, department and fields. Plain code validates every value against a service specification file, so the model cannot invent a department or office.
-- Five services on one engine: water, electricity, roads, sanitation and a general triage desk.
+- Four departments on one engine (water, electricity, roads, sanitation) plus a Human Evaluation desk for unclear cases.
 - Ticket `SMD-xxxx`, routed to a ward office, or to the district office marked `needs_review` when unsure.
 - Officer dashboard: filters, ticket detail with the original audio, status changes, reassignment with an audit trail, review queue and map.
 - Measured: about 90% exact routing on 60 test messages (synthetic dialect data); 415 backend and 35 dashboard automated tests pass.
 
 ## Honest limits
-Office data for four of the five services is labelled DEMO; GPS does not yet choose a ward; there is no citizen phone verification or rate limiting yet; free-tier hosting and model limits can slow the first reply.
+Office data for four of the five services is labelled DEMO; GPS does not yet choose a ward; mobile login uses a demo PIN, not a real SMS OTP, and there is no rate limiting yet; free-tier hosting and model limits can slow the first reply.

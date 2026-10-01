@@ -2,8 +2,7 @@
 
 **Samadhan (समाधान)**
 
-This note separates **what we measured**, **what the design guarantees**, and **what we cannot claim yet**. Numbers marked TBD need real
-measurement; we have not filled them with estimates.
+This note separates **what we measured**, **what the design guarantees**, and **what we cannot claim yet**.
 
 ## 1. Measured
 
@@ -13,7 +12,6 @@ measurement; we have not filled them with estimates.
 | Water-issue extraction | 12 to 13 of 15 on the two best of six runs (11, 10, 9, 9, 13, 12) | `submission/T13-prompt-test-results-run*.json` | The 13/15 target was met once, not consistently |
 | Automated tests | 415 backend + 35 dashboard tests pass; Ruff clean | `uv run pytest` | Tests use no network or keys; they check logic, not live accuracy |
 | Definition-of-done scenarios | All ten exercised end to end with real providers; scenario 7 (GPS to the correct ward) cannot pass yet | Scripted run | Ward centre points are not available, so a GPS-only complaint goes to the district office |
-| SMS OTP delivery (feasibility only, not in the product) | One real OTP delivered to a real Indian number in about 1 second | Manual test, 30 Sep 2026 | One test; not integrated |
 
 ## 2. Guaranteed by design (verifiable in the code and specs)
 
@@ -26,17 +24,27 @@ measurement; we have not filled them with estimates.
 - **Feedback for the citizen.** A complaint number, and status by typing or saying it.
 - **Less triage work for officers.** Tickets arrive with a department, office, summary, audio and a review queue.
 
-## 3. Comparison with existing channels: TBD
+## 3. What we saw in an existing channel (CM Helpline on WhatsApp)
 
-`docs/TICKETS.md` (T10) calls for screenshots of the CM Helpline menu bot to count taps and typing. Those screenshots are not in the repo,
-so **no tap or typing comparison is made here**. To complete this section: record the number of taps and typed characters to file a water
-complaint in the CM Helpline bot, and put them beside Samadhan's two-message minimum.
+We tried the CM Helpline WhatsApp bot on 1 October 2026. It opens with a numbered menu of seven options: status, new complaint, women's helpline, schemes, opt-in, FAQ and officer login.
 
-| | CM Helpline menu bot | Samadhan |
+- The citizen has to pick a number. When we sent a "?", it replied that we had chosen a wrong option and asked us to choose again.
+- After choosing the FAQ option, the bot asks the citizen to type the question. We typed a Hinglish question (*mool niwas praman patra banwana hai*). No answer came back in the chat, and the bot asked for the question again.
+- There is no voice input, and the citizen must already know which of the seven menu options fits.
+
+<table style="border:none"><tr>
+<td style="border:none;width:48%"><img src="cm-helpline-whatsapp.jpg" alt="CM Helpline WhatsApp bot"><br><small>The CM Helpline WhatsApp bot: a numbered menu</small></td>
+<td style="border:none;width:48%"><img src="cm-helpline-website.jpg" alt="CM Helpline website with the WhatsApp button"><br><small>The CM Helpline website, with its WhatsApp button</small></td>
+</tr></table>
+
+| | CM Helpline WhatsApp bot (our one test) | Samadhan |
 |---|---|---|
-| Taps to file a water complaint | TBD | 0 taps required to describe (voice or text), 1 to confirm |
-| Typing needed | TBD | None with voice |
-| Must know the department or ward | TBD | No |
+| How the citizen starts | Pick a number from a menu of 7 | Describe the problem in their own words |
+| Voice input | Not seen | Yes: press and hold, in Hindi or Hinglish |
+| A free-text Hinglish question | No answer in our test | Understood and routed to a department |
+| Must know the department | Must pick the right menu option | No |
+
+This is one short test by our team, not a full evaluation, and we make no claim about the platform's overall performance. We did not count taps or typing time, so we do not give those numbers.
 
 ## 4. What we do not claim
 - Any reduction in **resolution time**. That needs real usage over time, not a hackathon pilot.
