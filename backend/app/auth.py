@@ -13,7 +13,7 @@ Saved login: a random token; only its SHA-256 is stored. Sliding idle expiry (de
 citizen logs in again. This is separate from the 30-minute chat-conversation timeout (S20).
 
 Safety: attempt limits per challenge and per phone; the demo PIN works ONLY when AUTH_PROVIDER=demo, and refuses to run on a production host
-(RAILWAY_ENVIRONMENT=production) unless AUTH_DEMO_IN_PRODUCTION=1 is set on purpose; PIN, code and token are never logged.
+(RAILWAY_ENVIRONMENT=production, or RENDER=true on Render) unless AUTH_DEMO_IN_PRODUCTION=1 is set on purpose; PIN, code and token are never logged.
 Disabled unless AUTH_PROVIDER is set. Registration is required only for filing a complaint (AUTH_REQUIRED=1); enquiries and status checks stay open.
 """
 
@@ -347,7 +347,7 @@ def get_service() -> AuthService:
         raise AuthDisabled("AUTH_PROVIDER is not set")
     if name not in PROVIDERS:
         raise AuthDisabled(f"unknown AUTH_PROVIDER {name!r}")
-    if name == "demo" and os.environ.get("RAILWAY_ENVIRONMENT", "").lower() == "production" and not _truthy("AUTH_DEMO_IN_PRODUCTION"):
+    if name == "demo" and (os.environ.get("RAILWAY_ENVIRONMENT", "").lower() == "production" or _truthy("RENDER")) and not _truthy("AUTH_DEMO_IN_PRODUCTION"):
         raise AuthDisabled("the demo PIN is refused on a production host (set AUTH_DEMO_IN_PRODUCTION=1 only if you mean it)")
     if name == "demo":
         logger.warning("DEMO AUTH ACTIVE: any phone number with PIN 5555 can log in. Never use this for real citizens.")

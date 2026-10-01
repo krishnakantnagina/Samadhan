@@ -37,7 +37,7 @@ def login(service, phone="98765 43210", pin="5555"):
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
-    for name in ("AUTH_PROVIDER", "AUTH_REQUIRED", "RAILWAY_ENVIRONMENT", "AUTH_DEMO_IN_PRODUCTION", "AUTH_IDLE_DAYS", "AUTH_MAX_DAYS"):
+    for name in ("AUTH_PROVIDER", "AUTH_REQUIRED", "RAILWAY_ENVIRONMENT", "RENDER", "AUTH_DEMO_IN_PRODUCTION", "AUTH_IDLE_DAYS", "AUTH_MAX_DAYS"):
         monkeypatch.delenv(name, raising=False)
     auth.get_service.cache_clear()
     yield
@@ -399,3 +399,13 @@ def test_cors_allows_the_authorization_header(monkeypatch):
     client = TestClient(create_app(), raise_server_exceptions=False)
     r = client.options("/api/v1/message", headers={"Origin": "http://localhost", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization"})
     assert r.status_code == 200 and "authorization" in r.headers.get("access-control-allow-headers", "").lower()
+
+
+def test_demo_provider_refused_on_render(monkeypatch):
+    monkeypatch.setenv("AUTH_PROVIDER", "demo")
+    monkeypatch.setenv("RENDER", "true")
+    with pytest.raises(auth.AuthDisabled):
+        auth.get_service()
+    monkeypatch.setenv("AUTH_DEMO_IN_PRODUCTION", "1")
+    auth.get_service.cache_clear()
+    assert auth.get_service() is not None
