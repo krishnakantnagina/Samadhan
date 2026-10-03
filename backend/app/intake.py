@@ -21,7 +21,7 @@ from typing import Any
 
 import yaml
 
-from app import jev, jurisdiction, location_details, validator
+from app import jev, jurisdiction, location_details, triage, validator
 from app.service_spec import ServiceSpec
 from app.turn_engine import HUMAN_EVALUATION_SERVICE, TurnResult
 
@@ -120,6 +120,13 @@ def prestep(*, row: Any, specs: dict[str, ServiceSpec], text: str, recent: list[
             active = specs.get(row.service_id)  # the LLM may read the answer as a NEW place: never let it replace the village the citizen named
             location_names = {f.name for f in active.fields if f.type == "location"} if active else set()
             turn_result = turn_result.model_copy(update={"fields": {k: v for k, v in turn_result.fields.items() if k not in location_names}})
+            turn_result = _pin_to_complaint(turn_result, row, keep_fields=True)
+        tri = meta.get(triage.STATE_KEY)
+        if tri and tri.get("pending") and triage.enabled():  # the answer to a triage question: read it, and never let it overwrite the story or the place
+            meta[triage.STATE_KEY] = triage.absorb_reply(tri, bank=_bank(), text=text, recent=recent)
+            turn_result = _pin_to_complaint(turn_result, row, keep_fields=False)  # no field changes: "हाँ" must not become the description or the place
+        if meta.pop("awaiting_duration", False):  # the answer to "how many days?": the turn engine still reads the number, but it is never chit-chat
+            turn_result = _pin_to_complaint(turn_result, row, keep_fields=True)
         pending = meta.get("pending_dept")
         if pending and pending in reg.by_id:  # the citizen's reply to our one yes/no question
             dept = reg.by_id[pending]
@@ -147,6 +154,23 @@ def prestep(*, row: Any, specs: dict[str, ServiceSpec], text: str, recent: list[
     return Pre(turn, meta, ask=validator._urgent(turn, ASK_PROBLEM_HI.format(dept=dept["name_hi"])), ask_for="service")  # keeps the fixed safety line if urgent
 
 
+def _pin_to_complaint(turn_result: TurnResult, row: Any, *, keep_fields: bool) -> TurnResult:
+    """A reply to a question WE asked belongs to the complaint in progress, whatever the turn engine made of it. It has read "the child's arm is swollen"
+    and "I don't know" as chit-chat and sent the out-of-scope reply in the middle of a conversation. Same complaint, not a confirmation."""
+    update: dict[str, Any] = {"intent": "complaint", "service_id": row.service_id, "confidence": 1.0, "candidates": [], "confirmed": False}
+    if not keep_fields:
+        update["fields"] = {}
+    return turn_result.model_copy(update=update)
+
+
+def _bank() -> triage.Bank:
+    try:
+        return triage.load_bank()
+    except Exception:  # a missing or broken bank folder must never block a complaint
+        logger.exception("triage bank could not be loaded")
+        return {}
+
+
 def _has_gps(lat: float | None, lng: float | None, row: Any) -> bool:
     return (lat is not None and lng is not None) or (row.lat is not None and row.lng is not None)
 
@@ -166,20 +190,37 @@ def _ask(result: validator.ValidationResult, fields: dict[str, Any], reply: str,
                                      "awaiting_confirmation": False, "collected_fields": fields})
 
 
+def _urgent_line(pre: Pre, meta: dict[str, Any], reply: str) -> str:
+    """Triage found an emergency: keep the fixed safety line (S28 Q4) on every question from now on, like an urgent first message."""
+    if (meta.get(triage.STATE_KEY) or {}).get("severity") == "urgent":
+        return validator._urgent(pre.turn_result.model_copy(update={"urgent": True}), reply)
+    return reply
+
+
 def poststep(*, result: validator.ValidationResult, pre: Pre, specs: dict[str, ServiceSpec], lat: float | None, lng: float | None, row: Any,
-             weak_location: Any = None) -> validator.ValidationResult:
-    """After the validator: store the intake notes with the ticket, and ask the location detail and duration once each when everything else is in."""
+             weak_location: Any = None, text: str | None = None, recent: Any = None) -> validator.ValidationResult:
+    """After the validator: store the intake notes with the ticket, ask the triage questions (S33), then the location detail and duration once each."""
     if pre.meta is None:
         return result
     meta = dict(pre.meta)
     fields = {**result.collected_fields, META_KEY: meta}
     if result.action is validator.ValidatedAction.CONFIRM and result.service_id in specs:
         spec = specs[result.service_id]
+        if triage.enabled() and meta.get("reason") != REASON_UNCONFIRMED:  # an unconfirmed guess (the citizen said no or "don't know") must not set the questions
+            try:
+                dept_id = triage.dept_for(meta, result.service_id, load_registry().live_specs)
+                state, reply, _urgent = triage.step(meta.get(triage.STATE_KEY), bank=_bank(), dept_id=dept_id,
+                                                    story=str(result.collected_fields.get("description") or ""), text=text, recent=recent or [])
+                meta[triage.STATE_KEY] = state
+                if reply is not None:
+                    return _ask(result, fields, _urgent_line(pre, meta, reply), "triage")
+            except Exception:  # triage is an extra: any failure leaves the complaint flowing as before
+                logger.exception("triage step failed")
         probe = weak_location or _weak_location
         if not _has_gps(lat, lng, row) and not meta.get("asked_location_detail") and probe(spec, result.collected_fields):
             meta["asked_location_detail"] = meta["awaiting_location_detail"] = True
-            return _ask(result, fields, ASK_LOCATION_DETAIL_HI, "location_detail")
+            return _ask(result, fields, _urgent_line(pre, meta, ASK_LOCATION_DETAIL_HI), "location_detail")
         if spec.field("duration_days") is not None and "duration_days" not in result.collected_fields and not meta.get("asked_duration"):
-            meta["asked_duration"] = True
-            return _ask(result, fields, ASK_DURATION_HI, "duration_days")
+            meta["asked_duration"] = meta["awaiting_duration"] = True
+            return _ask(result, fields, _urgent_line(pre, meta, ASK_DURATION_HI), "duration_days")
     return result.model_copy(update={"collected_fields": fields})

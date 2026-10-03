@@ -283,7 +283,7 @@ def message(
     result = validator.apply(
         specs=request.app.state.specs, session=snapshot, turn_result=turn_result, lat=lat, lng=lng
     )
-    result = intake.poststep(result=result, pre=pre, specs=request.app.state.specs, lat=lat, lng=lng, row=row)  # S30: notes + location detail / duration asks
+    result = intake.poststep(result=result, pre=pre, specs=request.app.state.specs, lat=lat, lng=lng, row=row, text=effective_text, recent=recent)  # S30/S33: notes, triage questions, location detail, duration
 
     # Step 7b: S31 registration. Filing a complaint needs a logged-in citizen (AUTH_REQUIRED=1): the confirmed draft is KEPT and the client is asked to
     # log in, then to confirm again. Enquiries, status checks and every earlier question never need login.
