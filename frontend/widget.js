@@ -1,5 +1,5 @@
 // Samadhan floating chat widget -- T53/T54 (S19 REVISION 2). Real backend, full parity with
-// app.js: text, press-and-hold voice, GPS location, TTS speak buttons, restart/cancel, and the
+// app.js: text, tap-to-record voice with live waveform, GPS location, TTS speak buttons, restart/cancel, and the
 // bilingual greeting. Drop-in: add <script src="widget.js"> to any page that also loads style.css.
 // Self-mounting, no HTML placeholder needed. No business logic here: every action/reply comes from
 // the backend as-is, same posture as app.js. Deliberately does not import from app.js (D-S19-2):
@@ -12,7 +12,10 @@
   const SEEN_KEY = 'samadhan_widget_seen';
   const GENERIC_ERROR = 'सर्वर से संपर्क नहीं हो सका। कृपया दोबारा प्रयास करें।';
   const ACCEPTED_AUDIO_TYPES = new Set(['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/wav']);
-  const MIN_HOLD_MS = 400; // S18 D-S18-1
+  const MIN_HOLD_MS = 400; // S18 D-S18-1 (shortest recording that is sent)
+  const MAX_RECORD_MS = 60000; // tap-to-record stops by itself after one minute
+  const WAVE_BARS = 40;
+  const MIC_IDLE_CAPTION = '🎤 बोलने के लिए माइक दबाएँ · Tap to speak';
 
   function getSessionId() {
     let id = sessionStorage.getItem(SESSION_KEY);
@@ -126,16 +129,25 @@
   const micBtn = document.createElement('button');
   micBtn.type = 'button';
   micBtn.className = 'mic-btn';
-  micBtn.setAttribute('aria-label', 'आवाज़ रिकॉर्ड करने के लिए दबाकर रखें');
+  micBtn.setAttribute('aria-label', 'आवाज़ रिकॉर्ड करने के लिए दबाएँ');
   micBtn.appendChild(svgIcon(MIC_PATH.concat(MIC_STEM), 26));
   const micTimerEl = document.createElement('span');
   micTimerEl.className = 'mic-timer';
   micTimerEl.hidden = true;
   micTimerEl.textContent = '0:00';
-  micBtn.appendChild(micTimerEl);
+  const waveCanvas = document.createElement('canvas');
+  waveCanvas.className = 'mic-wave';
+  waveCanvas.hidden = true;
+  waveCanvas.setAttribute('aria-hidden', 'true');
+  const liveRow = document.createElement('div'); // timer + wave, shown only while recording
+  liveRow.className = 'mic-live';
+  liveRow.hidden = true;
+  liveRow.appendChild(micTimerEl);
+  liveRow.appendChild(waveCanvas);
   const micCaption = document.createElement('p');
   micCaption.className = 'mic-caption';
-  micCaption.textContent = '🎤 बोलने के लिए दबाकर रखें · Hold to speak';
+  micCaption.textContent = MIC_IDLE_CAPTION;
+  voiceRow.appendChild(liveRow);
   voiceRow.appendChild(micBtn);
   voiceRow.appendChild(micCaption);
 
@@ -526,16 +538,74 @@
     }
   }
 
-  async function handleTurn(apiCall, citizenBubbleText, autoSpeak = false) {
+  // The citizen's own recording, shown as a playable voice note in their bubble (the speech text is never shown;
+  // the backend still transcribes it for routing). Falls back to a text bubble if the browser cannot make a URL for it.
+  function makeLocalVoiceNote(url, seconds) {
+    const box = document.createElement('div');
+    box.className = 'voice-note voice-note-mine';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'vn-play';
+    btn.setAttribute('aria-label', 'अपनी रिकॉर्डिंग सुनें');
+    btn.textContent = '▶';
+    const track = document.createElement('div');
+    track.className = 'vn-track';
+    const fill = document.createElement('div');
+    fill.className = 'vn-fill';
+    track.appendChild(fill);
+    const time = document.createElement('span');
+    time.className = 'vn-time';
+    const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    const total = Math.max(1, Math.round(seconds));
+    time.textContent = fmt(total);
+    box.append(btn, track, time);
+
+    const audio = new Audio(url);
+    audio.preload = 'auto';
+    audio.load(); // fetch the data now (same as the bot voice note), so the first tap plays at once
+    // A MediaRecorder file reports no duration, so progress is measured against the length we timed while recording.
+    audio.addEventListener('timeupdate', () => {
+      fill.style.width = `${Math.min(100, (audio.currentTime / total) * 100)}%`;
+    });
+    audio.addEventListener('play', () => { btn.textContent = '⏸'; });
+    audio.addEventListener('pause', () => { btn.textContent = '▶'; });
+    audio.addEventListener('ended', () => {
+      btn.textContent = '▶';
+      fill.style.width = '0%';
+    });
+    btn.addEventListener('click', () => {
+      if (audio.paused) audio.play().catch(() => {});
+      else audio.pause();
+    });
+    return box;
+  }
+
+  function appendVoiceBubble(blob, seconds) {
+    let url;
+    try {
+      url = URL.createObjectURL(blob);
+    } catch {
+      return null;
+    }
+    const el = document.createElement('div');
+    el.className = 'msg citizen msg-in';
+    el.appendChild(makeLocalVoiceNote(url, seconds));
+    messagesEl.appendChild(el);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return el;
+  }
+
+  async function handleTurn(apiCall, citizenBubbleText, autoSpeak = false, voice = null) {
     let needsLogin = false;
-    const citizenEl = appendMessage('citizen', citizenBubbleText);
+    const citizenEl = (voice && appendVoiceBubble(voice.blob, voice.seconds)) || appendMessage('citizen', citizenBubbleText);
+    const showsVoiceNote = Boolean(citizenEl.firstChild?.classList?.contains('voice-note'));
     setBusy(true);
     const waitingEl = appendTypingIndicator(); // three dots while the reply is on its way
     try {
       const result = await apiCall();
       waitingEl.remove();
-      if (result.transcript) {
-        citizenEl.textContent = result.transcript;
+      if (result.transcript && !showsVoiceNote) {
+        citizenEl.textContent = result.transcript; // only when the citizen's recording could not be shown as a voice note
       }
       setLocationHighlight(result.ask_for === 'location');
       const spokenChoice = awaitingLocationChoice ? locationChoiceOf(result.transcript) : null;
@@ -601,44 +671,133 @@
   restartBtn.addEventListener('click', () => send('restart'));
   cancelBtn.addEventListener('click', () => send('cancel'));
 
-  // --- Press-and-hold recording (mirrors app.js's S18 logic exactly) ------------------------
+  // --- Tap-to-record: tap the mic to start, tap again to send; stops by itself after 1 minute ---
 
   let mediaRecorder = null;
   let recordedChunks = [];
-  let holdStartedAt = 0;
-  let releaseRequested = false;
+  let recordingStartedAt = 0;
+  let stopRequested = false; // a tap that arrives while the mic is still connecting cancels it
   let recordingTimerInterval = null;
+  let autoStopTimeout = null;
+  let audioCtx = null;
+  let analyser = null;
+  let waveFrame = 0;
+  let waveLevels = [];
 
   function clearMicTimer() {
     if (recordingTimerInterval) {
       clearInterval(recordingTimerInterval);
       recordingTimerInterval = null;
     }
+    if (autoStopTimeout) {
+      clearTimeout(autoStopTimeout);
+      autoStopTimeout = null;
+    }
     micTimerEl.hidden = true;
     micTimerEl.textContent = '0:00';
+    liveRow.hidden = true;
+  }
+
+  // Live "pitch wave": newest loudness bar enters on the right and scrolls left, like a WhatsApp voice note.
+  function drawWave() {
+    const dpr = window.devicePixelRatio || 1;
+    const width = waveCanvas.clientWidth;
+    const height = waveCanvas.clientHeight;
+    if (!width || !height) return;
+    if (waveCanvas.width !== Math.round(width * dpr)) {
+      waveCanvas.width = Math.round(width * dpr);
+      waveCanvas.height = Math.round(height * dpr);
+    }
+    const ctx = waveCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = getComputedStyle(waveCanvas).color;
+    const slot = width / WAVE_BARS;
+    const barWidth = Math.max(2, slot * 0.6);
+    for (let i = 0; i < WAVE_BARS; i += 1) {
+      const level = waveLevels[waveLevels.length - WAVE_BARS + i] || 0;
+      const barHeight = Math.max(4, level * height);
+      const x = i * slot + (slot - barWidth) / 2;
+      const y = (height - barHeight) / 2;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, barWidth, barHeight, barWidth / 2);
+      else ctx.rect(x, y, barWidth, barHeight);
+      ctx.fill();
+    }
+  }
+
+  function startWave(stream) {
+    waveLevels = [];
+    waveCanvas.hidden = false;
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) {
+      drawWave(); // no analyser available: flat line, recording still works
+      return;
+    }
+    try {
+      audioCtx = new AudioCtx();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      audioCtx.createMediaStreamSource(stream).connect(analyser);
+    } catch {
+      audioCtx = null;
+      analyser = null;
+      drawWave();
+      return;
+    }
+    const samples = new Uint8Array(analyser.fftSize);
+    // A fixed timer, not requestAnimationFrame: the bar rate must not depend on the screen's frame rate.
+    waveFrame = setInterval(() => {
+      analyser.getByteTimeDomainData(samples);
+      let sum = 0;
+      for (const sample of samples) {
+        const v = (sample - 128) / 128;
+        sum += v * v;
+      }
+      // speech is quiet (RMS ~0.02-0.2): boost and curve it so ordinary talking fills most of the height
+      waveLevels.push(Math.pow(Math.min(1, Math.sqrt(sum / samples.length) * 7), 0.6));
+      if (waveLevels.length > WAVE_BARS) waveLevels.shift();
+      drawWave();
+    }, 55);
+  }
+
+  function stopWave() {
+    if (waveFrame) clearInterval(waveFrame);
+    waveFrame = 0;
+    if (audioCtx) audioCtx.close().catch(() => {});
+    audioCtx = null;
+    analyser = null;
+    waveLevels = [];
+    waveCanvas.hidden = true;
   }
 
   function setMicIdle() {
     micBtn.classList.remove('mic-btn-starting', 'mic-btn-recording', 'mic-btn-cancelled');
-    micBtn.setAttribute('aria-label', 'आवाज़ रिकॉर्ड करने के लिए दबाकर रखें');
+    micBtn.setAttribute('aria-label', 'आवाज़ रिकॉर्ड करने के लिए दबाएँ');
+    micCaption.textContent = MIC_IDLE_CAPTION;
     clearMicTimer();
+    stopWave();
   }
 
   function setMicStarting() {
     micBtn.classList.add('mic-btn-starting');
-    micBtn.setAttribute('aria-label', 'शुरू हो रहा है…');
+    micBtn.setAttribute('aria-label', 'माइक जुड़ रहा है…');
+    micCaption.textContent = 'माइक जुड़ रहा है… · Connecting…';
   }
 
   function setMicRecording() {
     micBtn.classList.remove('mic-btn-starting');
     micBtn.classList.add('mic-btn-recording');
-    micBtn.setAttribute('aria-label', 'रिकॉर्ड हो रहा है… छोड़ने पर भेजा जाएगा');
+    micBtn.setAttribute('aria-label', 'रिकॉर्ड हो रहा है… भेजने के लिए दोबारा दबाएँ');
+    micCaption.textContent = 'सुन रहे हैं… भेजने के लिए दोबारा दबाएँ · Tap to send';
     micTimerEl.hidden = false;
+    liveRow.hidden = false;
     const startedAt = Date.now();
     recordingTimerInterval = setInterval(() => {
       const elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
       micTimerEl.textContent = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, '0')}`;
     }, 250);
+    autoStopTimeout = setTimeout(stopRecording, MAX_RECORD_MS);
   }
 
   function flashMicCancelled() {
@@ -646,12 +805,12 @@
     micBtn.classList.remove('mic-btn-recording', 'mic-btn-starting');
     micBtn.classList.add('mic-btn-cancelled');
     micBtn.setAttribute('aria-label', 'रद्द');
+    micCaption.textContent = 'बहुत छोटी रिकॉर्डिंग, रद्द · Too short';
     setTimeout(setMicIdle, 900);
   }
 
-  async function beginHold() {
-    holdStartedAt = performance.now();
-    releaseRequested = false;
+  async function beginRecording() {
+    stopRequested = false;
     setMicStarting();
 
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -669,39 +828,53 @@
       return;
     }
 
-    if (releaseRequested) {
+    if (stopRequested) {
       stream.getTracks().forEach((track) => track.stop());
       setMicIdle();
       return;
     }
 
     recordedChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) recordedChunks.push(event.data);
-    };
-    mediaRecorder.onstop = () => {
+    try {
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+      };
+      mediaRecorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        stopWave();
+        const recordedMs = performance.now() - recordingStartedAt;
+        if (recordedMs < MIN_HOLD_MS) {
+          flashMicCancelled();
+          return;
+        }
+        setMicIdle();
+        void sendRecording(mediaRecorder.mimeType, recordedMs / 1000);
+      };
+      mediaRecorder.start();
+    } catch {
+      // A recorder that cannot start (unsupported browser/format) must not leave the mic stuck on "connecting".
       stream.getTracks().forEach((track) => track.stop());
-      const held = performance.now() - holdStartedAt;
-      if (held < MIN_HOLD_MS) {
-        flashMicCancelled();
-        return;
-      }
+      mediaRecorder = null;
+      appendMessage('error', 'आवाज़ रिकॉर्ड नहीं हो सकी। कृपया लिखकर भेजें।');
       setMicIdle();
-      void sendRecording(mediaRecorder.mimeType);
-    };
-    mediaRecorder.start();
+      return;
+    }
+    recordingStartedAt = performance.now();
     setMicRecording();
-
-    if (releaseRequested) mediaRecorder.stop();
+    startWave(stream);
   }
 
-  function endHold() {
-    releaseRequested = true;
+  function stopRecording() {
+    stopRequested = true;
     if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
   }
 
-  async function sendRecording(mimeType) {
+  function isMicRecording() {
+    return Boolean(mediaRecorder && mediaRecorder.state === 'recording');
+  }
+
+  async function sendRecording(mimeType, seconds) {
     const type = normaliseAudioType(mimeType);
     if (!ACCEPTED_AUDIO_TYPES.has(type)) {
       appendMessage('error', 'यह ऑडियो प्रारूप समर्थित नहीं है। कृपया लिखकर भेजें।');
@@ -712,20 +885,15 @@
       () => postToApi((form) => form.append('audio', blob, `recording.${type.split('/')[1]}`)),
       '🎤 आवाज़ भेजी जा रही है…',
       true, // S17 D-S17-4: auto-speak the reply to a voice message
+      { blob, seconds },
     );
   }
 
-  micBtn.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    try {
-      micBtn.setPointerCapture(event.pointerId); // S18 D-S18-3 (guarded, G-S18-4)
-    } catch {
-      // Capture is a reliability nicety; recording must still proceed if it isn't granted.
-    }
-    beginHold();
+  micBtn.addEventListener('click', () => {
+    if (isMicRecording()) stopRecording();
+    else if (micBtn.classList.contains('mic-btn-starting')) stopRequested = true; // tap while connecting = cancel
+    else void beginRecording();
   });
-  micBtn.addEventListener('pointerup', endHold);
-  micBtn.addEventListener('pointercancel', endHold);
   micBtn.addEventListener('contextmenu', (event) => event.preventDefault());
 
   // --- Location ------------------------------------------------------------------------------
