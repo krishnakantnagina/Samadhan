@@ -17,7 +17,7 @@ Built for the **MPOnline Idea & Innovation Hackathon 2026, Problem Statement 5**
 
 ## What it does
 
-- **Speak, type, or share location.** Press-and-hold voice (Sarvam speech-to-text, Groq Whisper as fallback), text, and a GPS button.
+- **Speak, type, or share location.** Tap-to-record voice with a live waveform and a 1-minute limit (Sarvam speech-to-text, Groq Whisper as fallback; optional Gemini audio reader, see `docs/specs/S32-asr-router.md`), text, and a GPS button.
 - **Understands the kind of message first.** Every message is a *complaint*, an *information question*, a *status question*, or
   *out of context*. Each gets the right reply.
 - **Multi-department routing.** A complaint goes to water, electricity, roads, sanitation, or a *general triage* desk when it fits none.
@@ -66,7 +66,8 @@ core, not the website; the dashboard only shows stored data; secrets never reach
 |---|---|
 | Backend | Python 3.12, uv, FastAPI, Uvicorn, Pydantic, httpx, PyYAML, RapidFuzz |
 | LLM | Groq (`openai/gpt-oss-120b`, `qwen/qwen3.8-27b`, `openai/gpt-oss-20b`), Google Gemini as last fallback; called over HTTP, no SDK |
-| Voice | Sarvam `saaras:v4` (speech-to-text) and `bulbul:v3` (text-to-speech); Groq `whisper-large-v3-turbo` as ASR fallback; no FFmpeg |
+| Voice | Sarvam `saaras:v4` (speech-to-text) and `bulbul:v3` (text-to-speech); Groq `whisper-large-v3-turbo` as ASR fallback; no FFmpeg. Optional, off by default: Google Gemini (audio understanding as the main reader, `ASR_PIPELINE=router`; Gemini speech as a spoken-reply fallback, `TTS_PROVIDERS=sarvam,gemini`), S32 |
+| Follow-up questions | Optional, off by default (`TRIAGE=1`): per-department question bank written with Google Gemini, read with the same LLM chain, S33 |
 | Intake decisions (experimental, off by default) | TypeSafe AI Jev (`jev-latest`) over HTTP: department choice and yes/no judgements only; see `docs/specs/S30-intake-v2.md` |
 | Data | Supabase (Postgres, Row Level Security, private Storage bucket `audio`) |
 | Website | HTML, CSS and vanilla JavaScript (no build step); MediaRecorder and Geolocation browser APIs |

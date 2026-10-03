@@ -8,12 +8,15 @@ Either of us can change this file. If you do, update docs/specs/S12-voice.md and
 """
 
 import logging
+import os
 import uuid
 from dataclasses import dataclass
 
 import httpx
 from supabase import Client
 
+from app.asr.router import get_router
+from app.asr.types import AllProvidersFailed, ReadContext
 from app.config import VoiceConfig, get_voice_config
 from app.db import get_client
 
@@ -37,6 +40,8 @@ class VoiceUnavailable(RuntimeError):
 class VoiceResult:
     transcript: str  # possibly empty -- not a failure, S01 D-A6
     audio_path: str
+    plain_hindi: str | None = None  # S32: standard-Hindi version for officers (router pipeline only)
+    provider: str | None = None  # S32: which reader produced it (router pipeline only)
 
 
 def _upload(
@@ -85,6 +90,22 @@ def _groq_whisper(audio_bytes: bytes, content_type: str, config: VoiceConfig) ->
     return response.json()["text"]
 
 
+def _transcribe_with_router(
+    audio_bytes: bytes, content_type: str, audio_path: str, context: str | None
+) -> VoiceResult:
+    """S32: Gemini-first reader with rate limiting, breakers, retries and fallback (app/asr)."""
+    try:
+        reading = get_router().read(audio_bytes, content_type, ReadContext(last_bot_question=context))
+    except AllProvidersFailed as exc:
+        raise VoiceUnavailable(f"audio readers failed: {exc}") from exc
+    return VoiceResult(
+        transcript=reading.transcript,
+        audio_path=audio_path,
+        plain_hindi=reading.plain_hindi,
+        provider=reading.provider,
+    )
+
+
 def transcribe(
     audio_bytes: bytes,
     content_type: str,
@@ -92,9 +113,13 @@ def transcribe(
     message_id: uuid.UUID,
     *,
     client: Client | None = None,
+    context: str | None = None,
 ) -> VoiceResult:
     client = client or get_client()
     audio_path = _upload(audio_bytes, content_type, session_id, message_id, client=client)
+
+    if os.environ.get("ASR_PIPELINE", "legacy").strip().lower() == "router":
+        return _transcribe_with_router(audio_bytes, content_type, audio_path, context)
 
     config = get_voice_config()
     for attempt in (_sarvam, _groq_whisper):

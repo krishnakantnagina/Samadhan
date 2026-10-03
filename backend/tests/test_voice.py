@@ -167,3 +167,64 @@ def test_extension_mapping_for_each_accepted_content_type(monkeypatch, content_t
     result = transcribe(b"audio", content_type, session_id, message_id, client=client)
 
     assert result.audio_path == f"{session_id}/{message_id}.{ext}"
+
+
+# --- S32: router pipeline (ASR_PIPELINE=router) --------------------------------------------------------
+
+
+class _FakeRouter:
+    def __init__(self, reading=None, error=None):
+        self.reading, self.error, self.seen = reading, error, []
+
+    def read(self, audio, content_type, context):
+        self.seen.append((audio, content_type, context))
+        if self.error:
+            raise self.error
+        return self.reading
+
+
+def _router_mode(monkeypatch, router):
+    monkeypatch.setenv("ASR_PIPELINE", "router")
+    monkeypatch.setattr(voice_module, "get_router", lambda: router)
+
+
+def test_router_pipeline_uploads_first_and_returns_the_reading(monkeypatch):
+    from app.asr.types import Reading
+
+    router = _FakeRouter(Reading(transcript="स्कूल में मास्टर नहीं आए", plain_hindi="शिक्षक नहीं आए", confidence=0.95, audible=True, provider="gemini"))
+    _router_mode(monkeypatch, router)
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: pytest.fail("legacy providers must not be called"))
+    client = FakeVoiceClient()
+    session_id, message_id = make_ids()
+
+    result = transcribe(b"audio", "audio/webm", session_id, message_id, client=client, context="कितने दिन से?")
+
+    assert client.storage.uploads and client.storage.uploads[0][1] == b"audio"
+    assert (result.transcript, result.plain_hindi, result.provider) == ("स्कूल में मास्टर नहीं आए", "शिक्षक नहीं आए", "gemini")
+    assert result.audio_path == f"{session_id}/{message_id}.webm"
+    assert router.seen[0][2].last_bot_question == "कितने दिन से?"
+
+
+def test_router_pipeline_empty_transcript_is_not_a_failure(monkeypatch):
+    from app.asr.types import Reading
+
+    _router_mode(monkeypatch, _FakeRouter(Reading(transcript="", plain_hindi=None, confidence=0.1, audible=False, provider="gemini")))
+    result = transcribe(b"x", "audio/webm", *make_ids(), client=FakeVoiceClient())
+    assert result.transcript == ""
+
+
+def test_router_pipeline_failure_becomes_voice_unavailable_after_upload(monkeypatch):
+    from app.asr.types import AllProvidersFailed
+
+    _router_mode(monkeypatch, _FakeRouter(error=AllProvidersFailed("gemini: HTTP 503; sarvam: breaker open")))
+    client = FakeVoiceClient()
+    with pytest.raises(VoiceUnavailable, match="audio readers failed"):
+        transcribe(b"x", "audio/webm", *make_ids(), client=client)
+    assert client.storage.uploads  # the recording is still kept (D-S12-3)
+
+
+def test_default_pipeline_is_still_the_legacy_one(monkeypatch):
+    monkeypatch.delenv("ASR_PIPELINE", raising=False)
+    monkeypatch.setattr(voice_module, "get_router", lambda: pytest.fail("router must not run by default"))
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: _FakeResponse({"transcript": "नमस्ते"}))
+    assert transcribe(b"x", "audio/webm", *make_ids(), client=FakeVoiceClient()).transcript == "नमस्ते"
