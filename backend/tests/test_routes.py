@@ -551,3 +551,26 @@ def test_speak_provider_down_is_503(test_client, monkeypatch):
 
     assert response.status_code == 503
     assert response.json()["error_code"] == "SERVICE_UNAVAILABLE"
+
+
+def test_voice_reader_gets_the_last_bot_question_as_context(test_client, monkeypatch):
+    seen = {}
+
+    def fake_transcribe(*args, **kwargs):
+        seen.update(kwargs)
+        raise voice.VoiceUnavailable("stop here")
+
+    monkeypatch.setattr(
+        routes.session, "get_recent_messages", lambda sid, limit=4, **kw: [routes.turn_engine.Message("citizen", "paani"), routes.turn_engine.Message("bot", "आपका गाँव कौन सा है?")]
+    )
+    monkeypatch.setattr(routes.voice, "transcribe", fake_transcribe)
+    post(test_client, audio=b"\x1aE\xdf\xa3fake-audio")
+    assert seen["context"] == "आपका गाँव कौन सा है?"
+
+
+def test_last_bot_question_never_blocks_a_voice_note(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(routes.session, "get_recent_messages", boom)
+    assert routes._last_bot_question("sid") is None

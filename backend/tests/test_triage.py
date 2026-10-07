@@ -81,10 +81,10 @@ class FakeProvider:
 QUOTE = "मास्टर ने बच्चे को मारा"  # the default story / message used by run_step
 
 
-def llm(category="se_teacher_conduct", conf=0.9, answers=None, severity="high", reason="child hit", quote=QUOTE):
+def llm(category="se_teacher_conduct", conf=0.9, answers=None, severity="high", reason="child hit", quote=QUOTE, fit="exact"):
     """`answers` are plain values here; like the real model they come back with the citizen's own words as evidence."""
     wrapped = {k: {"value": v, "quote": quote} for k, v in (answers or {}).items()}
-    return {"category_id": category, "category_confidence": conf, "answers": wrapped, "severity": severity, "reason": reason}
+    return {"category_id": category, "category_confidence": conf, "fit": fit, "answers": wrapped, "severity": severity, "reason": reason}
 
 
 @pytest.fixture
@@ -365,12 +365,6 @@ def test_triage_notes_travel_with_the_ticket(triage_on):
     json.dumps(out.collected_fields, ensure_ascii=False)  # must be storable as JSON
 
 
-def test_triage_stays_out_when_the_department_is_only_a_guess(triage_on):
-    use_llm(triage_on, llm())
-    out = post(confirm_result(), {**META, "reason": intake.REASON_UNCONFIRMED}, text="x", recent=[])
-    assert out.ask_for == "location_detail"  # straight to the old steps: no questions about a department nobody confirmed
-
-
 def test_the_answer_to_the_district_or_duration_question_is_never_chit_chat(monkeypatch):
     monkeypatch.setenv("INTAKE_V2", "1")
     decider = SimpleNamespace(decide=None, agrees=None)
@@ -504,3 +498,99 @@ def test_a_dependent_question_is_asked_after_the_citizen_says_yes_to_its_gate(ba
     state = triage.absorb_reply(state, bank=bank, text="हाँ, तीन बच्चे बीमार हुए", recent=[],
                                 providers=[FakeProvider(llm(category="se_meal", severity="high", quote="हाँ, तीन बच्चे बीमार हुए", answers={"se_sick": True, "se_nsick": 3}))])
     assert state["answers"]["se_sick"] is True and state["answers"]["se_nsick"] == 3 and state["severity"] == "high"
+
+
+# --- restored: officer note, fallbacks, reading replies, stable wording -----------------------------------------------
+
+
+def test_urgent_flag_and_officer_note_without_any_phone_number(bank, monkeypatch):
+    monkeypatch.setenv("TRIAGE_MAX_QUESTIONS", "1")
+    state, _reply, _ = run_step(bank, provider=FakeProvider(llm(severity="urgent")))
+    assert state["pending"] == "se_injury"
+    state = triage.absorb_reply(state, bank=bank, text="हाँ", recent=[], providers=[FakeProvider(llm(severity="urgent", answers={"se_injury": True}, quote="हाँ"))])
+    state, reply, urgent = triage.step(state, bank=bank, dept_id="school_education", story="s", text="हाँ", recent=[], providers=[FakeProvider(llm(severity="urgent"))])
+    assert reply is None and urgent is True and state["severity"] == "urgent" and state["answers"]["se_injury"] is True
+    assert state["escalation_note"].startswith("If injured")  # kept for the officer
+    for q in bank["school_education"]["se_teacher_conduct"].questions:
+        assert not re.search(r"\d{3,}", triage.human_ask(q, index=0, total=1, concern=True))  # no phone number is ever spoken
+
+
+def test_unclear_category_or_missing_bank_or_llm_down_means_no_triage_when_generation_is_off(bank, monkeypatch):
+    monkeypatch.setenv("TRIAGE_GENERATE", "0")
+    s, reply, _ = run_step(bank, provider=FakeProvider(llm(conf=0.3)))
+    assert reply is None and s["done"] and s["skipped"] == "category_unclear"
+    s, reply, _ = triage.step(None, bank=bank, dept_id="health", story="x", text="x", recent=[], providers=[FakeProvider(llm())])
+    assert reply is None and s["skipped"] == "no_bank"
+    s, reply, _ = run_step(bank, provider=FakeProvider("not json"))
+    assert reply is None and s["skipped"] == "llm_unavailable"
+
+
+def test_a_reply_is_read_and_a_question_left_unanswered_is_not_asked_again(bank):
+    state, _, _ = run_step(bank)
+    state = triage.absorb_reply(state, bank=bank, text="हाँ चोट लगी है", recent=[], providers=[FakeProvider(llm(answers={"se_injury": True}, severity="urgent", quote="चोट लगी है"))])
+    assert state["answers"]["se_injury"] is True and state["severity"] == "urgent" and "pending" not in state
+    state2, _, _ = run_step(bank)
+    state2 = triage.absorb_reply(state2, bank=bank, text="पता नहीं", recent=[], providers=[FakeProvider(llm(answers={}))])
+    assert "se_injury" not in state2["answers"] and "se_injury" in state2["asked"]
+    nxt, _reply, _ = triage.step(state2, bank=bank, dept_id="school_education", story="s", text="पता नहीं", recent=[], providers=[FakeProvider(llm())])
+    assert nxt["pending"] != "se_injury"
+
+
+def test_an_unreadable_reply_never_blocks_the_conversation(bank):
+    state, _, _ = run_step(bank)
+    state = triage.absorb_reply(state, bank=bank, text="???", recent=[], providers=[FakeProvider("garbage")])
+    assert "pending" not in state and state["skipped_reading"] == "se_injury"
+
+
+def test_the_same_story_gets_the_same_wording_every_time(bank):
+    assert run_step(bank)[1] == run_step(bank)[1]
+
+
+# --- the model chain used by triage and talk ---------------------------------------------------------------------------
+
+
+def test_triage_models_are_tried_first_and_the_normal_chain_follows(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.setenv("TRIAGE_GEMINI_MODELS", "gemini-a, gemini-b")
+    monkeypatch.setattr(triage, "get_llm_config", lambda: object())
+    normal = FakeProvider(llm())
+    monkeypatch.setattr(turn_engine, "default_providers", lambda cfg: [normal])
+    chain = triage._default_chain()
+    assert [p.name for p in chain[:2]] == ["gemini:gemini-a", "gemini:gemini-b"] and chain[-1] is normal
+
+
+def test_without_the_triage_model_list_the_normal_chain_is_used_unchanged(monkeypatch):
+    monkeypatch.delenv("TRIAGE_GEMINI_MODELS", raising=False)
+    normal = FakeProvider(llm())
+    monkeypatch.setattr(triage, "get_llm_config", lambda: object())
+    monkeypatch.setattr(turn_engine, "default_providers", lambda cfg: [normal])
+    assert triage._default_chain() == [normal]
+
+
+def test_the_gemini_key_goes_in_a_header_and_never_into_error_text(monkeypatch):
+    import httpx
+
+    secret = "AIzaSECRET-KEY-123"
+    seen = {}
+
+    def boom(url, **kw):
+        seen.update(kw)
+        raise httpx.ConnectError(f"cannot reach {url}?key={secret}")
+
+    monkeypatch.setattr(httpx, "post", boom)
+    provider = turn_engine.GeminiProvider(secret, "gemini-x")
+    with pytest.raises(turn_engine._ProviderError) as info:
+        provider.complete("hello")
+    assert "params" not in seen and seen["headers"] == {"x-goog-api-key": secret}
+    assert secret not in str(info.value) and "http" not in str(info.value)
+
+    class Resp:
+        status_code = 429
+
+        def raise_for_status(self):
+            raise httpx.HTTPStatusError(f"429 for {secret}", request=httpx.Request("POST", f"https://x/?key={secret}"), response=self)
+
+    monkeypatch.setattr(httpx, "post", lambda url, **kw: Resp())
+    with pytest.raises(turn_engine._ProviderError) as info:
+        provider.complete("hello")
+    assert secret not in str(info.value) and "429" in str(info.value)

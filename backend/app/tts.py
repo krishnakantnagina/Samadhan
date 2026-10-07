@@ -14,12 +14,13 @@ import io
 import logging
 import os
 import threading
+import time
 import wave
 from collections import OrderedDict
 
 import httpx
 
-from app.asr.resilience import CircuitBreaker
+from app.asr.resilience import Bulkhead, CircuitBreaker
 from app.config import TtsConfig, get_tts_config
 
 logger = logging.getLogger(__name__)
@@ -37,9 +38,14 @@ class TtsUnavailable(RuntimeError):
 
 
 class _ProviderFailed(Exception):
-    def __init__(self, message: str, *, permanent: bool = False) -> None:
+    def __init__(self, message: str, *, permanent: bool = False, retry_clip: bool = False) -> None:
         super().__init__(message)
         self.permanent = permanent
+        self.retry_clip = retry_clip  # a repeated or glitched clip: worth one more try
+
+
+class _Busy(_ProviderFailed):
+    """Too many Gemini speech calls already running: skip it for this request. Says nothing about the provider's health (no breaker failure)."""
 
 
 def _sarvam_tts(text: str, config: TtsConfig) -> str:
@@ -155,19 +161,30 @@ DEFAULT_STYLE = (
 SECONDS_PER_CHAR_LIMIT = 0.14  # normal Hindi speech measured ~0.085 s per character; above 0.14 the model repeated itself
 MIN_SECONDS_LIMIT = 4.0
 GEMINI_TTS_ATTEMPTS = 2  # Gemini speech is random: a repeated or glitched clip is retried once
+TTS_BUDGET_SECONDS = 30.0  # whole /speak request: no new provider call or retry is started after this (a worker thread is a scarce thing)
+_gemini_bulkhead = Bulkhead(int(os.environ.get("TTS_GEMINI_CONCURRENCY", "4") or 4))  # slow Gemini calls cannot eat every worker thread
 
 
-def _gemini_tts(text: str, *, model: str | None = None, voice: str | None = None, style: str | None = None) -> str:
-    """Gemini speech, retried once when the clip is unusable (see _gemini_tts_once)."""
-    last: _ProviderFailed | None = None
-    for _ in range(GEMINI_TTS_ATTEMPTS):
-        try:
-            return _gemini_tts_once(text, model=model, voice=voice, style=style)
-        except _ProviderFailed as exc:
-            if exc.permanent or not getattr(exc, "retry_clip", False):
-                raise
-            last = exc
-    raise last  # type: ignore[misc]
+def _gemini_tts(
+    text: str, *, model: str | None = None, voice: str | None = None, style: str | None = None, deadline: float | None = None
+) -> str:
+    """Gemini speech, retried once when the clip is unusable (see _gemini_tts_once) and only while the request budget lasts."""
+    if not _gemini_bulkhead.acquire():
+        raise _Busy("Gemini TTS busy")
+    try:
+        last: _ProviderFailed | None = None
+        for _ in range(GEMINI_TTS_ATTEMPTS):
+            if last is not None and deadline is not None and time.monotonic() >= deadline:
+                break  # out of time: give the citizen the failure now, not another 20 s wait
+            try:
+                return _gemini_tts_once(text, model=model, voice=voice, style=style)
+            except _ProviderFailed as exc:
+                if exc.permanent or not exc.retry_clip:
+                    raise
+                last = exc
+        raise last  # type: ignore[misc]
+    finally:
+        _gemini_bulkhead.release()
 
 
 def _gemini_tts_once(text: str, *, model: str | None, voice: str | None, style: str | None) -> str:
@@ -208,9 +225,9 @@ def _gemini_tts_once(text: str, *, model: str | None, voice: str | None, style: 
         raise _ProviderFailed("Gemini TTS returned no audio")
     seconds = len(pcm) / 2 / GEMINI_PCM_RATE
     if seconds > max(MIN_SECONDS_LIMIT, len(text) * SECONDS_PER_CHAR_LIMIT):
-        failure = _ProviderFailed(f"Gemini TTS clip too long ({seconds:.0f}s for {len(text)} characters): repeated speech")
-        failure.retry_clip = True  # type: ignore[attr-defined]
-        raise failure
+        raise _ProviderFailed(
+            f"Gemini TTS clip too long ({seconds:.0f}s for {len(text)} characters): repeated speech", retry_clip=True
+        )
     return _wav_base64(clean_pcm(pcm))
 
 
@@ -265,13 +282,20 @@ def _synthesize_uncached(text: str, config: TtsConfig | None) -> str:
         return _sarvam_tts(text, config or get_tts_config())
 
     problems: list[str] = []
+    deadline = time.monotonic() + TTS_BUDGET_SECONDS
     for name in order:
+        if problems and time.monotonic() >= deadline:
+            problems.append(f"{name}: skipped (request budget used up)")
+            break
         breaker = _breaker(name)
         if breaker.is_open() or not breaker.allow():
             problems.append(f"{name}: skipped (breaker open)")
             continue
         try:
-            audio = _sarvam_tts(text, config or get_tts_config()) if name == "sarvam" else _gemini_tts(text)
+            audio = _sarvam_tts(text, config or get_tts_config()) if name == "sarvam" else _gemini_tts(text, deadline=deadline)
+        except _Busy as exc:
+            problems.append(f"{name}: {exc}")
+            continue
         except (TtsUnavailable, _ProviderFailed, RuntimeError) as exc:
             permanent = (
                 getattr(exc, "permanent", False)

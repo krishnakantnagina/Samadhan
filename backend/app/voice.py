@@ -66,12 +66,18 @@ def _filename(content_type: str) -> str:
     return f"audio.{EXT_BY_CONTENT_TYPE[content_type]}"
 
 
+def _language() -> str:
+    """Language sent to the readers. Hindi by default: with "unknown" Sarvam sometimes picks another script (a Gujarati-script transcript of a Hindi voice note
+    was seen on 2026-10-07) and Whisper turns dialect into gibberish. VOICE_LANGUAGE=unknown restores auto-detect."""
+    return os.environ.get("VOICE_LANGUAGE", "").strip() or "hi-IN"
+
+
 def _sarvam(audio_bytes: bytes, content_type: str, config: VoiceConfig) -> str:
     response = httpx.post(
         "https://api.sarvam.ai/speech-to-text",
         headers={"api-subscription-key": config.sarvam_api_key},
         files={"file": (_filename(content_type), audio_bytes, content_type)},
-        data={"model": config.sarvam_model, "language_code": "unknown", "mode": "transcribe"},
+        data={"model": config.sarvam_model, "language_code": _language(), "mode": "transcribe"},
         timeout=PROVIDER_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
@@ -83,7 +89,7 @@ def _groq_whisper(audio_bytes: bytes, content_type: str, config: VoiceConfig) ->
         "https://api.groq.com/openai/v1/audio/transcriptions",
         headers={"Authorization": f"Bearer {config.groq_api_key}"},
         files={"file": (_filename(content_type), audio_bytes, content_type)},
-        data={"model": config.groq_whisper_model},
+        data={"model": config.groq_whisper_model, **({"language": _language()[:2]} if _language() != "unknown" else {})},
         timeout=PROVIDER_TIMEOUT_SECONDS,
     )
     response.raise_for_status()

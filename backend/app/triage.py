@@ -139,11 +139,12 @@ Conversation so far (oldest first):
 {conversation}
 {pending}
 Answer with ONE JSON object only, no markdown:
-{{"category_id": "<one id above, or null if none fits>", "category_confidence": <0..1>,
+{{"category_id": "<one id above, or null if none fits>", "category_confidence": <0..1>, "fit": "exact|close|none",
   "answers": {{"<question id>": {{"value": <the answer>, "quote": "<the citizen's own words that state it, copied exactly>"}}}}, "severity": "low|medium|high|urgent", "reason": "<one short English sentence>"}}
 
 Rules:
 - category_id: the category the citizen is describing. If two fit, pick the one with the better fit and lower the confidence. Never invent an id.
+- fit: "exact" only if that category describes the citizen's problem itself, so ITS questions make sense to ask. "close" if it is only the nearest category (for example crop damage by monkeys vs a category about hail or flood damage). "none" if nothing fits.
 {category_rule}
 - answers: ONLY for questions of the chosen category, ONLY what the citizen clearly said (in any turn). Give "value" AND a "quote": the citizen's exact words that state THAT fact (an answer without a quote that really appears in the citizen's words is thrown away). yes_no -> true or false; choice -> exactly one of the listed options; number -> an integer; free_text -> a short phrase in the citizen's own words (max 20 words). Not said, or "unknown" -> leave the question out. Never guess, never infer a yes from silence.
 - Something being bad is NOT evidence of harm: "the food is bad / the water is dirty / the road is broken" does not mean anyone is ill, hurt or dead. Never answer an illness, injury, danger or death question unless the citizen said so.
@@ -168,6 +169,7 @@ class Analysis:
     answers: dict[str, Any]
     severity: str
     reason: str
+    fit: str = "close"  # exact | close | none: the bank's questions are used only for an exact fit
 
 
 def _brief(cats: dict[str, Category]) -> str:
@@ -238,6 +240,43 @@ def _clean_confidence(value: Any) -> float:
     return max(0.0, min(1.0, float(value)))
 
 
+def _default_chain() -> list[Any]:
+    """TRIAGE_GEMINI_MODELS (comma list, tried first: own quota, fast), then the Turn Engine's normal chain. Several calls per citizen turn would
+    otherwise eat the Turn Engine's Groq quota and cause 503s for everyone."""
+    chain: list[Any] = []
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    models = [m.strip() for m in os.environ.get("TRIAGE_GEMINI_MODELS", "").split(",") if m.strip()]
+    if key and models:
+        chain += [turn_engine.GeminiProvider(key, m, name=f"gemini:{m}") for m in models]
+    try:
+        chain += turn_engine.default_providers(get_llm_config())
+    except RuntimeError:
+        if not chain:
+            raise
+    return chain
+
+
+def _call_llm(prompt: str, providers: Sequence[Any] | None = None, *, deadline: float = DEADLINE_SECONDS) -> dict[str, Any]:
+    """Ask the Turn Engine's provider chain for ONE JSON object. Raises TriageUnavailable when nobody answers."""
+    try:
+        chain = providers if providers is not None else _default_chain()
+    except RuntimeError as exc:  # keys missing
+        raise TriageUnavailable("no LLM configured") from exc
+    started = time.monotonic()
+    for provider in chain:
+        if time.monotonic() - started >= deadline:
+            break
+        try:
+            data = json.loads(_fence(provider.complete(prompt)))
+            if not isinstance(data, dict):
+                raise TypeError("not an object")
+        except (turn_engine._ProviderError, TypeError, ValueError) as exc:
+            logger.warning("triage provider %s failed: %s", provider.name, str(exc)[:160])  # never the prompt or the citizen's words
+            continue
+        return data
+    raise TriageUnavailable("no provider answered")
+
+
 def analyse(
     *,
     categories: dict[str, Category],
@@ -256,32 +295,17 @@ def analyse(
         category_rule=("- The category is already chosen; repeat it as category_id with confidence 1." if chosen else ""),
         rules="\n".join(f"{c.id}: {c.severity_rules}" for c in pool.values()),
     )
-    try:
-        chain = providers if providers is not None else turn_engine.default_providers(get_llm_config())
-    except RuntimeError as exc:  # keys missing
-        raise TriageUnavailable("no LLM configured") from exc
-    started = time.monotonic()
-    for provider in chain:
-        if time.monotonic() - started >= DEADLINE_SECONDS:
-            break
-        try:
-            data = json.loads(_fence(provider.complete(prompt)))
-            if not isinstance(data, dict):
-                raise TypeError("not an object")
-        except (turn_engine._ProviderError, TypeError, ValueError) as exc:
-            logger.warning("triage provider %s failed: %s", provider.name, str(exc)[:160])  # never the prompt or the citizen's words
-            continue
-        cid = data.get("category_id")
-        cid = cid if isinstance(cid, str) and cid in categories else None
-        category = categories.get(cid) if cid else None
-        severity = data.get("severity") if data.get("severity") in LEVELS else "low"
-        if severity == "urgent" and (category is None or category.escalation is None):
-            severity = "high"  # "urgent" is only allowed where the bank defines an escalation
-        reason = data.get("reason")
-        citizen_text = " ".join(text for role, text in turns if role == "citizen")
-        return Analysis(cid, _clean_confidence(data.get("category_confidence")), _clean_answers(category, data.get("answers"), citizen_text, pending, reply=pending is not None),
-                        severity, reason.strip()[:200] if isinstance(reason, str) else "")
-    raise TriageUnavailable("no provider answered")
+    data = _call_llm(prompt, providers)
+    cid = data.get("category_id")
+    cid = cid if isinstance(cid, str) and cid in categories else None
+    category = categories.get(cid) if cid else None
+    severity = data.get("severity") if data.get("severity") in LEVELS else "low"
+    if severity == "urgent" and (category is None or category.escalation is None):
+        severity = "high"  # "urgent" is only allowed where the bank defines an escalation
+    reason = data.get("reason")
+    citizen_text = " ".join(text for role, text in turns if role == "citizen")
+    return Analysis(cid, _clean_confidence(data.get("category_confidence")), _clean_answers(category, data.get("answers"), citizen_text, pending, reply=pending is not None),
+                    severity, reason.strip()[:200] if isinstance(reason, str) else "", data.get("fit") if data.get("fit") in ("exact", "close", "none") else "close")
 
 
 # --- the conversation ---------------------------------------------------------------------------------------------
@@ -332,6 +356,20 @@ def _turns(recent: Sequence[Any], text: str | None) -> list[tuple[str, str]]:
     return turns
 
 
+def _story_turns(story: str | None, recent: Sequence[Any], text: str | None) -> list[tuple[str, str]]:
+    """The conversation as (role, text), with the complaint's own words first."""
+    turns = _turns(recent, text)
+    if story and not any(t == story for _, t in turns):
+        turns = [("citizen", story), *turns]
+    return turns
+
+
+def _talk():
+    from app import talk
+
+    return talk
+
+
 def _met(q: Question, answers: dict[str, Any]) -> bool:
     """A question that presumes a fact is askable only once the citizen has confirmed it."""
     return q.requires is None or answers.get(q.requires[0]) == q.requires[1]
@@ -373,6 +411,10 @@ def _merge(state: dict[str, Any], a: Analysis) -> None:
 
 def absorb_reply(state: dict[str, Any], *, bank: Bank, text: str, recent: Sequence[Any], providers: Sequence[Any] | None = None) -> dict[str, Any]:
     """The citizen answered our pending question. Read it (and anything extra they said); a question left unanswered stays unanswered."""
+    if state.get("mode") == "generated":
+        from app import triage_gen
+
+        return triage_gen.absorb(state, text=text, providers=providers)
     state = dict(state)
     pending_id = state.pop("pending", None)
     cats = bank.get(state.get("dept", ""), {})
@@ -397,14 +439,30 @@ def step(
     text: str | None,
     recent: Sequence[Any],
     providers: Sequence[Any] | None = None,
+    dept_name: str | None = None,
+    reason: str = "",
 ) -> tuple[dict[str, Any], str | None, bool]:
-    """Decide the next triage move at the confirm step. Returns (state, reply or None, urgent). reply None = nothing more to ask."""
+    """Decide the next triage move at the confirm step. Returns (state, reply or None, urgent). reply None = nothing more to ask.
+    Hybrid: the bank's questions when the category is clear, questions written by the LLM for this complaint (app/triage_gen.py) when it is not."""
+    from app import triage_gen
+
     state = dict(state or {})
     if state.get("done"):
         return state, None, state.get("severity") == "urgent"
+    if max_questions() == 0:
+        return {**state, "done": True, "skipped": "off"}, None, False
+    if state.get("mode") == "generated":
+        return triage_gen.step(state, turns=_story_turns(story, recent, text), providers=providers)
+
+    def generated(why: str) -> tuple[dict[str, Any], str | None, bool]:
+        if not triage_gen.enabled():
+            return {**state, "done": True, "skipped": why, "dept": dept_id}, None, False
+        gen = triage_gen.start(story=story, text=text, recent=recent, dept_id=dept_id, dept_name=dept_name, reason=why, providers=providers)
+        return triage_gen.step(gen, turns=_story_turns(story, recent, text), providers=providers)
+
     cats = bank.get(dept_id or "")
-    if not cats or max_questions() == 0:
-        return {**state, "done": True, "skipped": "no_bank"}, None, False
+    if not cats:
+        return generated(reason or "no_bank")
     if "category" not in state:  # first time: one call reads the whole story
         turns = _turns(recent, text)
         if story:
@@ -413,8 +471,8 @@ def step(
             a = analyse(categories=cats, category_id=None, turns=turns, providers=providers)
         except TriageUnavailable:
             return {**state, "done": True, "skipped": "llm_unavailable"}, None, False
-        if a.category_id is None or a.category_confidence < MIN_CATEGORY_CONFIDENCE:
-            return {**state, "done": True, "skipped": "category_unclear", "dept": dept_id}, None, False
+        if a.category_id is None or a.category_confidence < MIN_CATEGORY_CONFIDENCE or a.fit != "exact":
+            return generated("category_unclear" if a.category_id is None or a.category_confidence < MIN_CATEGORY_CONFIDENCE else "category_not_exact")
         state.update({"dept": dept_id, "category": a.category_id, "category_confidence": round(a.category_confidence, 2), "asked": [], "answers": {}})
         _merge(state, a)
     category = cats[state["category"]]
@@ -428,6 +486,7 @@ def step(
     asked = list(state.get("asked", []))
     total = min(max_questions(), len(asked) + sum(1 for q in category.questions if q.id not in state["answers"] and q.id not in asked and _met(q, state["answers"])))
     reply = human_ask(question, index=len(asked), total=total, concern=concern, seed=len(story or "") + len(asked), screen=is_screen(question, category))
+    reply = _talk().natural(question=question.ask, fallback=reply, turns=_story_turns(story, recent, text), concern=concern, index=len(asked), total=total, providers=providers)
     state["asked"] = asked + [question.id]
     state["pending"] = question.id
     return state, reply, state.get("severity") == "urgent"

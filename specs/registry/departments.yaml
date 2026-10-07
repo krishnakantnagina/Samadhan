@@ -10,6 +10,51 @@ live_specs:
   energy: electricity
   public_works: roads
   urban_development_housing: sanitation
+  school_education: school_education
+  sc_welfare: sc_welfare
+  anand: anand
+  ayush: ayush
+  higher_education: higher_education
+  horticulture_food_processing: horticulture_food_processing
+  industry_investment: industry_investment
+  agriculture: agriculture
+  mineral: mineral
+  food_civil_supplies: food_civil_supplies
+  home: home
+  medical_education: medical_education
+  tribal_affairs: tribal_affairs
+  public_relations: public_relations
+  jail: jail
+  technical_education_skill_employment: technical_education_skill_employment
+  narmada_valley: narmada_valley
+  panchayat_rural_development: panchayat_rural_development
+  transport: transport
+  tourism: tourism
+  animal_husbandry: animal_husbandry
+  obc_minority: obc_minority
+  election_commission: election_commission
+  public_service_commission: public_service_commission
+  women_child: women_child
+  planning_statistics: planning_statistics
+  revenue: revenue
+  public_service_management: public_service_management
+  public_health_family_welfare: public_health_family_welfare
+  forest: forest
+  commercial_tax: commercial_tax
+  science_technology: science_technology
+  finance: finance
+  law_legislative: law_legislative
+  civil_aviation: civil_aviation
+  labour: labour
+  culture: culture
+  cooperative: cooperative
+  social_justice_disabled: social_justice_disabled
+  general_administration: general_administration
+  msme: msme
+  cottage_village_industries: cottage_village_industries
+  renewable_energy: renewable_energy
+  fisheries: fisheries
+  food_drug_administration: food_drug_administration
 departments:
 - id: sc_welfare
   name_en: Scheduled Caste Welfare

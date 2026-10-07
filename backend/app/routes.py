@@ -8,14 +8,28 @@ via `audio.file.read()` (sync, blocking) rather than `await audio.read()`, exact
 `UploadFile` docs recommend for `def` routes -- keeps the whole route sync, D-S04-3's reasoning.
 """
 
+import logging
 import re
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, Header, Request, UploadFile
 from pydantic import UUID4
 
+from app import (
+    auth,
+    info_reply,
+    intake,
+    schemes,
+    session,
+    status_reply,
+    ticketing,
+    tts,
+    turn_engine,
+    understand,
+    validator,
+    voice,
+)
 from app import schemas as api
-from app import auth, info_reply, intake, schemes, session, status_reply, ticketing, tts, turn_engine, validator, voice
 from mock.errors import ApiError
 
 router = APIRouter()
@@ -26,6 +40,17 @@ REPLY_LOGIN_HI = "शिकायत दर्ज करने के लिए 
 
 def _submitted_reply(complaint_id: str) -> str:
     return f"आपकी शिकायत दर्ज हो गई है। शिकायत क्रमांक: {complaint_id}।"
+
+
+def _last_bot_question(session_id) -> str | None:
+    """What the bot asked last, so the reader can place a one-word spoken answer ("चार दिन", a village name) next to its question. Never blocks."""
+    try:
+        for m in reversed(session.get_recent_messages(session_id, 2)):
+            if m.role == "bot" and m.text:
+                return m.text[:300]
+    except Exception as exc:  # noqa: BLE001 -- a context hint is optional: a database hiccup must not stop the voice note
+        logging.getLogger(__name__).warning("last bot question unavailable (%s)", type(exc).__name__)
+    return None
 
 
 def _persist(
@@ -139,6 +164,24 @@ def _intake_ask(*, pre, row, session_id, message_id, text, audio, audio_path, tr
     )
 
 
+def _ask_again(*, row, session_id, message_id, text, audio, audio_path, transcript, asked: int, understood) -> api.MessageResponse:
+    """S35: the message is too vague to call a complaint, a question or a document request: ask the citizen to tell the complaint again. Nothing is routed or filed."""
+    response = api.MessageResponse(
+        session_id=session_id, message_id=message_id, action=api.Action.ASK, ask_for="complaint", reply_text=understand.ASK_AGAIN_HI,
+        transcript=transcript, summary=None, ticket=None, duplicate=False,
+    )
+    notes = {"asked": asked, **understood.as_meta()}
+    update = session.SessionUpdate(
+        collected_fields={**row.collected_fields, understand.META_KEY: notes}, awaiting_confirmation=False, lat=row.lat, lng=row.lng,
+        status=session.SessionStatus.ACTIVE, service_id=row.service_id,
+    )
+    input_type = session.InputType.AUDIO if audio is not None else session.InputType.TEXT
+    return _persist(
+        session_id=session_id, message_id=message_id, input_type=input_type, text=text, transcript=transcript,
+        audio_path=audio_path, response=response, update=update,
+    )
+
+
 @router.post("/message", response_model=api.MessageResponse)
 def message(
     request: Request,
@@ -177,7 +220,7 @@ def message(
     audio_path: str | None = None
     if audio is not None:
         try:
-            result = voice.transcribe(audio.file.read(), content_type, session_id, message_id)
+            result = voice.transcribe(audio.file.read(), content_type, session_id, message_id, context=_last_bot_question(session_id))
         except voice.VoiceUnavailable as exc:
             raise ApiError(api.ErrorCode.SERVICE_UNAVAILABLE, str(exc)) from exc
         transcript, audio_path = result.transcript, result.audio_path
@@ -245,17 +288,42 @@ def message(
         row.service_id, row.collected_fields, row.awaiting_confirmation
     )
     recent = session.get_recent_messages(session_id)
+
+    # Step 5d: understand first (S35, flag UNDERSTAND_FIRST, off by default). Only when a conversation starts (no service chosen yet): Gemini translates the message
+    # to standard Hindi/English and says if it is a complaint, a question, a document request, a greeting, or unclear. Unclear: ask for the complaint again
+    # (twice at most). Any failure returns None and everything below runs exactly as before.
+    understood = None
+    if row.service_id is None and not row.awaiting_confirmation and effective_text and understand.enabled():
+        understood = understand.understand(effective_text, recent)
+        if understood is not None and understood.is_unclear:
+            asked = int((row.collected_fields.get(understand.META_KEY) or {}).get("asked", 0))
+            if asked < understand.MAX_UNCLEAR_ASKS:
+                return _ask_again(
+                    row=row, session_id=session_id, message_id=message_id, text=text, audio=audio, audio_path=audio_path,
+                    transcript=transcript, asked=asked + 1, understood=understood,
+                )
+    routing_text = understand.engine_text(effective_text, understood)  # the citizen's words + the plain-language translation, for the engine and for Jev
+
     try:
         turn_result = turn_engine.run_turn(
             session=state,
             specs=request.app.state.specs,
-            text=effective_text,
+            text=routing_text,
             lat=lat,
             lng=lng,
             recent_messages=recent,
         )
     except turn_engine.TurnEngineUnavailable as exc:
         raise ApiError(api.ErrorCode.SERVICE_UNAVAILABLE, str(exc)) from exc
+
+    # Step 6a: S35 decides what the message IS; it overrides the turn engine's own guess (Gemini read the translation, the engine read dialect).
+    if understood is not None and turn_result.intent != "status":
+        if understood.kind in ("question", "document_request"):
+            turn_result = turn_result.model_copy(update={"intent": "information", "service_id": None, "fields": {}, "confirmed": False})
+        elif understood.kind == "greeting":
+            turn_result = turn_result.model_copy(update={"intent": "out_of_context", "service_id": None, "fields": {}, "confirmed": False})
+        elif understood.is_complaint and turn_result.intent != "complaint":
+            turn_result = turn_result.model_copy(update={"intent": "complaint", "service_id": None, "fields": {}, "confirmed": False})
 
     # Step 6b: the LLM says this is a status question (S29): use a bare number if there is one.
     if turn_result.intent == "status":
@@ -268,8 +336,10 @@ def message(
 
     # Step 6c: intake v2 (S30, flag INTAKE_V2, off by default): Jev decides the department; it may ask ONE question here
     # or send the complaint to the Human Evaluation queue. Disabled / no key / Jev down: returns the turn unchanged.
-    pre = intake.prestep(row=row, specs=request.app.state.specs, text=effective_text, recent=recent, turn_result=turn_result)
+    pre = intake.prestep(row=row, specs=request.app.state.specs, text=routing_text, recent=recent, turn_result=turn_result)
     turn_result = pre.turn_result
+    if understood is not None and pre.meta is not None:
+        pre.meta[understand.META_KEY] = understood.as_meta()  # the officer sees what the citizen said, in plain Hindi and English
     if pre.ask is not None:
         return _intake_ask(
             pre=pre, row=row, session_id=session_id, message_id=message_id, text=text, audio=audio,

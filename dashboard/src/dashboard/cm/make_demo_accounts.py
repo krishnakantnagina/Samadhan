@@ -35,6 +35,8 @@ def build() -> tuple[list[dict], list[tuple[str, str, str, str]]]:
 
     add("cm.office", "cm_admin", "CM office: sees and manages everything")
     for dept, dept_id in LIVE_MAP.items():
+        if dept not in SHORT:  # departments added by the all-department build (migration 004) have no demo accounts yet
+            continue
         short = SHORT[dept]
         add(f"{short}.head", "dept_head", f"Head of {dept}: that department only", department=dept, dept_id=dept_id)
         office = WATER_WARD_OFFICE if dept == "Jal Vibhag" else WARD_OFFICE.format(short={"Bijli Vibhag": "Bijli", "Lok Nirman Vibhag": "PWD", "Nagar Nigam Sanitation": "Sanitation"}[dept])

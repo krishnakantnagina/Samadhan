@@ -1,7 +1,7 @@
-# S33 — Triage questions: ask what a person would ask (BUILT behind a switch, 2026-10-03)
+# S33 — Triage questions: ask what a person would ask (BUILT behind a switch, 2026-10-03; hybrid added the same day)
 
 Status: **implemented, OFF by default** (`TRIAGE=1`, and it needs `INTAKE_V2=1`). Code: `backend/app/triage.py`, hooks in `backend/app/intake.py` (prestep, poststep) and one
-argument in `backend/app/routes.py`. Tests: `backend/tests/test_triage.py` (28). Question bank: `local-research/question-bank/` (git-excluded drafts, see its README).
+argument in `backend/app/routes.py`. Tests: `backend/tests/test_triage.py`, `backend/tests/test_triage_gen.py` (about 70). Question bank: `local-research/question-bank/` (git-excluded drafts, see its README).
 
 ## 1. Goal
 "School" is only a place. WHO did WHAT and HOW BAD decide the right desk and how fast it must move. After the story is clear the bot asks the few questions a kind
@@ -44,3 +44,39 @@ Teacher beat a child, scholarship, no medicine, ration refused, cattle disease: 
 - The dashboard does not show seriousness or sort by it yet; officers see the notes in the ticket detail ("AI intake notes").
 - Question order inside a priority is the bank's order; some severity questions are judgements a villager cannot make ("does he need a hospital?").
 - Sexual abuse of a child is not a category: it needs a protected flow written with a child-protection officer.
+
+
+## 7. Rules added after real conversations (2026-10-03, later)
+- **Order:** a calm story gets "what is wrong / how widely" first and ONE gentle danger check last (one slot is always reserved for it when the category has an
+  emergency side). A story that already signals danger is asked about seriousness first.
+- **Dependencies:** each bank question can carry `requires` (a gate question and the answer it needs). "How many children are sick?" waits for a yes to "did anyone
+  fall sick after the meal?". Written by Gemini and checked by a second pass: 179 kept of 264 (85 removed as over-strict). Over-gating can hide a good question: review.
+- **Safety facts are never assumed.** Questions about illness, injury, death or safety (and the gate of a danger question) are never answered from the story: a model
+  answered "yes, children fell sick" from "the food is bad". They count only as the direct answer to the question we asked, or in a reply when the quoted words speak of harm.
+- **Evidence:** every other prefilled answer needs a "quote": the citizen's own words (not the bot's) that state it; an answer without one is thrown away.
+- **Exact fit only:** the bank is used only when the model says its category is an exact fit; "close" or "none" goes to generated questions (below).
+- The model's own "skip" list was tried and removed: it skipped everything, including the injury question after a beating.
+
+## 8. Hybrid: questions written by the LLM for this complaint (`backend/app/triage_gen.py`)
+Used when the bank cannot help: category unclear or not an exact fit, no bank for the department, or the department is only a guess (Jev unsure, citizen said no).
+One LLM call writes 3-5 questions; CODE filters them (drops any that assume an unsaid fact (the model flags it, a missing flag counts as true), ask for Aadhaar / phone /
+bank / OTP / names of children, ask the place or the time, repeat an earlier question, run over 14 words, or are not Hindi; the purpose "harm" is dropped).
+A FIXED gentle safety check ("क्या इस वजह से किसी की तबीयत बिगड़ी है, या किसी को कोई खतरा तो नहीं है?") is always asked once, in the last slot; the model never decides
+whether danger is checked. Answers to generated questions are stored as the citizen's own words (not interpreted); only the safety check is read as yes / no and needs the
+citizen's words as evidence. A yes sets seriousness high and leaves an officer note. Questions and answers are stored in `_intake.triage` (`mode: generated`, `gen`, `answers`).
+`TRIAGE_GENERATE=0` switches the hybrid off (the old behaviour: skip triage when the bank cannot help). Measured on two real conversations (money cut from an account with an
+unconfirmed department; monkeys destroying crops): relevant questions each time; one generated question was a poor fit (asked for a screenshot after the citizen said he has no phone).
+
+
+## 9. Natural replies (`backend/app/talk.py`, added the same day)
+Every bot turn that asks something (triage questions, the district question, the duration question) is spoken by ONE short LLM call: a few words reflecting the PROBLEM in the
+citizen's own words, a little feeling when the news is bad, then the question the code chose, in everyday Hindi. It is not a free chat: CODE checks the line and any doubt
+gives the plain templated line, so the conversation never gets worse than before. Checks (`talk.valid_reply`): exactly one question and it ends the reply; the code's question
+keeps at least 40% of its content words; required words stay ("पता नहीं" for duration, "जिला" and "तहसील" for the district question, "तबीयत" and "खतरा" for the generic
+safety check); no promise or action word (the project's blocked list, S25), no digits the citizen did not say, no personal-data ask, no English; at most 38 words; and every
+word beyond the question and plain filler must be one the citizen said (no new fact can slip in). A 4 s deadline; slow or failing LLM = plain line. `TRIAGE_TALK=0` switches it off.
+Costs about 1-3 s per question and one more LLM call per turn: `TRIAGE_GEMINI_MODELS` (comma list) puts triage and talk on their own Gemini models first, so they do not eat the
+Turn Engine's Groq quota (the extra calls had caused "service unavailable" for everyone). Measured on real runs: the teacher case reads like a person; the opening sometimes repeats
+the citizen's words a little stiffly ("आप कह रहे हैं कि ..."). A turn now takes 5-6 s (up to 10 s) with ASR and TTS on top: watch this on a real phone.
+Also fixed on the way: the existing Gemini provider put the API key in the URL and logged failures with that URL (a key in the logs); the key now goes in a header and error text
+carries no URL.

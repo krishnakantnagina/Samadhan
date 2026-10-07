@@ -228,3 +228,25 @@ def test_default_pipeline_is_still_the_legacy_one(monkeypatch):
     monkeypatch.setattr(voice_module, "get_router", lambda: pytest.fail("router must not run by default"))
     monkeypatch.setattr(httpx, "post", lambda *a, **k: _FakeResponse({"transcript": "नमस्ते"}))
     assert transcribe(b"x", "audio/webm", *make_ids(), client=FakeVoiceClient()).transcript == "नमस्ते"
+
+
+def test_readers_are_told_hindi_by_default_and_unknown_when_asked(monkeypatch):
+    sent = []
+
+    def fake_post(url, **kwargs):
+        sent.append((url, kwargs["data"]))
+        return _FakeResponse({"transcript": "x", "text": "x"})
+
+    monkeypatch.setattr(voice_module.httpx, "post", fake_post)
+    monkeypatch.delenv("VOICE_LANGUAGE", raising=False)
+    config = voice_module.get_voice_config()
+    voice_module._sarvam(b"a", "audio/webm", config)
+    voice_module._groq_whisper(b"a", "audio/webm", config)
+    assert sent[0][1]["language_code"] == "hi-IN"
+    assert sent[1][1]["language"] == "hi"
+    sent.clear()
+    monkeypatch.setenv("VOICE_LANGUAGE", "unknown")
+    voice_module._sarvam(b"a", "audio/webm", config)
+    voice_module._groq_whisper(b"a", "audio/webm", config)
+    assert sent[0][1]["language_code"] == "unknown"
+    assert "language" not in sent[1][1]

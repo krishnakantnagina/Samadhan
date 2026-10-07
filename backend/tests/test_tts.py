@@ -259,3 +259,28 @@ def test_cache_is_off_by_default_and_when_on_repeats_do_not_call_the_provider(mo
     synthesize("एक", config=CONFIG)
     assert len(calls) == 6
     tts_module._cache.clear()
+
+
+def test_a_busy_gemini_is_skipped_for_this_request_without_tripping_its_breaker(monkeypatch):
+    tts_module._breakers.clear()
+    monkeypatch.setenv("TTS_PROVIDERS", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.setattr(tts_module, "_gemini_bulkhead", tts_module.Bulkhead(0))
+    monkeypatch.setattr(tts_module.httpx, "post", lambda *a, **k: pytest.fail("Gemini must not be called when the bulkhead is full"))
+    with pytest.raises(TtsUnavailable, match="busy"):
+        synthesize("नमस्ते", config=CONFIG)
+    assert not tts_module._breaker("gemini").is_open()
+
+
+def test_no_clip_retry_once_the_request_budget_is_used_up(monkeypatch):
+    calls = []
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.setattr(tts_module.httpx, "post", lambda url=None, **kw: (calls.append(url), _long_gemini(30))[1])
+    with pytest.raises(tts_module._ProviderFailed, match="too long"):
+        tts_module._gemini_tts("नमस्ते, यह एक छोटा वाक्य है।", deadline=0.0)  # already past
+    assert len(calls) == 1
+
+
+def test_provider_failed_carries_retry_clip_as_a_real_field():
+    assert tts_module._ProviderFailed("x").retry_clip is False
+    assert tts_module._ProviderFailed("x", retry_clip=True).retry_clip is True
