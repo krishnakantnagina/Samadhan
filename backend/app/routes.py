@@ -15,7 +15,7 @@ from fastapi import APIRouter, File, Form, Header, Request, UploadFile
 from pydantic import UUID4
 
 from app import schemas as api
-from app import auth, intake, session, status_reply, ticketing, tts, turn_engine, validator, voice
+from app import auth, info_reply, intake, schemes, session, status_reply, ticketing, tts, turn_engine, validator, voice
 from mock.errors import ApiError
 
 router = APIRouter()
@@ -283,6 +283,11 @@ def message(
     result = validator.apply(
         specs=request.app.state.specs, session=snapshot, turn_result=turn_result, lat=lat, lng=lng
     )
+    if turn_result.intent == "information" and schemes.enabled() and result.action == validator.ValidatedAction.OUT_OF_SCOPE:  # S36: real scheme names and official links
+        matched = schemes.find(effective_text)
+        if matched:
+            urgent = info_reply.URGENT_LINE_HI + chr(10) if info_reply.URGENT_LINE_HI in result.reply_text else ""  # keep the safety line
+            result = result.model_copy(update={"reply_text": urgent + info_reply.build_scheme_reply(matched)})
     result = intake.poststep(result=result, pre=pre, specs=request.app.state.specs, lat=lat, lng=lng, row=row, text=effective_text, recent=recent)  # S30/S33: notes, triage questions, location detail, duration
 
     # Step 7b: S31 registration. Filing a complaint needs a logged-in citizen (AUTH_REQUIRED=1): the confirmed draft is KEPT and the client is asked to
