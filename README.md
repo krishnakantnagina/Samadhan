@@ -206,6 +206,8 @@ Every library, API, data source and template used (hackathon organizer requireme
 - [Streamlit](https://streamlit.io/), [pandas](https://pandas.pydata.org/), [python-dotenv](https://github.com/theskumar/python-dotenv), [supabase-py](https://github.com/supabase/supabase-py)
 - [folium](https://python-visualization.github.io/folium/) and [streamlit-folium](https://github.com/randyzwitch/streamlit-folium) (maps; folium bundles [Leaflet](https://leafletjs.com/))
 - Map tiles: [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL)
+- District boundaries (`specs/registry/district_geo.json`, used to find the district of a shared GPS location): simplified from [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL), fetched through [Nominatim](https://nominatim.org/)
+- District office designations (`specs/registry/district_desks.yaml`): read from the public officer directories of the district portals (`<district>.nic.in`, National Informatics Centre); no officer names or contact details are kept
 - Dev: pytest
 
 **Website**: no framework, no build step, no third-party JavaScript, fonts or CSS. Browser APIs only: MediaRecorder, Geolocation, Audio.

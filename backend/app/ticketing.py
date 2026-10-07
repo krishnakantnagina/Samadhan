@@ -17,7 +17,7 @@ from typing import Any
 
 from supabase import Client
 
-from app import jurisdiction, schemas
+from app import district_geo, jurisdiction, schemas
 from app.db import get_client
 from app.service_spec import FieldSpec, LocationField, ServiceSpec
 
@@ -72,15 +72,19 @@ INTAKE_META_KEY = "_intake"  # S30: notes kept by app/intake.py inside the ticke
 NEW_COLUMNS = ("district", "tehsil", "nearest_place", "location_precision", "user_id")  # S31 migration 002; absent in older databases
 
 
-def _location_columns(validated_fields: dict[str, Any], location_name: str, lat: float | None, lng: float | None) -> dict[str, Any]:
-    """Structured location columns from the intake notes (S31). Only when intake v2 wrote notes; precision: exact (GPS) > village (a named place and a district) > district > unknown."""
+def _location_columns(
+    validated_fields: dict[str, Any], location_name: str, lat: float | None, lng: float | None, district: str | None = None
+) -> dict[str, Any]:
+    """Structured location columns from the intake notes (S31). Only when intake v2 wrote notes, or when a GPS point gave a district; precision: exact (GPS) > village (a named
+    place and a district) > district > unknown. `district` is the one routing used (typed by the citizen, else found from their GPS point)."""
     meta = validated_fields.get(INTAKE_META_KEY)
-    if not meta:
-        return {}
-    loc = meta.get("location_details") or {}
     has_gps = lat is not None and lng is not None
-    precision = "exact" if has_gps else "village" if (validated_fields.get(location_name) and loc.get("district")) else "district" if loc.get("district") else "unknown"
-    return {"district": loc.get("district"), "tehsil": loc.get("tehsil"), "nearest_place": loc.get("nearest_place"), "location_precision": precision}
+    if not meta:
+        return {"district": district, "location_precision": "exact"} if has_gps and district else {}
+    loc = meta.get("location_details") or {}
+    district = loc.get("district") or district
+    precision = "exact" if has_gps else "village" if (validated_fields.get(location_name) and district) else "district" if district else "unknown"
+    return {"district": district, "tehsil": loc.get("tehsil"), "nearest_place": loc.get("nearest_place"), "location_precision": precision}
 
 
 def _district_of(validated_fields: dict[str, Any]) -> str | None:
@@ -160,7 +164,7 @@ def create_ticket(
         logger.info("duplicate submit for %s: returning the existing ticket", already.complaint_id)
         return already
 
-    district = _district_of(validated_fields)
+    district = _district_of(validated_fields) or (district_geo.district_for(lat, lng) if lat is not None and lng is not None else None)
     try:
         match = jurisdiction.resolve_office(
             department=spec.department,
@@ -201,7 +205,7 @@ def create_ticket(
         "lat": lat,
         "lng": lng,
         "routing_confidence": match.confidence,
-        **_location_columns(validated_fields, location_field.name, lat, lng),
+        **_location_columns(validated_fields, location_field.name, lat, lng, district),
     }
     if user_id is not None:
         new_row["user_id"] = str(user_id)  # S31: the registered citizen (phone) who filed it; the officer calls back on this number

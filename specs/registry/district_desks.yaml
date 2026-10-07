@@ -1,0 +1,64 @@
+# District desks: for each department, is there an office in every district (scope: district) or only at the state capital (scope: state), and what is it called?
+# Input of backend/scripts/gen_district_desks.py, which writes database/migrations/007_district_desks.sql.
+#
+# SOURCES (all public): the officer directories of the district portals (<district>.nic.in), downloaded on 2026-10-08: 45 of the 55 districts publish one; 13 of them are detailed
+# (40+ rows), the other 32 are a short "Who's who". Plus the department's own structure where the directories are silent. No officer NAMES are kept: a desk is a designation.
+# `evidence` = the number of detailed directories (of 13) and of all directories (of 45) that list a matching office. Low numbers mostly mean "the directory is short", not "no such office".
+# `confidence`: high = listed in most detailed directories; medium = listed in some and standard for the department; low = known department structure only, to be confirmed with the department.
+# These are designation-level desks (no officer, no phone): the officer dashboards and the ticket flow need a place to send the complaint, not a person.
+version: 1
+checked: "2026-10-08"
+
+services:
+  # ---- district-level offices --------------------------------------------------------------------------------------------------------------------------
+  school_education:      {scope: district, prefix: SCH,  designation: "District Education Officer",                          confidence: high,   evidence: {rich: 7,  any: 8},  note: "plus the District Project Coordinator (Samagra Shiksha) in the same office"}
+  public_health_family_welfare: {scope: district, prefix: HLT, designation: "Chief Medical and Health Officer (CMHO)",     confidence: high,   evidence: {rich: 9,  any: 10}}
+  panchayat_rural_development:  {scope: district, prefix: PRD, designation: "Zila Panchayat CEO Office",                    confidence: high,   evidence: {rich: 12, any: 38}, note: "Chief Executive Officer, Zila Panchayat (also Additional Collector, Development)"}
+  food_civil_supplies:   {scope: district, prefix: FCS,  designation: "District Supply Officer",                             confidence: high,   evidence: {rich: 5,  any: 7}}
+  revenue:               {scope: district, prefix: REV,  designation: "Collectorate (Revenue)",                              confidence: high,   evidence: {rich: 12, any: 44}, note: "Collector, Additional Collector and the Sub-Divisional Magistrates; the Collector heads revenue in the district"}
+  general_administration: {scope: district, prefix: GAD, designation: "Collector Office",                                    confidence: high,   evidence: {rich: 12, any: 44}}
+  election_commission:   {scope: district, prefix: ELE,  designation: "District Election Officer (Collector) Office",         confidence: high,   evidence: {rich: 12, any: 44}, note: "the Collector is the District Election Officer"}
+  home:                  {scope: district, prefix: POL,  designation: "Superintendent of Police Office",                     confidence: high,   evidence: {rich: 11, any: 35}}
+  forest:                {scope: district, prefix: FOR,  designation: "Divisional Forest Officer",                           confidence: high,   evidence: {rich: 8,  any: 17}, note: "forest divisions follow forests, not districts: a district may have two, or share one"}
+  transport:             {scope: district, prefix: TRN,  designation: "Regional / District Transport Office (RTO / DTO)",    confidence: high,   evidence: {rich: 6,  any: 7}}
+  commercial_tax:        {scope: district, prefix: CTD,  designation: "Commercial Tax Officer",                              confidence: medium, evidence: {rich: 4,  any: 4},  note: "some districts are served from a neighbouring district's office"}
+  women_child:           {scope: district, prefix: WCD,  designation: "District Programme Officer, Women and Child Development", confidence: high, evidence: {rich: 8, any: 10}}
+  social_justice_disabled: {scope: district, prefix: SJD, designation: "District Social Justice Office (Deputy Director)",   confidence: medium, evidence: {rich: 4,  any: 7},  note: "listed as Deputy Director, Panchayat and Social Justice"}
+  agriculture:           {scope: district, prefix: AGR,  designation: "Deputy Director, Farmer Welfare and Agriculture Development", confidence: high, evidence: {rich: 6, any: 7}}
+  horticulture_food_processing: {scope: district, prefix: HRT, designation: "Deputy / Assistant Director, Horticulture", confidence: high,   evidence: {rich: 7,  any: 8}}
+  animal_husbandry:      {scope: district, prefix: AHD,  designation: "Deputy Director, Veterinary Services",                confidence: high,   evidence: {rich: 6,  any: 7}}
+  fisheries:             {scope: district, prefix: FSH,  designation: "Assistant Director, Fisheries",                       confidence: medium, evidence: {rich: 4,  any: 5}}
+  cooperative:           {scope: district, prefix: COP,  designation: "Deputy Commissioner / Deputy Registrar, Cooperative Societies", confidence: medium, evidence: {rich: 4, any: 4}}
+  labour:                {scope: district, prefix: LAB,  designation: "District Labour Officer",                             confidence: medium, evidence: {rich: 4,  any: 6}}
+  mineral:               {scope: district, prefix: MIN,  designation: "District Mining Officer",                             confidence: high,   evidence: {rich: 6,  any: 7}}
+  tribal_affairs:        {scope: district, prefix: TRB,  designation: "Assistant Commissioner, Tribal Welfare (District Coordinator)", confidence: high, evidence: {rich: 8, any: 8}}
+  sc_welfare:            {scope: district, prefix: SCW,  designation: "Assistant Commissioner, Tribal and Scheduled Caste Welfare", confidence: medium, evidence: {rich: 8, any: 8}, note: "the directories show Tribal Affairs and Scheduled Caste Welfare as one combined district office"}
+  obc_minority:          {scope: district, prefix: OBC,  designation: "District Officer, Backward Classes and Minority Welfare", confidence: medium, evidence: {rich: 4, any: 4}}
+  technical_education_skill_employment: {scope: district, prefix: TEC, designation: "District Employment Officer",            confidence: medium, evidence: {rich: 4,  any: 5},  note: "ITIs are separate institutions under the same department"}
+  public_relations:      {scope: district, prefix: PUB,  designation: "District Public Relations Officer",                   confidence: high,   evidence: {rich: 7,  any: 10}}
+  industry_investment:   {scope: district, prefix: IND,  designation: "General Manager, District Trade and Industry Centre", confidence: high,   evidence: {rich: 4,  any: 5}}
+  msme:                  {scope: district, prefix: MSM,  designation: "General Manager, District Trade and Industry Centre", confidence: high,   evidence: {rich: 4,  any: 5}, note: "the same office as Industrial Policy and Investment"}
+  cottage_village_industries: {scope: district, prefix: CVI, designation: "District Khadi and Village Industries Office",   confidence: medium, evidence: {rich: 4,  any: 4}}
+  renewable_energy:      {scope: district, prefix: REN,  designation: "District Renewable Energy Officer",                   confidence: medium, evidence: {rich: 3,  any: 3}}
+  planning_statistics:   {scope: district, prefix: PLN,  designation: "District Planning Officer",                           confidence: high,   evidence: {rich: 5,  any: 5}}
+  public_service_management: {scope: district, prefix: PSM, designation: "District Manager, Public Service Management (Lok Seva)", confidence: high, evidence: {rich: 4, any: 5}}
+  finance:               {scope: district, prefix: FIN,  designation: "District Treasury Officer",                           confidence: high,   evidence: {rich: 9,  any: 13}}
+  ayush:                 {scope: district, prefix: AYU,  designation: "District AYUSH Officer",                              confidence: medium, evidence: {rich: 2,  any: 2},  note: "seen in Agar Malwa and Vidisha (as District Ayurveda Officer); the pattern search also matches 'Ayushman', so this count is read by hand"}
+  food_drug_administration: {scope: district, prefix: FDA, designation: "District Food Safety Officer / Drug Inspector",    confidence: medium, evidence: {rich: 3,  any: 3}}
+  electricity:           {scope: district, prefix: ELC,  designation: "Superintending Engineer, Electricity Distribution (DISCOM)", confidence: medium, evidence: {rich: 2, any: 2}, note: "read by hand (e.g. S.E. of the Madhya Kshetra DISCOM in Vidisha); a DISCOM circle can cover two districts"}
+  roads:                 {scope: district, prefix: PWD,  designation: "Executive Engineer, Public Works Department",         confidence: high,   evidence: {rich: 10, any: 12}, note: "a PWD division can cover more than one district"}
+  water_supply:          {scope: district, prefix: PHE,  designation: "Executive Engineer, Public Health Engineering",       confidence: high,   evidence: {rich: 7,  any: 9}}
+  sanitation:            {scope: district, prefix: SAN,  designation: "Municipal body of the district headquarters (Chief Municipal Officer / Commissioner)", confidence: medium, evidence: {rich: 9, any: 12}, note: "every district headquarters town has a municipal body; village sanitation is the Panchayat's"}
+
+  # ---- state-level only: one desk in the capital, for every district ---------------------------------------------------------------------------------
+  anand:                 {scope: state, prefix: AND, designation: "Anand Department (Anand Sansthan), Bhopal",              confidence: low,    evidence: {rich: 0, any: 0}, note: "no district office found in any directory"}
+  civil_aviation:        {scope: state, prefix: AVI, designation: "Directorate of Civil Aviation, Bhopal",                  confidence: medium, evidence: {rich: 1, any: 1}, note: "airport offices only"}
+  culture:               {scope: state, prefix: CUL, designation: "Directorate of Culture, Bhopal",                         confidence: low,    evidence: {rich: 0, any: 0}, note: "district museums exist in a few districts; no district office"}
+  medical_education:     {scope: state, prefix: MED, designation: "Directorate of Medical Education, Bhopal",               confidence: medium, evidence: {rich: 3, any: 3}, note: "a Dean heads each government medical college (about 20 districts). Add district desks for those when the list is confirmed"}
+  narmada_valley:        {scope: state, prefix: NVD, designation: "Narmada Valley Development Authority, Bhopal",           confidence: medium, evidence: {rich: 2, any: 3}, note: "project offices exist only along the Narmada basin"}
+  public_service_commission: {scope: state, prefix: PSC, designation: "MPPSC Office, Indore",                              confidence: high,   evidence: {rich: 1, any: 1}}
+  science_technology:    {scope: state, prefix: SCI, designation: "Department of Science and Technology (MPCST), Bhopal",   confidence: low,    evidence: {rich: 0, any: 0}, note: "the District Informatics Officer belongs to NIC (central), not to this department"}
+  tourism:               {scope: state, prefix: TOU, designation: "Madhya Pradesh Tourism Board, Bhopal",                   confidence: medium, evidence: {rich: 2, any: 2}, note: "regional (divisional) offices only"}
+  higher_education:      {scope: state, prefix: HED, designation: "Commissioner, Higher Education, Bhopal",                 confidence: medium, evidence: {rich: 4, any: 5}, note: "colleges have principals; the department has divisional, not district, offices"}
+  jail:                  {scope: state, prefix: JAL, designation: "Director General, Prisons, Bhopal",                      confidence: medium, evidence: {rich: 4, any: 4}, note: "a jail is where the inmate is, and not every district has one: add district desks from the prisons list when confirmed"}
+  law_legislative:       {scope: state, prefix: LAW, designation: "Law and Legislative Affairs Department, Bhopal",         confidence: medium, evidence: {rich: 2, any: 2}, note: "District Legal Aid / Prosecution Officers exist but are judiciary / Home Department offices"}

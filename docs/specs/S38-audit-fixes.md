@@ -9,8 +9,7 @@ migrations 005 and 006 are **not applied to any real database yet**.
 | `005_district_offices.sql` | `offices.district`; one district desk per (department, district) instead of one per department; existing rows become `Bhopal` | the backend keeps working as before (routing falls back to the single desk) |
 | `006_ticket_events.sql` | audit trail table for dashboard actions (status change, reassign, who viewed a phone number) | the dashboards skip the audit write and log a warning |
 
-Real district desks come from the departments. `database/seed_demo_district_offices.sql` (made by `backend/scripts/gen_demo_district_offices.py`) invents DEMO desks for all 55 districts
-and is for the private local test database only.
+| `007_district_desks.sql` | the desks: 38 departments x 55 districts and 11 state desks, from official district directories (`docs/DISTRICT_DESKS.md`, `docs/specs/S39-district-desks.md`) | complaints from outside Bhopal still go to the single Bhopal desk |
 
 ## Behaviour
 - **District-aware routing (`app/jurisdiction.py`, `app/ticketing.py`):** a complaint goes to a ward of the citizen's district, else that district's office for the department, else the

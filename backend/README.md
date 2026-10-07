@@ -52,7 +52,7 @@ Test the real backend, every department and the whole route without touching the
 values before the app starts, so the live database cannot be reached from this process.
 
 ```bash
-python scripts/local_dev_db.py setup          # once: create + start the private DB, load schema, seeds, migrations 002..005 and DEMO desks for all 55 districts
+python scripts/local_dev_db.py setup          # once: create + start the private DB, load schema, seeds, migrations 002..005 and 007 (the district desks)
 uv run --env-file ../.env --with "psycopg[binary]" python scripts/local_dev_server.py      # API on http://127.0.0.1:8000
 (cd ../frontend && python -m http.server 5500)                                              # website on http://localhost:5500
 uv run python scripts/try_complaint.py "mere gaon ke school me mid day meal nahi mil raha"  # talk to it from the terminal

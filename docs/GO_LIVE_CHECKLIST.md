@@ -10,15 +10,17 @@ services are set up) and `docs/specs/S38-audit-fixes.md` (what changed). **Nothi
 - [ ] `main` is what Render builds. Merge `post-submission` into `main` only when you decide to go live (pushing `main` redeploys the three services).
 
 ## 2. Database (Supabase SQL editor), in this order, once
-Already on the live database: `002`, `003`. **Still to run:**
+Already on the live database: `002`, `003`. **Still to run (in this order):**
 | # | File | Why it must run | If you skip it |
 |---|---|---|---|
 | 1 | `database/migrations/004_all_department_offices.sql` | Offices (DEMO) for the 45 new departments. | Complaints for those departments go to the Human Evaluation desk for review (they are not lost), so nothing works as designed for them. |
 | 2 | `database/migrations/005_district_offices.sql` | `offices.district`, one desk per district per department. Existing rows become `Bhopal`. | Every complaint still goes to the one desk (as today). |
 | 3 | `database/migrations/006_ticket_events.sql` | Audit trail of dashboard actions. | The dashboards skip the audit write (a warning in the log). |
+| 4 | `database/migrations/007_district_desks.sql` | **The desks:** one office per department in each of the 55 districts (38 departments, 2,090 desks) and 11 state desks. Needs 005 first. | Complaints from outside Bhopal still go to the single Bhopal desk, marked "needs review". |
+| 5 | `database/migrations/008_dashboard_accounts.sql` | Logins that belong to a desk (give, hand over, reset, switch off) kept in the database. | The "Desk access" screen says to run it; the shared admin login and the accounts file keep working. |
 
-Real district desks (names, officers) come from the departments; add them as rows with `district` set (see the comment at the end of 005). The 54 invented desks in
-`database/seed_demo_district_offices.sql` are for the local test database only: do **not** run that file on the live database.
+The desks in 007 are **designations without officers** (for example "Chief Medical and Health Officer (CMHO), Rajgarh"), taken from the official district portals; see `docs/DISTRICT_DESKS.md`
+for the source and the confidence of each. Send each department its line to confirm, and add the officer and contact when it replies. Re-running 007 is safe.
 
 ## 3. Backend service (`samadhan-kx8b`) environment
 Keep what is set today. **Add or check:**
@@ -35,6 +37,7 @@ Leave these **off** for the first go-live (they need free-tier quota that will n
 Set the Render **Health Check Path** to `/health/ready` (it checks the database; `/health` only checks the process). API docs are hidden on Render on purpose (`ENABLE_API_DOCS=1` brings them back).
 
 ## 4. Dashboard service (`samadhan-dashboard`)
+- [ ] After migration 008: log in as `admin`, open **Accounts and Roles**, scroll to **Desk access**, choose a department and a desk, and give the officer a login. The temporary password is shown once; the officer must choose their own at the first login. When an officer is transferred use **Hand over this desk** (design: `docs/specs/S40-desk-access.md`).
 - [ ] Redeploy so it installs the new `pyyaml` (the build command exports from `dashboard/uv.lock`, which is already updated).
 - [ ] Keep `DASHBOARD_PASSWORD` strong: five wrong tries now lock the username for 10 minutes.
 - [ ] After migration 006, status changes and phone views appear under "Activity on this ticket".
