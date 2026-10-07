@@ -69,7 +69,7 @@ async function flush() {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
-function load({ micFails = false, recorderFails = false, blobUrls = true } = {}) {
+function load({ micFails = false, recorderFails = false, blobUrls = true, hindiVoice = false, browserVoiceOnly = false } = {}) {
   let now = 0;
   let nextId = 1;
   let timers = [];
@@ -132,10 +132,19 @@ function load({ micFails = false, recorderFails = false, blobUrls = true } = {})
     close() { this.closed = true; return Promise.resolve(); }
   }
 
+  const spoken = [];
+  const speech = {
+    paused: false,
+    getVoices: () => [{ lang: 'en-US' }, { lang: 'hi-IN', name: 'Test Hindi' }],
+    cancel() {}, pause() { this.paused = true; }, resume() { this.paused = false; },
+    speak(u) { spoken.push(u); },
+  };
+  state.spoken = spoken;
   const store = new Map();
   const sandbox = {
     document,
-    window: { SAMADHAN_API_BASE: 'http://api.test', AudioContext: FakeAudioContext, devicePixelRatio: 1 },
+    window: { addEventListener: () => {}, SAMADHAN_API_BASE: 'http://api.test', AudioContext: FakeAudioContext, devicePixelRatio: 1, ...(hindiVoice ? { speechSynthesis: speech } : {}), ...(browserVoiceOnly ? { SAMADHAN_TTS_MODE: 'browser' } : {}) },
+    ...(hindiVoice ? { SpeechSynthesisUtterance: class { constructor(text) { this.text = text; } } } : {}),
     navigator: {
       mediaDevices: {
         getUserMedia: async () => {
@@ -159,6 +168,7 @@ function load({ micFails = false, recorderFails = false, blobUrls = true } = {})
         state.messagePosts.push(opts.body);
         return { ok: true, json: async () => ({ reply_text: 'ठीक है', transcript: 'नमस्ते' }) };
       }
+      if (String(url).endsWith('/api/v1/speak')) state.speakCalls = (state.speakCalls || 0) + 1;
       return { ok: false, json: async () => ({ reply_text: 'no tts in test' }) };
     },
     getComputedStyle: () => ({ color: 'rgb(122, 39, 26)' }),
@@ -169,7 +179,7 @@ function load({ micFails = false, recorderFails = false, blobUrls = true } = {})
     clearInterval: (id) => { timers = timers.filter((t) => t.id !== id); },
     requestAnimationFrame: (fn) => addTimer(fn, 16, false),
     cancelAnimationFrame: (id) => { timers = timers.filter((t) => t.id !== id); },
-    URL: blobUrls ? class extends URL { static createObjectURL() { return 'blob:test-recording'; } } : URL,
+    URL: blobUrls ? class extends URL { static createObjectURL() { state.created = (state.created || 0) + 1; return `blob:test-recording-${state.created}`; } static revokeObjectURL(u) { (state.revoked ||= []).push(u); } } : URL,
     console, Date: { now: () => now }, JSON, Math, Promise, Uint8Array, Set, Error,
   };
   sandbox.window.window = sandbox.window;
@@ -353,4 +363,73 @@ test('can record again after a finished recording', async () => {
     await flush(); await flush();
   }
   assert.equal(w.state.messagePosts.length, 2);
+});
+
+test('server voice down: the reply to a voice message is read aloud with the browser Hindi voice', async () => {
+  const w = load({ hindiVoice: true });
+  tap(w.mic);
+  await flush(); await flush();
+  w.clock.advance(2000);
+  tap(w.mic);
+  for (let i = 0; i < 6; i += 1) await flush();
+  assert.equal(w.state.spoken.length, 1, 'a reply to a voice message auto-plays');
+  assert.equal(w.state.spoken[0].text, 'ठीक है');
+  assert.equal(w.state.spoken[0].lang, 'hi-IN');
+  assert.equal(w.state.spoken[0].voice.lang, 'hi-IN');
+  const notes = findAll(w.root, (e) => e.classes && e.classes.has('vn-play'));
+  const note = notes[notes.length - 1]; // the last voice note is the bot's reply
+  assert.notEqual(note.textContent, '!', 'the note does not show the failure mark');
+});
+
+test('server voice down and no Hindi browser voice: the note shows "!" as before', async () => {
+  const w = load();
+  tap(w.mic);
+  await flush(); await flush();
+  w.clock.advance(2000);
+  tap(w.mic);
+  for (let i = 0; i < 6; i += 1) await flush();
+  assert.equal(w.state.spoken.length, 0);
+  const notes = findAll(w.root, (e) => e.classes && e.classes.has('vn-play'));
+  const note = notes[notes.length - 1]; // the last voice note is the bot's reply
+  assert.equal(note.textContent, '!');
+});
+
+test('browser-voice mode: the reply is read with the browser voice and the server voice (/speak) is never called', async () => {
+  const w = load({ hindiVoice: true, browserVoiceOnly: true });
+  tap(w.mic);
+  await flush(); await flush();
+  w.clock.advance(2000);
+  tap(w.mic);
+  for (let i = 0; i < 6; i += 1) await flush();
+  assert.equal(w.state.speakCalls || 0, 0, 'no call to /speak, so no TTS credit is used');
+  assert.equal(w.state.spoken.length, 1);
+  assert.equal(w.state.spoken[0].text, 'ठीक है');
+  assert.equal(w.state.spoken[0].lang, 'hi-IN');
+});
+
+test('browser-voice mode without a Hindi browser voice: the note shows "!" and still never calls /speak', async () => {
+  const w = load({ browserVoiceOnly: true });
+  tap(w.mic);
+  await flush(); await flush();
+  w.clock.advance(2000);
+  tap(w.mic);
+  for (let i = 0; i < 6; i += 1) await flush();
+  assert.equal(w.state.speakCalls || 0, 0);
+  const notes = findAll(w.root, (e) => e.classes && e.classes.has('vn-play'));
+  assert.equal(notes[notes.length - 1].textContent, '!');
+});
+
+test('old voice notes are released from memory: only the latest 8 stay playable', async () => {
+  const w = load();
+  for (let i = 0; i < 10; i++) {
+    tap(w.mic);
+    await flush(); await flush();
+    w.clock.advance(2000);
+    tap(w.mic);
+    await flush(); await flush();
+  }
+  assert.deepEqual(w.state.revoked, ['blob:test-recording-1', 'blob:test-recording-2'], 'the two oldest recordings were revoked');
+  const notes = w.messages().filter((m) => m.classes.has('citizen')).map((m) => m.firstChild);
+  assert.ok(notes[0].classes.has('vn-expired') && notes[1].classes.has('vn-expired'));
+  assert.equal(notes[9].classes.has('vn-expired'), false, 'the newest note is still playable');
 });

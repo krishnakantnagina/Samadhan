@@ -244,30 +244,102 @@
     return button;
   }
 
+  // Last resort when the server voice (Sarvam / Gemini) is down, out of credit or rate limited: the browser's own Hindi voice. It exposes the few
+  // parts of the Audio API the voice note and the speaker button use, so they work unchanged. No duration or progress bar (the browser does not report them).
+  function browserHindiVoice() {
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return null;
+    return window.speechSynthesis.getVoices().find((v) => /^hi\b/i.test(v.lang)) || null;
+  }
+
+  class BrowserVoice {
+    constructor(text, voice) {
+      this.text = text;
+      this.voice = voice;
+      this.paused = true;
+      this.duration = NaN;
+      this.currentTime = 0;
+      this.readyState = 0;
+      this.preload = '';
+      this.listeners = {};
+      this.started = false;
+    }
+    addEventListener(name, fn) { (this.listeners[name] = this.listeners[name] || []).push(fn); }
+    emit(name) { (this.listeners[name] || []).forEach((fn) => fn()); }
+    load() {}
+    play() {
+      const synth = window.speechSynthesis;
+      if (this.started && synth.paused) {
+        synth.resume();
+      } else {
+        synth.cancel();
+        const utterance = new SpeechSynthesisUtterance(this.text);
+        utterance.lang = 'hi-IN';
+        utterance.voice = this.voice;
+        utterance.onend = () => { this.paused = true; this.started = false; this.emit('ended'); };
+        utterance.onerror = () => { this.paused = true; this.started = false; this.emit('pause'); };
+        this.started = true;
+        synth.speak(utterance);
+      }
+      this.paused = false;
+      this.emit('play');
+      return Promise.resolve();
+    }
+    pause() {
+      window.speechSynthesis.pause();
+      this.paused = true;
+      this.emit('pause');
+    }
+  }
+
+  // 'browser' = never call the server voice (/speak, Sarvam): read replies with the browser's Hindi voice only. For testing while there is no TTS credit.
+  // Switch on with `?voice=browser` in the page address or `window.SAMADHAN_TTS_MODE = 'browser'` in config.js. Default 'server' (unchanged behaviour).
+  function ttsMode() {
+    let mode = window.SAMADHAN_TTS_MODE;
+    try {
+      mode = mode || new URLSearchParams(window.location.search).get('voice');
+    } catch {
+      // no address bar (tests, embedded views): keep the configured mode
+    }
+    return mode === 'browser' ? 'browser' : 'server';
+  }
+
   async function fetchHindiAudio(rawText) {
     const text = spokenTextOf(rawText); // never speak the URL line (S28 4.6)
     if (!text) throw new Error(GENERIC_ERROR);
-    let response;
+    if (ttsMode() === 'browser') {
+      const voice = browserHindiVoice();
+      if (!voice) throw new Error(GENERIC_ERROR); // no Hindi voice installed in this browser: the note shows "!"
+      return new BrowserVoice(text, voice);
+    }
     try {
-      response = await fetch(`${API_BASE}/api/v1/speak`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-    } catch {
-      throw new Error(GENERIC_ERROR);
+      let response;
+      try {
+        response = await fetch(`${API_BASE}/api/v1/speak`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+      } catch {
+        throw new Error(GENERIC_ERROR);
+      }
+      let body;
+      try {
+        body = await response.json();
+      } catch {
+        throw new Error(GENERIC_ERROR);
+      }
+      if (!response.ok) {
+        throw new Error(body.reply_text || GENERIC_ERROR);
+      }
+      return new Audio(`data:audio/wav;base64,${body.audio_base64}`);
+    } catch (error) {
+      const voice = browserHindiVoice();
+      if (voice) return new BrowserVoice(text, voice); // server voice unavailable: read it with the browser's Hindi voice
+      throw error;
     }
-    let body;
-    try {
-      body = await response.json();
-    } catch {
-      throw new Error(GENERIC_ERROR);
-    }
-    if (!response.ok) {
-      throw new Error(body.reply_text || GENERIC_ERROR);
-    }
-    return new Audio(`data:audio/wav;base64,${body.audio_base64}`);
   }
+
+  if ('speechSynthesis' in window) window.speechSynthesis.getVoices(); // some browsers load the voice list lazily: ask once so it is ready when needed
 
   async function speakText(text, button) {
     button.disabled = true;
@@ -580,6 +652,24 @@
     return box;
   }
 
+  // Each recording is a Blob held by its object URL until revoked. Keep only the latest few playable so a long voice session
+  // on a low-end phone does not pile up audio in memory; older notes stay in the chat but can no longer be replayed.
+  const MAX_PLAYABLE_LOCAL_NOTES = 8;
+  const localVoiceUrls = [];
+  function keepLocalVoiceUrl(url, note) {
+    localVoiceUrls.push({ url, note });
+    while (localVoiceUrls.length > MAX_PLAYABLE_LOCAL_NOTES) {
+      const old = localVoiceUrls.shift();
+      URL.revokeObjectURL(old.url);
+      const btn = old.note.querySelector('.vn-play');
+      if (btn) btn.disabled = true;
+      old.note.classList.add('vn-expired');
+    }
+  }
+  window.addEventListener('pagehide', () => {
+    localVoiceUrls.splice(0).forEach((v) => URL.revokeObjectURL(v.url));
+  });
+
   function appendVoiceBubble(blob, seconds) {
     let url;
     try {
@@ -589,7 +679,9 @@
     }
     const el = document.createElement('div');
     el.className = 'msg citizen msg-in';
-    el.appendChild(makeLocalVoiceNote(url, seconds));
+    const note = makeLocalVoiceNote(url, seconds);
+    el.appendChild(note);
+    keepLocalVoiceUrl(url, note);
     messagesEl.appendChild(el);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return el;

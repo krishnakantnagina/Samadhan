@@ -263,6 +263,8 @@ html, body {
 }
 
 .voice-note-mine .vn-play { background: #fff; color: var(--accent); }
+.vn-expired { opacity: 0.55; }
+.vn-expired .vn-play { cursor: default; }
 .voice-note-mine .vn-track { background: rgba(255, 255, 255, 0.35); }
 .voice-note-mine .vn-fill { background: #fff; }
 .voice-note-mine .vn-time { color: #fff; }
