@@ -10,15 +10,18 @@ via `audio.file.read()` (sync, blocking) rather than `await audio.read()`, exact
 
 import logging
 import re
+import time
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, Header, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, Request, UploadFile
 from pydantic import UUID4
 
 from app import (
     auth,
     info_reply,
     intake,
+    ratelimit,
+    scheme_answer,
     schemes,
     session,
     status_reply,
@@ -34,6 +37,7 @@ from mock.errors import ApiError
 
 router = APIRouter()
 
+SLOW_REQUEST_SECONDS = 30.0  # past this, optional extras (the Gemini scheme summary) are skipped so the citizen is not kept waiting (audit M3)
 REPLY_EMPTY_TRANSCRIPT = "मुझे आपकी बात समझ नहीं आई। कृपया दोबारा बोलें या लिखकर बताएं।"  # S01 D-A6
 REPLY_LOGIN_HI = "शिकायत दर्ज करने के लिए कृपया अपना मोबाइल नंबर बताकर लॉगिन करें। इसी नंबर पर संबंधित अधिकारी आपसे संपर्क करेंगे।"  # S31
 
@@ -182,7 +186,7 @@ def _ask_again(*, row, session_id, message_id, text, audio, audio_path, transcri
     )
 
 
-@router.post("/message", response_model=api.MessageResponse)
+@router.post("/message", response_model=api.MessageResponse, dependencies=[Depends(ratelimit.limiter("message"))])
 def message(
     request: Request,
     session_id: Annotated[UUID4, Form()],
@@ -193,6 +197,8 @@ def message(
     lng: Annotated[float | None, Form(ge=-180, le=180)] = None,
     authorization: Annotated[str | None, Header()] = None,
 ) -> api.MessageResponse:
+    started = time.monotonic()
+    ratelimit.enforce("message_session", str(session_id))  # the protection that a shared network address cannot dodge
     # Step 1: validate input (S04 section 2 step 1)
     problem = api.check_message_inputs(text=text, has_audio=audio is not None, lat=lat, lng=lng)
     if problem:
@@ -354,10 +360,10 @@ def message(
         specs=request.app.state.specs, session=snapshot, turn_result=turn_result, lat=lat, lng=lng
     )
     if turn_result.intent == "information" and schemes.enabled() and result.action == validator.ValidatedAction.OUT_OF_SCOPE:  # S36: real scheme names and official links
-        matched = schemes.find(effective_text)
-        if matched:
+        answer = scheme_answer.reply(effective_text, allow_llm=time.monotonic() - started < SLOW_REQUEST_SECONDS)  # S37: explains the scheme from its official page, or lists names and asks which
+        if answer:
             urgent = info_reply.URGENT_LINE_HI + chr(10) if info_reply.URGENT_LINE_HI in result.reply_text else ""  # keep the safety line
-            result = result.model_copy(update={"reply_text": urgent + info_reply.build_scheme_reply(matched)})
+            result = result.model_copy(update={"reply_text": urgent + answer})
     result = intake.poststep(result=result, pre=pre, specs=request.app.state.specs, lat=lat, lng=lng, row=row, text=effective_text, recent=recent)  # S30/S33: notes, triage questions, location detail, duration
 
     # Step 7b: S31 registration. Filing a complaint needs a logged-in citizen (AUTH_REQUIRED=1): the confirmed draft is KEPT and the client is asked to
@@ -440,7 +446,7 @@ def message(
     )
 
 
-@router.post("/speak", response_model=api.SpeakResponse)
+@router.post("/speak", response_model=api.SpeakResponse, dependencies=[Depends(ratelimit.limiter("speak"))])
 def speak(body: api.SpeakRequest) -> api.SpeakResponse:
     """S17 -- text-to-speech reply (T51). Stateless: no session, no DB write (S17 RULES 1)."""
     try:
@@ -450,7 +456,7 @@ def speak(body: api.SpeakRequest) -> api.SpeakResponse:
     return api.SpeakResponse(audio_base64=audio_base64)
 
 
-@router.get("/status/{complaint_id}", response_model=api.StatusResponse)
+@router.get("/status/{complaint_id}", response_model=api.StatusResponse, dependencies=[Depends(ratelimit.limiter("status"))])
 def status(complaint_id: str) -> api.StatusResponse:
     if not re.fullmatch(api.COMPLAINT_ID_PATTERN, complaint_id):
         raise ApiError(api.ErrorCode.INVALID_COMPLAINT_ID, f"Bad complaint_id: {complaint_id!r}.")

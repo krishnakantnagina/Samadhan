@@ -69,7 +69,7 @@ async function flush() {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
-function load({ micFails = false, recorderFails = false, blobUrls = true, hindiVoice = false, browserVoiceOnly = false } = {}) {
+function load({ micFails = false, recorderFails = false, blobUrls = true, hindiVoice = false, browserVoiceOnly = false, messageReply = null, hangMessage = false } = {}) {
   let now = 0;
   let nextId = 1;
   let timers = [];
@@ -166,9 +166,16 @@ function load({ micFails = false, recorderFails = false, blobUrls = true, hindiV
     fetch: async (url, opts) => {
       if (String(url).endsWith('/api/v1/message')) {
         state.messagePosts.push(opts.body);
-        return { ok: true, json: async () => ({ reply_text: 'ठीक है', transcript: 'नमस्ते' }) };
+        if (hangMessage) {
+          // a server that never answers: only the AbortController signal ends the wait
+          return new Promise((resolve, reject) => opts.signal.addEventListener('abort', () => reject(new Error('aborted'))));
+        }
+        return { ok: true, json: async () => messageReply || ({ reply_text: 'ठीक है', transcript: 'नमस्ते' }) };
       }
-      if (String(url).endsWith('/api/v1/speak')) state.speakCalls = (state.speakCalls || 0) + 1;
+      if (String(url).endsWith('/api/v1/speak')) {
+        state.speakCalls = (state.speakCalls || 0) + 1;
+        state.speakBodies = [...(state.speakBodies || []), opts.body];
+      }
       return { ok: false, json: async () => ({ reply_text: 'no tts in test' }) };
     },
     getComputedStyle: () => ({ color: 'rgb(122, 39, 26)' }),
@@ -180,7 +187,7 @@ function load({ micFails = false, recorderFails = false, blobUrls = true, hindiV
     requestAnimationFrame: (fn) => addTimer(fn, 16, false),
     cancelAnimationFrame: (id) => { timers = timers.filter((t) => t.id !== id); },
     URL: blobUrls ? class extends URL { static createObjectURL() { state.created = (state.created || 0) + 1; return `blob:test-recording-${state.created}`; } static revokeObjectURL(u) { (state.revoked ||= []).push(u); } } : URL,
-    console, Date: { now: () => now }, JSON, Math, Promise, Uint8Array, Set, Error,
+    console, Date: { now: () => now }, JSON, Math, Promise, Uint8Array, Set, Error, AbortController,
   };
   sandbox.window.window = sandbox.window;
   vm.createContext(sandbox);
@@ -432,4 +439,67 @@ test('old voice notes are released from memory: only the latest 8 stay playable'
   const notes = w.messages().filter((m) => m.classes.has('citizen')).map((m) => m.firstChild);
   assert.ok(notes[0].classes.has('vn-expired') && notes[1].classes.has('vn-expired'));
   assert.equal(notes[9].classes.has('vn-expired'), false, 'the newest note is still playable');
+});
+
+
+// --- audit fixes: lazy speech, Hindi card labels, spoken length, request timeout -------------------------------------------------
+
+const byClassAll = (root, c) => findAll(root, (e) => e.classes && e.classes.has(c));
+
+async function typeAndSend(w, text) {
+  const input = byClassAll(w.root, 'input')[0];
+  const composer = byClassAll(w.root, 'composer')[0];
+  input.value = text;
+  composer.dispatch('submit');
+  for (let i = 0; i < 6; i += 1) await flush();
+}
+
+test('a typed reply does NOT call the paid speech service until the citizen taps play', async () => {
+  const w = load();
+  await typeAndSend(w, 'पानी नहीं आ रहा');
+  assert.equal(w.state.speakCalls || 0, 0, 'no /speak request for a reply nobody played');
+  const botNotes = byClassAll(w.root, 'vn-play');
+  assert.ok(botNotes.length >= 1, 'the voice note is still there to tap');
+  botNotes[botNotes.length - 1].dispatch('click');
+  for (let i = 0; i < 6; i += 1) await flush();
+  assert.equal(w.state.speakCalls, 1, 'one request, only after the tap');
+});
+
+test('a reply to the citizen\'s own voice message is still fetched at once', async () => {
+  const w = load();
+  tap(w.mic);
+  await flush(); await flush();
+  w.clock.advance(2000);
+  tap(w.mic);
+  for (let i = 0; i < 6; i += 1) await flush();
+  assert.equal(w.state.speakCalls, 1);
+});
+
+test('the confirm card shows Hindi labels, not internal field names', async () => {
+  const w = load({ messageReply: { reply_text: 'जाँचें', action: 'confirm', summary: { issue_type: 'पानी नहीं', location: 'किलोदा', duration_days: 15, something_new: 'x' } } });
+  await typeAndSend(w, 'पानी नहीं आ रहा');
+  const labels = byClassAll(w.root, 'card-summary')[0] ? findAll(w.root, (e) => e.tag === 'dt').map((e) => e.textContent) : [];
+  assert.deepEqual(labels, ['समस्या', 'स्थान', 'कितने दिनों से', 'something_new']);
+});
+
+test('a long reply is spoken in part, cut at a sentence end, and the rest stays on screen', async () => {
+  const long = 'यह योजना महिलाओं के लिए है। '.repeat(60); // about 1,100 characters
+  const w = load({ messageReply: { reply_text: long } });
+  await typeAndSend(w, 'योजना बताइए');
+  byClassAll(w.root, 'vn-play').pop().dispatch('click');
+  for (let i = 0; i < 6; i += 1) await flush();
+  const spoken = JSON.parse(w.state.speakBodies[0]).text;
+  assert.ok(spoken.length <= 380, `spoken text is ${spoken.length} chars`);
+  assert.ok(spoken.endsWith('पूरी जानकारी स्क्रीन पर लिखी है।'));
+  assert.ok(spoken.includes('।'), 'cut at a sentence end');
+});
+
+test('a server that never answers ends with the Hindi error after the timeout, not endless typing dots', async () => {
+  const w = load({ hangMessage: true });
+  await typeAndSend(w, 'पानी नहीं आ रहा');
+  w.clock.advance(61000);
+  for (let i = 0; i < 8; i += 1) await flush();
+  const errors = byClassAll(w.root, 'error');
+  assert.ok(errors.length >= 1, 'an error message is shown');
+  assert.equal(byClassAll(w.root, 'input')[0].disabled, false, 'the citizen can type again');
 });

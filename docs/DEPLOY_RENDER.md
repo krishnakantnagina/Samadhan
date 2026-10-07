@@ -27,7 +27,7 @@ what makes the real-Android test (T52 box "b") possible without your laptop.
    | Root Directory | **leave empty** (the API needs `specs/` at the repo root, S22 D-S22-1) |
    | Dockerfile Path | `./Dockerfile` (the default) |
    | Instance Type | Free |
-   | Health Check Path | `/health` |
+   | Health Check Path | `/health/ready` (checks the database too; `/health` only checks the process) |
 3. **Environment** → add these (names exactly):
    `SARVAM_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `LLM_PROVIDER` (`groq`),
    `GROQ_MODEL`, `GEMINI_MODEL`, `SARVAM_MODEL`, `SARVAM_TTS_MODEL`, `SARVAM_TTS_SPEAKER`, `GROQ_WHISPER_MODEL`
@@ -35,7 +35,8 @@ what makes the real-Android test (T52 box "b") possible without your laptop.
    `ALLOWED_ORIGINS` = `http://localhost:5500` (you change it in step 3). Do not set `PORT`: Render sets it and the Dockerfile reads it.
 4. **Create Web Service.** The first build takes several minutes. When it says Live, note the URL, e.g.
    `https://samadhan-api.onrender.com`.
-5. Check: open `<backend-url>/health` → `{"status":"ok"}` and `<backend-url>/docs`.
+5. Check: open `<backend-url>/health/ready` → `{"status":"ok","database":"ok"}`. The API docs (`/docs`) are hidden on Render on purpose; set `ENABLE_API_DOCS=1` to see them.
+   Also set `TRUST_FORWARDED_FOR=1` (Render is a proxy; the rate limits need the visitor's own address) and `TTS_CACHE_SIZE=300`. Full list: `docs/GO_LIVE_CHECKLIST.md`.
 
 ## 2. Website: Static Site
 1. **New +** → **Static Site** → same repo.

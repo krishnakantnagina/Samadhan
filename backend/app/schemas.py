@@ -79,6 +79,7 @@ class ErrorCode(StrEnum):
     AUTH_EXPIRED = "AUTH_EXPIRED"  # S31: token unknown, expired or logged out: log in again
     AUTH_INVALID_CODE = "AUTH_INVALID_CODE"  # S31: wrong or expired PIN/OTP
     AUTH_RATE_LIMITED = "AUTH_RATE_LIMITED"  # S31: too many attempts
+    RATE_LIMITED = "RATE_LIMITED"  # too many requests from one address or chat session (app/ratelimit.py)
 
 
 ERROR_STATUS: dict[ErrorCode, int] = {
@@ -93,6 +94,7 @@ ERROR_STATUS: dict[ErrorCode, int] = {
     ErrorCode.AUTH_EXPIRED: 401,
     ErrorCode.AUTH_INVALID_CODE: 401,
     ErrorCode.AUTH_RATE_LIMITED: 429,
+    ErrorCode.RATE_LIMITED: 429,
 }
 
 # Citizen-safe: no stack traces, keys, or internal names (S01 section 9, rule 3).
@@ -108,6 +110,7 @@ ERROR_REPLY_TEXT: dict[ErrorCode, str] = {
     ErrorCode.AUTH_EXPIRED: "आपका लॉगिन समाप्त हो गया है। कृपया दोबारा लॉगिन करें।",
     ErrorCode.AUTH_INVALID_CODE: "कोड सही नहीं है। कृपया दोबारा प्रयास करें।",
     ErrorCode.AUTH_RATE_LIMITED: "बहुत ज़्यादा प्रयास हो गए हैं। कृपया कुछ देर बाद दोबारा प्रयास करें।",
+    ErrorCode.RATE_LIMITED: "बहुत ज़्यादा संदेश भेजे गए हैं। कृपया एक मिनट रुककर दोबारा प्रयास करें।",
 }
 
 
@@ -270,6 +273,8 @@ _FILLER_WORDS = frozenset(
     }
 )  # fmt: skip
 _MAX_COMMAND_WORDS = 6
+# One everyday word that also means "again" / "begin" ("दोबारा" after a misheard turn means "say it again") must not wipe the draft: it needs a second word.
+_NOT_ALONE = frozenset({"शुरू", "शुरु", "दोबारा"})
 _PUNCTUATION = str.maketrans({c: " " for c in ",.।!?;:()-\"'"})
 
 
@@ -282,7 +287,7 @@ def _command_from_words(text: str) -> Command | None:
     if cancel and not restart and all(w in _CANCEL_WORDS or w in _FILLER_WORDS for w in words):
         return Command.CANCEL
     if restart and not cancel and all(w in _RESTART_WORDS or w in _FILLER_WORDS for w in words):
-        return Command.RESTART
+        return None if len(words) == 1 and words[0] in _NOT_ALONE else Command.RESTART
     return None
 
 

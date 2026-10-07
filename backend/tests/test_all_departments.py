@@ -94,8 +94,9 @@ def test_few_services_are_listed_in_full_as_before():
 
 
 def test_common_words_do_not_pull_unrelated_services_into_the_prompt():
-    from app import turn_engine as te
     import re as _re
+
+    from app import turn_engine as te
 
     session = te.SessionState(service_id=None, collected_fields={}, awaiting_confirmation=False)
     text = te._services_text(session, SPECS, "हमारे गाँव में मारसाब नहीं आ रहा")

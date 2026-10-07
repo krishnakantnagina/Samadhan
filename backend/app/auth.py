@@ -23,17 +23,18 @@ import logging
 import os
 import re
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 from app import schemas
 
 logger = logging.getLogger(__name__)
 
 DEMO_PIN = "5555"
-PHONE_RE = re.compile(r"^\d{10}$")
+PHONE_RE = re.compile(r"^[6-9]\d{9}$")  # Indian mobile numbers start with 6, 7, 8 or 9
 
 
 class AuthError(Exception):
@@ -115,6 +116,7 @@ class AuthStore(Protocol):
     def get_challenge(self, challenge_id: str) -> dict[str, Any] | None: ...
     def bump_attempts(self, challenge_id: str) -> None: ...
     def delete_challenge(self, challenge_id: str) -> None: ...
+    def delete_expired_challenges(self, before: datetime) -> None: ...
     def count_challenges_since(self, phone: str, since: datetime) -> int: ...
     def create_session(self, user_id: str, token_hash: str, idle_expires_at: datetime, absolute_expires_at: datetime) -> str: ...
     def get_session(self, token_hash: str) -> dict[str, Any] | None: ...
@@ -161,6 +163,10 @@ class MemoryAuthStore:
     def delete_challenge(self, challenge_id: str) -> None:
         self.challenges.pop(challenge_id, None)
 
+    def delete_expired_challenges(self, before: datetime) -> None:
+        for cid in [c for c, v in self.challenges.items() if v["expires_at"] < before]:
+            del self.challenges[cid]
+
     def count_challenges_since(self, phone: str, since: datetime) -> int:
         return sum(1 for c in self.challenges.values() if c["phone"] == phone and c["created_at"] >= since)
 
@@ -184,7 +190,7 @@ class MemoryAuthStore:
 
 
 def _dt(value: Any) -> datetime:
-    return value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    return value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
 
 
 class SupabaseAuthStore:
@@ -221,6 +227,9 @@ class SupabaseAuthStore:
 
     def delete_challenge(self, challenge_id: str) -> None:
         self.c.table("auth_challenges").delete().eq("id", challenge_id).execute()
+
+    def delete_expired_challenges(self, before: datetime) -> None:
+        self.c.table("auth_challenges").delete().lt("expires_at", before.isoformat()).execute()
 
     def count_challenges_since(self, phone: str, since: datetime) -> int:
         return int(self.c.table("auth_challenges").select("id", count="exact").eq("phone", phone).gte("created_at", since.isoformat()).execute().count or 0)
@@ -274,6 +283,11 @@ class AuthService:
     def start(self, raw_phone: str) -> StartResult:
         phone = normalise_phone(raw_phone)
         now = self._now()
+        if secrets.randbelow(20) == 0:  # now and then: forget challenges that expired a day ago (nobody finished them), so the table cannot grow for ever
+            try:
+                self.store.delete_expired_challenges(now - timedelta(days=1))
+            except Exception:  # noqa: BLE001 -- housekeeping must never block a login
+                logger.warning("auth: could not purge expired challenges")
         if self.store.count_challenges_since(phone, now - timedelta(hours=1)) >= self.max_starts:
             raise AuthError(schemas.ErrorCode.AUTH_RATE_LIMITED, "Too many attempts. Try again later.")
         self.provider.start(phone)

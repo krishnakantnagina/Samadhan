@@ -21,7 +21,7 @@ DATA = DEV / "pgdata"
 PORT = os.environ.get("LOCAL_PG_PORT", "5544")
 DB = "samadhan_scratch"
 FILES = ["schema.sql", "seed.sql", "seed_departments.sql", "migrations/002_registration_and_location.sql",
-         "migrations/003_human_evaluation_cutover.sql", "migrations/004_all_department_offices.sql"]
+         "migrations/003_human_evaluation_cutover.sql", "migrations/004_all_department_offices.sql", "migrations/005_district_offices.sql", "seed_demo_district_offices.sql"]
 
 
 def pg_bin() -> Path:

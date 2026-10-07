@@ -11,6 +11,7 @@ from dashboard.cm import area, search as S, theme
 from dashboard.cm import registry as R
 from dashboard.cm import ui
 from dashboard.cm.departments import ALL_DEPARTMENTS
+from dashboard import safe
 
 DEMO_STATUSES = ["new", "in_progress", "resolved", "needs_review"]
 
@@ -25,9 +26,9 @@ def demo_ticket_table(ctx, df: pd.DataFrame, key: str) -> None:
     row = df.iloc[rows[0]]
     st.divider()
     st.subheader(row["complaint_id"])
-    st.write(f"**Issue:** {row.get('issue', '-')}  ·  **District:** {row.get('district', '-')} ({row.get('division', '-')})  ·  **Area:** {row.get('area_type', '-')}")
-    st.write(f"**Department:** {row['department']}  ·  **Office:** {row['office_name']}  ·  **Location precision:** {row.get('location_quality', '-')}")
-    st.write(f"**Summary:** {row['summary_en']}")
+    st.write(f"**Issue:** {safe.md(row.get('issue', '-'))}  ·  **District:** {safe.md(row.get('district', '-'))} ({safe.md(row.get('division', '-'))})  ·  **Area:** {safe.md(row.get('area_type', '-'))}")
+    st.write(f"**Department:** {safe.md(row['department'])}  ·  **Office:** {safe.md(row['office_name'])}  ·  **Location precision:** {safe.md(row.get('location_quality', '-'))}")
+    st.write(f"**Summary:** {safe.md(row['summary_en'])}")
     st.caption(f"Created {row['created_at']}  ·  last update {row['updated_at']}")
     store = st.session_state.get("demo_df")
     if store is None:
@@ -150,7 +151,7 @@ def page_search(ctx) -> None:
     if not groups:
         st.warning("Nothing found. Try fewer words, or the Hindi or English form of the word.")
         return
-    st.caption(f"{sum(len(v) for v in groups.values())} result(s) for '{q}'")
+    st.caption(f"{sum(len(v) for v in groups.values())} result(s) for '{safe.md(q)}'")
     labels = {"department": "Departments", "service": "Services", "scheme": "Schemes", "district": "Districts", "office": "Sub-offices", "ticket": "Tickets"}
     for kind in S.KINDS:
         hits = groups.get(kind)
@@ -160,7 +161,7 @@ def page_search(ctx) -> None:
         for i, h in enumerate(hits):
             e = h.entry
             left, right = st.columns([6, 1])
-            left.markdown(f'<div class="cm-hit"><span class="k">{kind}</span><div class="t">{e.title}</div><div class="s">{e.subtitle}</div></div>', unsafe_allow_html=True)
+            left.markdown(f'<div class="cm-hit"><span class="k">{safe.h(kind)}</span><div class="t">{safe.h(e.title)}</div><div class="s">{safe.h(e.subtitle)}</div></div>', unsafe_allow_html=True)
             if ctx.nav and right.button("Open", key=f"open-{kind}-{i}-{e.ref}"):
                 if kind == "ticket":
                     _go(ctx, "tickets", ticket_q=e.ref)

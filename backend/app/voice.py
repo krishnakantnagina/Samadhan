@@ -39,7 +39,7 @@ class VoiceUnavailable(RuntimeError):
 @dataclass(frozen=True)
 class VoiceResult:
     transcript: str  # possibly empty -- not a failure, S01 D-A6
-    audio_path: str
+    audio_path: str | None  # None when the recording could not be stored (the citizen is still understood)
     plain_hindi: str | None = None  # S32: standard-Hindi version for officers (router pipeline only)
     provider: str | None = None  # S32: which reader produced it (router pipeline only)
 
@@ -97,7 +97,7 @@ def _groq_whisper(audio_bytes: bytes, content_type: str, config: VoiceConfig) ->
 
 
 def _transcribe_with_router(
-    audio_bytes: bytes, content_type: str, audio_path: str, context: str | None
+    audio_bytes: bytes, content_type: str, audio_path: str | None, context: str | None
 ) -> VoiceResult:
     """S32: Gemini-first reader with rate limiting, breakers, retries and fallback (app/asr)."""
     try:
@@ -122,7 +122,11 @@ def transcribe(
     context: str | None = None,
 ) -> VoiceResult:
     client = client or get_client()
-    audio_path = _upload(audio_bytes, content_type, session_id, message_id, client=client)
+    try:
+        audio_path = _upload(audio_bytes, content_type, session_id, message_id, client=client)
+    except Exception as exc:  # noqa: BLE001 -- storage down: the citizen's words matter more than the recording (audit M7)
+        logger.warning("audio upload failed (%s): transcribing without storing the recording", type(exc).__name__)
+        audio_path = None
 
     if os.environ.get("ASR_PIPELINE", "legacy").strip().lower() == "router":
         return _transcribe_with_router(audio_bytes, content_type, audio_path, context)

@@ -18,16 +18,22 @@ from dashboard.config import get_dashboard_config
 from dashboard.db import get_client
 from dashboard.gov_catalogue import department_coverage, load_services
 from dashboard.labels import display_field, intake_notes
+from dashboard.safe import md, tel_link
+from dashboard.throttle import LOGIN_THROTTLE, locked_message
 from dashboard.table_state import selected_row, table_key
 from dashboard.map_view import build_map, issue_label, legend_markdown, office_name, split_points
 from dashboard.tickets import (
     ReassignError,
     get_ticket_detail,
+    count_tickets,
     list_all_offices,
+    list_events,
     list_map_points,
     list_routing_corrections,
     list_tickets,
     reassign_ticket,
+    record_event,
+    truncation_notice,
     update_status,
 )
 
@@ -44,6 +50,11 @@ def _cached_tickets() -> pd.DataFrame:
     rows = list_tickets()
     df = pd.json_normalize(rows)
     return df.rename(columns={"offices.office_name": "office_name", "offices.level": "office_level"})
+
+
+@st.cache_data(ttl=30)
+def _cached_ticket_count() -> int | None:
+    return count_tickets()
 
 
 @st.cache_data(ttl=30)
@@ -167,17 +178,37 @@ def _render_structure_tab(df: pd.DataFrame) -> None:
     ui_table(found, use_container_width=True, hide_index=True)
 
 
+def _actor() -> str:
+    """Who is acting, for the audit trail: the signed-in CM-office account, else the shared officer login."""
+    account = st.session_state.get("cm_account")
+    return account.username if account is not None else ("officer" if st.session_state.get("authenticated") else "unknown")
+
+
+def _audit_once(complaint_id: str, action: str, detail: str | None = None) -> None:
+    """Record a view once per browser session and ticket (Streamlit reruns the page on every click, which would flood the trail)."""
+    seen = st.session_state.setdefault("audited_views", set())
+    if (complaint_id, action) not in seen:
+        seen.add((complaint_id, action))
+        record_event(complaint_id, _actor(), action, detail)
+
+
 def _require_login() -> None:
     if st.session_state.get("authenticated"):
         return
     st.title("Samadhan — Officer Dashboard")
     password = st.text_input("Password", type="password")
     if st.button("Log in"):
+        wait = LOGIN_THROTTLE.seconds_locked("officer")
+        if wait:
+            st.error(locked_message(wait))
+            st.stop()
         config = get_dashboard_config()  # raises at startup if DASHBOARD_PASSWORD is unset
-        if secrets.compare_digest(password, config.dashboard_password):
+        if secrets.compare_digest(password.encode(), config.dashboard_password.encode()):
+            LOGIN_THROTTLE.record_success("officer")
             st.session_state["authenticated"] = True
             st.rerun()
         else:
+            LOGIN_THROTTLE.record_failure("officer")
             st.error("Wrong password.")
     st.stop()
 
@@ -189,7 +220,7 @@ def _render_audio(audio_path: str) -> None:
         signed = get_client().storage.from_("audio").create_signed_url(path=audio_path, expires_in=300)
         st.audio(signed["signedURL"])
     except Exception as exc:  # noqa: BLE001 -- a bad/missing audio file must not break the panel
-        st.warning(f"Could not load audio: {exc}")
+        st.warning(f"Could not load audio: {type(exc).__name__}")
 
 
 def _render_detail(
@@ -209,12 +240,13 @@ def _render_detail(
         return
 
     st.subheader(detail["complaint_id"])
+    _audit_once(detail["complaint_id"], "viewed_ticket")
 
     for name, value in (detail["fields"] or {}).items():
         if name.startswith("_"):  # internal notes (S30), shown below
             continue
-        label, display = display_field(name, value)
-        st.write(f"**{label}:** {display}")
+        label, display = display_field(name, value, detail.get("service_id"))
+        st.write(f"**{label}:** {md(display)}")
     notes = intake_notes((detail["fields"] or {}).get("_intake"))
     if notes:
         with st.expander("AI intake notes (why this ticket is here)", expanded=detail["status"] == "needs_review"):
@@ -224,12 +256,13 @@ def _render_detail(
         st.write(f"**GPS:** {detail['lat']}, {detail['lng']}")
     phone = (detail.get("users") or {}).get("phone")
     if phone:  # S31: the registered citizen; the officer handling this ticket calls back on this number
-        st.markdown(f"**📞 Citizen phone (call back):** [{phone}](tel:{phone})")
-    place = [f"district {detail['district']}" if detail.get("district") else None, f"tehsil {detail['tehsil']}" if detail.get("tehsil") else None,
-             f"near {detail['nearest_place']}" if detail.get("nearest_place") else None]
+        _audit_once(detail["complaint_id"], "viewed_phone")  # who looked at a citizen's number is on record
+        st.markdown(f"**📞 Citizen phone (call back):** {tel_link(phone) or md(phone)}")
+    place = [f"district {md(detail['district'])}" if detail.get("district") else None, f"tehsil {md(detail['tehsil'])}" if detail.get("tehsil") else None,
+             f"near {md(detail['nearest_place'])}" if detail.get("nearest_place") else None]
     if any(place) or detail.get("location_precision"):
-        st.write("**Area:** " + (", ".join(p for p in place if p) or "not given") + (f"  ·  precision: {detail['location_precision']}" if detail.get("location_precision") else ""))
-    st.write(f"**Original message:** {detail['original_text']}")
+        st.write("**Area:** " + (", ".join(p for p in place if p) or "not given") + (f"  ·  precision: {md(detail['location_precision'])}" if detail.get("location_precision") else ""))
+    st.write(f"**Original message:** {md(detail['original_text'])}")
     st.write(f"**Routing confidence:** {detail['routing_confidence']}")
 
     if detail["audio_path"]:
@@ -243,7 +276,7 @@ def _render_detail(
         "Status", STATUSES, index=STATUSES.index(detail["status"]), key=f"status-{key_prefix}"
     )
     if st.button("Save status", key=f"save-status-{key_prefix}"):
-        update_status(detail["complaint_id"], new_status)  # S14 RULES 1: only tickets.status
+        update_status(detail["complaint_id"], new_status, actor=_actor(), previous=detail["status"])  # S14 RULES 1: only tickets.status
         st.cache_data.clear()
         st.success("Status updated.")
         st.rerun()
@@ -271,6 +304,8 @@ def _render_detail(
                     from_office_id=detail["office_id"],
                     to_office_id=to_office_id,
                     reason=reason or None,
+                    actor=_actor(),
+                    complaint_id=detail["complaint_id"],
                 )
             except ReassignError as exc:
                 st.error(str(exc))  # S02 ERRORS: reassign to same office -> rejected
@@ -279,14 +314,20 @@ def _render_detail(
                 st.success("Reassigned.")
                 st.rerun()
 
+    events = list_events(detail["complaint_id"])
+    if events:
+        with st.expander(f"Activity on this ticket ({len(events)})"):
+            for e in events:
+                st.write(f"- {md(e['created_at'])}: **{md(e['actor'])}** {md(e['action'])}" + (f" ({md(e['detail'])})" if e.get("detail") else ""))
+
     corrections = list_routing_corrections(ticket_id)
     if corrections:
         st.write("**Reassignment history:**")
         for c in corrections:
             from_name = office_lookup.get(c["from_office_id"], f"#{c['from_office_id']}")
             to_name = office_lookup.get(c["to_office_id"], f"#{c['to_office_id']}")
-            note = f" — {c['reason']}" if c["reason"] else ""
-            st.write(f"- {c['created_at']}: {from_name} → {to_name}{note}")
+            note = f" — {md(c['reason'])}" if c["reason"] else ""
+            st.write(f"- {c['created_at']}: {md(from_name)} → {md(to_name)}{note}")
 
 
 def _ticket_table(df: pd.DataFrame, *, key: str, **detail_options) -> None:
@@ -324,6 +365,10 @@ def main() -> None:
     if df.empty:
         st.info("No tickets yet.")
         return
+
+    notice = truncation_notice(len(df), _cached_ticket_count())
+    if notice:
+        st.warning(notice)
 
     _render_department_counts(df)
 

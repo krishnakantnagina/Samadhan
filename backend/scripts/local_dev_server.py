@@ -30,11 +30,11 @@ PG_DSN = f"host=127.0.0.1 port={PG_PORT} dbname=samadhan_scratch user=postgres"
 for _name in ("SUPABASE_URL", "SUPABASE_SERVICE_KEY", "SUPABASE_ANON_KEY", "SUPABASE_DB_URL"):
     os.environ[_name] = "http://127.0.0.1:1" if _name == "SUPABASE_URL" else "local-dev-dummy"
 
-import psycopg  # noqa: E402
-from postgrest.exceptions import APIError  # noqa: E402
-from psycopg import sql  # noqa: E402
-from psycopg.rows import dict_row  # noqa: E402
-from psycopg.types.json import Jsonb  # noqa: E402
+import psycopg
+from postgrest.exceptions import APIError
+from psycopg import sql
+from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 
 class _Result:
@@ -192,7 +192,7 @@ class LocalClient:
 
 def main() -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    import app.db as db
+    from app import db
 
     client = LocalClient()
     db.get_client = lambda: client  # every `from app.db import get_client` after this point gets the local client

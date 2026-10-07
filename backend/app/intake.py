@@ -194,7 +194,8 @@ def _weak_location(spec: ServiceSpec, fields: dict[str, Any]) -> bool:
     """True when the place the citizen named does not resolve to an office (so a person would have to guess the district)."""
     try:
         location = next(f for f in spec.fields if f.type == "location")
-        match = jurisdiction.resolve_office(spec.department, None, None, fields.get(location.name), spec.routing.max_match_distance_km)
+        loc = (fields.get(META_KEY) or {}).get("location_details") or {}
+        match = jurisdiction.resolve_office(spec.department, None, None, fields.get(location.name), spec.routing.max_match_distance_km, district=loc.get("district"))
         return match.matched_via == "fallback" or match.confidence < spec.routing.min_confidence
     except Exception:  # noqa: BLE001 -- a database hiccup must never block the citizen: skip the extra question
         return False

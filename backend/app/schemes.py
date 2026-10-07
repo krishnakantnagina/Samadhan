@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 SCHEMES_FILE = Path(__file__).resolve().parents[2] / "specs" / "registry" / "schemes.csv"
 INDEX_FILE = SCHEMES_FILE.with_name("schemes_index.json")
+DETAILS_FILE = SCHEMES_FILE.with_name("scheme_details.json")  # official page text per scheme (S37), built by scripts/build_scheme_details.py
 EMBED_MODEL = "gemini-embedding-001"
 EMBED_DIM = 768
 RERANK_TIMEOUT_SECONDS = 6.0
@@ -121,6 +122,24 @@ class Scheme:
     department: str
     url: str
 
+    @property
+    def scheme_id(self) -> str | None:
+        m = re.search(r"Schemeid=(\d+)", self.url)
+        return m.group(1) if m else None
+
+
+@lru_cache(maxsize=1)
+def _details() -> dict[str, dict]:
+    try:
+        return json.loads(DETAILS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def detail_for(scheme: Scheme) -> dict | None:
+    """What the official page says about this scheme (objective, eligibility, amount, where to apply ...), or None."""
+    return _details().get(scheme.scheme_id or "")
+
 
 def enabled() -> bool:
     return os.environ.get("SCHEME_LOOKUP", "").strip().lower() in ("1", "true", "yes", "on")
@@ -174,7 +193,10 @@ def find_words(question: str, *, limit: int = MAX_RESULTS, path: str | None = No
 
 
 def doc_text(scheme: Scheme) -> str:
-    return f"{scheme.name} ({scheme.department})"
+    """What is embedded for a scheme: name and department, plus the start of its objective and who it is for, so a question about the PURPOSE finds it."""
+    detail = detail_for(scheme) or {}
+    extra = " ".join(part for part in (detail.get("objective", "")[:300], detail.get("kind", ""), detail.get("groups", "")) if part)
+    return f"{scheme.name} ({scheme.department}) {extra}".strip()
 
 
 def normalise(vec: Sequence[float]) -> list[float]:
@@ -183,7 +205,11 @@ def normalise(vec: Sequence[float]) -> list[float]:
 
 
 def csv_hash(path: Path = SCHEMES_FILE) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    """Fingerprint of everything the index was built from (the scheme list and the details file): change either and the index is stale."""
+    digest = hashlib.sha256(path.read_bytes())
+    if DETAILS_FILE.exists():
+        digest.update(DETAILS_FILE.read_bytes())
+    return digest.hexdigest()
 
 
 @lru_cache(maxsize=1)

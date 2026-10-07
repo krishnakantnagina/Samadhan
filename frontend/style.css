@@ -1157,3 +1157,8 @@ body[data-hero] #samadhan-widget-panel {
   background: transparent; color: var(--header-text); font-size: 0.8rem; cursor: pointer; white-space: nowrap;
 }
 #samadhan-widget-auth:hover { background: rgba(255, 255, 255, 0.15); }
+
+/* privacy notice link and the consent line in the greeting (audit H2) */
+.privacy-link { text-align: center; font-size: 0.8rem; margin: 0.8rem 0 0.4rem; opacity: 0.85; }
+.privacy-link a, .greeting-privacy a { color: inherit; text-decoration: underline; }
+.greeting-privacy { font-size: 0.8rem; margin: 0.6rem 0 0; opacity: 0.85; }

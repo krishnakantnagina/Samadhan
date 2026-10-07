@@ -16,6 +16,26 @@
   const MAX_RECORD_MS = 60000; // tap-to-record stops by itself after one minute
   const WAVE_BARS = 40;
   const MIC_IDLE_CAPTION = '🎤 बोलने के लिए माइक दबाएँ · Tap to speak';
+  const MESSAGE_TIMEOUT_MS = 60000; // a slow server must not leave the citizen waiting for ever (the backend itself may take ~45 s on a bad day)
+  const SPEAK_TIMEOUT_MS = 25000;
+  const MAX_SPOKEN_CHARS = 320; // about 20 s of speech and 6-8 s to generate (Sarvam: 600 characters took 15 s and played 41 s); a long answer is read in part and shown in full on screen
+  // The confirm card's keys are the spec's field names; the citizen should read Hindi labels (the full list of names used by every department).
+  const SUMMARY_LABELS = {
+    issue_type: 'समस्या',
+    location: 'स्थान',
+    duration_days: 'कितने दिनों से',
+    address_detail: 'पता / लैंडमार्क',
+    description: 'शिकायत',
+    institution_name: 'संस्था का नाम',
+    school_name: 'स्कूल का नाम',
+  };
+
+  // fetch() that gives up after `ms` (a hung connection used to leave the typing dots on for ever).
+  function fetchWithTimeout(url, options, ms) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+  }
 
   function getSessionId() {
     let id = sessionStorage.getItem(SESSION_KEY);
@@ -214,11 +234,15 @@
   }
 
   function spokenTextOf(text) {
-    return text
+    const full = text
       .split('\n')
       .filter((line) => !/https?:\/\//.test(line))
       .join(' ')
       .trim();
+    if (full.length <= MAX_SPOKEN_CHARS) return full;
+    const cut = full.slice(0, MAX_SPOKEN_CHARS);
+    const stop = Math.max(cut.lastIndexOf('।'), cut.lastIndexOf('.'), cut.lastIndexOf('?'));
+    return `${stop > MAX_SPOKEN_CHARS * 0.5 ? cut.slice(0, stop + 1) : cut} पूरी जानकारी स्क्रीन पर लिखी है।`;
   }
 
   function appendMessage(role, text) {
@@ -314,11 +338,11 @@
     try {
       let response;
       try {
-        response = await fetch(`${API_BASE}/api/v1/speak`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
-        });
+        response = await fetchWithTimeout(
+          `${API_BASE}/api/v1/speak`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) },
+          SPEAK_TIMEOUT_MS,
+        );
       } catch {
         throw new Error(GENERIC_ERROR);
       }
@@ -425,9 +449,15 @@
       }
     });
 
-    load()
-      .then((a) => (autoPlay ? a.play() : undefined))
-      .catch(() => {}); // autoplay blocked or TTS down: the button is the fallback
+    // Only a reply to the citizen's OWN voice message is fetched and played at once. A typed reply costs a paid speech request only if the citizen taps play
+    // (it used to be requested for every reply, played or not, which spent the speech credit).
+    if (autoPlay) {
+      load()
+        .then((a) => a.play())
+        .catch(() => {}); // autoplay blocked or TTS down: the button is the fallback
+    } else {
+      btn.textContent = '▶';
+    }
     return box;
   }
 
@@ -440,7 +470,7 @@
     const dl = document.createElement('dl');
     for (const [key, value] of Object.entries(summary || {})) {
       const dt = document.createElement('dt');
-      dt.textContent = key;
+      dt.textContent = SUMMARY_LABELS[key] || key;
       const dd = document.createElement('dd');
       dd.textContent = value;
       dl.appendChild(dt);
@@ -505,11 +535,11 @@
     let response;
     try {
       // S31: the saved login (if any) rides along; the backend only needs it when a complaint is about to be filed.
-      response = await fetch(`${API_BASE}/api/v1/message`, {
-        method: 'POST',
-        body: form,
-        headers: window.SamadhanAuth ? window.SamadhanAuth.headers() : {},
-      });
+      response = await fetchWithTimeout(
+        `${API_BASE}/api/v1/message`,
+        { method: 'POST', body: form, headers: window.SamadhanAuth ? window.SamadhanAuth.headers() : {} },
+        MESSAGE_TIMEOUT_MS,
+      );
     } catch {
       throw new Error(GENERIC_ERROR);
     }
@@ -1065,6 +1095,17 @@
     );
     greetingLine(en, 'You can ', 'speak your message or type it', ". We'll do our best to help you.");
 
+    // Notice and consent (audit H2): said before anything is sent. Continuing to use the chat is the agreement; the page says what is used and who handles it.
+    const privacy = document.createElement('p');
+    privacy.className = 'greeting-privacy';
+    privacy.appendChild(document.createTextNode('आगे बढ़ने पर आप सहमत हैं कि आपकी बात AI सेवाओं से समझी जाएगी। '));
+    const privacyLink = document.createElement('a');
+    privacyLink.href = 'privacy.html';
+    privacyLink.target = '_blank';
+    privacyLink.rel = 'noopener';
+    privacyLink.textContent = 'गोपनीयता नोटिस · Privacy notice';
+    privacy.appendChild(privacyLink);
+
     const listenBtn = document.createElement('button');
     listenBtn.type = 'button';
     listenBtn.className = 'greeting-listen-btn';
@@ -1074,6 +1115,7 @@
     card.appendChild(hi);
     card.appendChild(divider);
     card.appendChild(en);
+    card.appendChild(privacy);
     card.appendChild(listenBtn);
 
     const spokenHi =

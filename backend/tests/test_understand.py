@@ -48,7 +48,7 @@ def test_off_by_default_and_without_a_key(monkeypatch):
 def test_parses_a_good_answer_and_sends_key_in_a_header_and_the_message_in_the_prompt():
     seen = {}
 
-    def post(url, headers, json, timeout):  # noqa: A002
+    def post(url, headers, json, timeout):
         seen.update(url=url, headers=headers, prompt=json["contents"][0]["parts"][0]["text"], mime=json["generationConfig"]["responseMimeType"])
         return gemini_answer()
 

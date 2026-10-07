@@ -214,3 +214,92 @@ def test_other_departments_never_fall_back():
     legacy = {**DISTRICT, "id": 7, "department": "General Triage"}
     with pytest.raises(JurisdictionError):
         resolve_office(DEPARTMENT, None, None, None, 5, client=FakeOfficesClient([legacy]))
+
+
+# --- district-aware routing (migration 005) ---------------------------------------------------------
+
+
+def in_district(row: dict, district: str | None) -> dict:
+    return {**row, "district": district}
+
+
+def multi_district_offices() -> list[dict]:
+    """The same village name in two districts, plus a district desk for each, and a default desk with no district."""
+    return with_department(
+        [
+            in_district(ward(1, "Rampur"), "Bhopal"),
+            in_district(ward(2, "Rampur"), "Rewa"),
+            in_district({**DISTRICT, "id": 10, "office_name": "Bhopal desk"}, "Bhopal"),
+            in_district({**DISTRICT, "id": 11, "office_name": "Rewa desk", "name": "Rewa"}, "Rewa"),
+        ]
+    )
+
+
+def test_a_place_name_is_matched_only_inside_the_citizens_district():
+    client = FakeOfficesClient(multi_district_offices())
+    match = resolve_office(DEPARTMENT, None, None, "Rampur", 5.0, district="Rewa", client=client)
+    assert (match.office.id, match.matched_via) == (2, "name")  # the Rewa ward, not the Bhopal one
+
+
+def test_the_districts_own_office_is_used_when_no_ward_matches():
+    client = FakeOfficesClient(multi_district_offices())
+    match = resolve_office(DEPARTMENT, None, None, "somewhere unknown", 5.0, district="Rewa", client=client)
+    assert (match.office.id, match.matched_via, match.confidence) == (11, "district", 0.7)
+
+
+def test_district_names_are_compared_ignoring_case_and_spaces():
+    client = FakeOfficesClient(multi_district_offices())
+    match = resolve_office(DEPARTMENT, None, None, None, 5.0, district="  rewa ", client=client)
+    assert match.office.id == 11
+
+
+def test_a_district_without_an_office_falls_back_to_the_default_desk_for_review():
+    client = FakeOfficesClient(multi_district_offices())
+    match = resolve_office(DEPARTMENT, None, None, "Rampur", 5.0, district="Rajgarh", client=client)
+    assert match.matched_via == "fallback" and match.confidence == 0.0
+
+
+def test_unknown_district_in_a_multi_district_department_never_matches_a_name():
+    client = FakeOfficesClient(multi_district_offices())
+    match = resolve_office(DEPARTMENT, None, None, "Rampur", 5.0, client=client)  # no district given
+    assert match.matched_via == "fallback"  # "Rampur" exists in two districts: do not guess
+
+
+def test_gps_still_finds_the_nearest_ward_when_the_district_is_unknown():
+    rows = with_department(
+        [
+            in_district(ward(1, "Rampur", centroid_lat=23.20, centroid_lng=77.40), "Bhopal"),
+            in_district(ward(2, "Rampur", centroid_lat=24.53, centroid_lng=81.30), "Rewa"),
+            in_district({**DISTRICT, "id": 10}, "Bhopal"),
+            in_district({**DISTRICT, "id": 11, "name": "Rewa"}, "Rewa"),
+        ]
+    )
+    match = resolve_office(DEPARTMENT, 24.531, 81.301, None, 5.0, client=FakeOfficesClient(rows))
+    assert (match.office.id, match.matched_via) == (2, "gps")
+
+
+def test_offices_without_a_district_value_behave_as_before_for_any_district():
+    # an older database (migration 005 not applied): rows carry no district, the citizen still names one
+    rows = with_department([ward(1, "Misrod"), DISTRICT])
+    match = resolve_office(DEPARTMENT, None, None, "Misrod", 5.0, district="Bhopal", client=FakeOfficesClient(rows))
+    assert (match.office.id, match.matched_via) == (1, "name")
+
+
+def test_a_database_without_the_district_column_still_routes():
+    rows = with_department([ward(1, "Misrod"), DISTRICT])
+
+    class NoDistrictColumn(FakeOfficesClient):
+        def table(self, name):
+            query = super().table(name)
+            real_select = query.select
+
+            def select(cols="", *_):
+                if "district" in cols.split(","):
+                    raise RuntimeError("column offices.district does not exist")
+                return real_select(cols)
+
+            query.select = select
+            return query
+
+    match = resolve_office(DEPARTMENT, None, None, "Misrod", 5.0, district="Bhopal", client=NoDistrictColumn(rows))
+    assert match.office.id == 1
