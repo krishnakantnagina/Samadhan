@@ -51,4 +51,4 @@ jobs:
       - name: Syntax check
         run: node --check widget.js && node --check auth.js && node --check status.js
       - name: Tests
-        run: node --test tests/
+        run: node --test tests/*.test.mjs

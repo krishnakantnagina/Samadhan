@@ -206,9 +206,10 @@ def normalise(vec: Sequence[float]) -> list[float]:
 
 def csv_hash(path: Path = SCHEMES_FILE) -> str:
     """Fingerprint of everything the index was built from (the scheme list and the details file): change either and the index is stale."""
-    digest = hashlib.sha256(path.read_bytes())
+    # Line endings are normalised first: the same file is CRLF on a Windows checkout and LF on Linux (Render, GitHub), and the fingerprint must match on both.
+    digest = hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n"))
     if DETAILS_FILE.exists():
-        digest.update(DETAILS_FILE.read_bytes())
+        digest.update(DETAILS_FILE.read_bytes().replace(b"\r\n", b"\n"))
     return digest.hexdigest()
 
 

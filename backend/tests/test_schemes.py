@@ -156,3 +156,22 @@ def test_rerank_can_only_choose_from_the_candidates(monkeypatch):
 
 def test_shipped_index_matches_the_csv():
     assert schemes._index() is not None, "run scripts/build_scheme_index.py"
+
+
+# --- the index fingerprint must not depend on Windows (CRLF) versus Linux (LF) line endings (found by the first GitHub CI run) ----------------
+
+
+def test_fingerprint_ignores_line_endings(tmp_path):
+    lf, crlf = tmp_path / "a.csv", tmp_path / "b.csv"
+    lf.write_bytes(b"x,y\n1,2\n")
+    crlf.write_bytes(b"x,y\r\n1,2\r\n")
+    assert schemes.csv_hash(lf) == schemes.csv_hash(crlf)
+
+
+def test_the_shipped_index_still_matches_when_the_scheme_file_is_checked_out_with_linux_line_endings(tmp_path):
+    linux_copy = tmp_path / "schemes.csv"
+    linux_copy.write_bytes(schemes.SCHEMES_FILE.read_bytes().replace(b"\r\n", b"\n"))
+    import json
+
+    stored = json.loads(schemes.INDEX_FILE.read_text(encoding="utf-8"))["csv_sha256"]
+    assert schemes.csv_hash(linux_copy) == stored
