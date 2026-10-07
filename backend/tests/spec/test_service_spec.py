@@ -74,7 +74,8 @@ def test_field_lookup():
 
 def test_load_specs_keys_by_service_id():
     specs = load_specs(SPECS_DIR)
-    assert sorted(specs) == ["electricity", "human_evaluation", "roads", "sanitation", "water_supply"]  # S28
+    assert {"electricity", "human_evaluation", "roads", "sanitation", "water_supply", "school_education", "revenue"} <= set(specs)  # S28 + one spec per registry department
+    assert len(specs) == 50  # 4 hand-written + 45 generated + human_evaluation
 
 
 def test_load_specs_rejects_a_directory_without_specs(tmp_path):

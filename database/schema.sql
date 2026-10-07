@@ -35,12 +35,13 @@ CREATE TABLE IF NOT EXISTS offices (
   centroid_lng   float8 NULL,
   office_name    text NOT NULL,
   officer_name   text NULL,               -- S02 change: NULL where no verified role exists (S09)
+  district       text NULL,               -- migration 005: English district name (specs/registry/districts.yaml); NULL = state-level desk
   active         bool NOT NULL DEFAULT true,
   UNIQUE (department, level, code)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS offices_one_active_district_per_department
-  ON offices (department) WHERE level = 'district' AND active;
+CREATE UNIQUE INDEX IF NOT EXISTS offices_one_active_district_office
+  ON offices (department, COALESCE(district, '')) WHERE level = 'district' AND active;
 
 CREATE TABLE IF NOT EXISTS messages (
   message_id   uuid NOT NULL,

@@ -11,13 +11,13 @@ system, and keeps the AI on a short leash so it cannot make a mistake that becom
 ## What is different
 
 ### 1. An AI with a hard boundary
-A single LLM call returns strict JSON (intent, department, confidence, fields). **Plain code then validates every value against a service
+Jev (TypeSafe), our decision model, picks the department from a registry and gives a confidence. The LLM only extracts the details as strict JSON. **Plain code then validates every value against a service
 specification file** (`specs/*.yaml`). The model can never invent a service, field, department or office: anything not in the spec is
 dropped and asked again. This is enforced in code and covered by automated tests, not only by a prompt.
 
 ### 2. Adding a department is a file, not a rewrite
 A new department is one YAML service spec plus its office rows. Nothing in the engine is department-specific. The prototype already runs
-five services (water, electricity, roads, sanitation, general triage) on the same engine.
+four departments (water, electricity, roads, sanitation) and a Human Evaluation desk on the same engine.
 
 ### 3. Honest routing instead of confident guessing
 - Unsure between two departments: the bot asks "is this X or Y?" (questions written by us, not generated).
@@ -35,7 +35,7 @@ LLM chain of three Groq models then Gemini; ASR fallback; short timeouts; citize
 through a database key, so a double-tap or a network retry never creates two tickets.
 
 ### 6. Privacy by minimalism
-Anonymous sessions, no name or phone stored, a status endpoint that returns only four fields (ID, status, department, updated time),
+Mobile-number login before a complaint is filed (so the officer can call back), no name stored, a status endpoint that returns only four fields (ID, status, department, updated time),
 audio in a private bucket, database access closed to the public key.
 
 ## Where Samadhan sits next to what exists
@@ -44,5 +44,5 @@ self-service digital channel**: no call queue, no agent step before the ticket e
 claim it replaces the existing platform, and we have not verified any of the platform's own performance claims.
 
 ## Honest limits
-Demo office data for four of five departments; GPS does not yet choose a ward; no citizen verification or rate limiting yet; information
+Demo office data for most departments; GPS does not yet choose a ward; mobile login uses a demo PIN, not a real SMS OTP, and there is no rate limiting yet; information
 questions get a link, not an answer. Dialect results come from synthetic data, not native-speaker review.

@@ -78,3 +78,17 @@ def build_info_reply(url: object, *, resolves: Callable[[str], bool] = host_reso
         lines.append(f"{INFO_LINK_LINE_HI} {cleaned}")
     lines.append(INFO_DISCLAIMER_HI)
     return "\n".join(lines)
+
+
+SCHEME_INTRO_HI = "आपके सवाल से ये योजनाएँ मिलती हैं (मध्य प्रदेश सरकार):"
+
+
+def build_scheme_reply(schemes: list, *, ask: str | None = None) -> str:
+    """Matched schemes with their official CM Helpline page, an optional question, then the disclaimer. Only rows of the scheme file, never generated."""
+    lines = [SCHEME_INTRO_HI]
+    for i, s in enumerate(schemes, 1):
+        lines.append(f"{i}. {s.name} ({s.department})" + chr(10) + f"   {s.url}")
+    if ask:
+        lines.append(ask)
+    lines.append(INFO_DISCLAIMER_HI)
+    return chr(10).join(lines)

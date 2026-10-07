@@ -23,7 +23,11 @@ COMMON_WORDS = {"धार", "सीधी", "पन्ना", "गुना", 
 DISTRICT_MARKERS = r"(?:जिला|जिले|ज़िला|ज़िले|district|zila|jila|dist)"
 TEHSIL_MARKERS = r"(?:तहसील|तहसिल|तेहसील|tehsil|tahsil|tahasil)"
 NEAR_MARKERS = r"(?:के\s+पास|के\s+नजदीक|के\s+नज़दीक|नजदीक|नज़दीक|पास\s+में)"
-UNKNOWN_RE = re.compile(r"(पता\s*नहीं|नहीं\s*पता|मालूम\s*नहीं|नहीं\s*मालूम|नहीं\s*बता|याद\s*नहीं|don'?t\s*know|dont\s*know|pata\s*nahi|nahi\s*pata|not\s*sure)", re.I)
+# "सबसे करीब/कने सारंगपुर है": the place comes AFTER the marker (कने = Bundeli for "near")
+NEAR_AFTER = r"(?:सबसे\s+(?:पास|करीब|नज़?दीक|कने|कनै)|नज़?दीकी|करीबी|निकटतम|समीप)\s*(?:का|की|के|तो|में|वाला|वाली)?\s*(?:कस्बा|गाँव|गांव|शहर|कसबा)?\s*(?:तो\s+)?(\S+)"
+# A word right before "तहसील" that is a connector, not a name: "…है पर तहसील गुलाना है" must give गुलाना, not "पर".
+NOT_A_NAME = {"पर", "और", "तथा", "व", "मगर", "लेकिन", "तो", "भी", "है", "की", "का", "के", "में", "से", "यहाँ", "वहाँ", "but", "and", "the", "my", "meri", "mera"}
+UNKNOWN_RE = re.compile(r"(पता\s*नहीं|नहीं\s*पता|मालूम\s*नहीं|नहीं\s*मालूम|नहीं\s*बता|याद\s*नहीं|don'?t\s*know|dont\s*know|pata\s*nahi|nahi\s*pata|not\s*sure)", re.IGNORECASE)
 TRAILING = {"में", "की", "का", "के", "है", "से", "मे", "ki", "ka", "ke", "hai", "me", "mein"}
 
 _NASAL_CONJUNCT = re.compile(r"[णनमङञ]्(?=[क-ह])")
@@ -111,7 +115,7 @@ def parse(text: str) -> LocationDetails:
     district = None
     named = None
     for pattern in (rf"(\S+(?:\s+\S+)?)\s*{DISTRICT_MARKERS}", rf"{DISTRICT_MARKERS}\s*(?:है|:|-)?\s*(\S+(?:\s+\S+)?)"):
-        m = re.search(pattern, low, re.I)
+        m = re.search(pattern, low, re.IGNORECASE)
         if m and (district := match_district(m.group(1))):
             break
         if m and named is None:
@@ -123,14 +127,21 @@ def parse(text: str) -> LocationDetails:
     if district is None:
         district = match_district(low, strict=len(low.split()) > 2)
     tehsil = None
-    m = re.search(rf"(\S+)\s*{TEHSIL_MARKERS}", low, re.I) or re.search(rf"{TEHSIL_MARKERS}\s*(?:है|:|-)?\s*(\S+)", low, re.I)
+    m = re.search(rf"(\S+)\s*{TEHSIL_MARKERS}", low, re.IGNORECASE)
+    if m and norm(m.group(1)) in {norm(w) for w in NOT_A_NAME}:
+        m = None  # the word before the marker is a connector: the name follows it
+    m = m or re.search(rf"{TEHSIL_MARKERS}\s*(?:है|:|-)?\s*(\S+)", low, re.IGNORECASE)
     if m:
         tehsil = _clean(m.group(1))
         if tehsil and district and match_district(tehsil) is district:  # "रीवा जिला तहसील" etc.: the word was the district, not a tehsil
             tehsil = None
     nearest = None
     for clause in re.split(r"[,;।\n]", low):  # look inside one phrase only: "पता नहीं, रामपुर के पास" must not read across the comma
-        m = re.search(rf"(\S+(?:\s+\S+)?)\s*{NEAR_MARKERS}", clause) or re.search(r"(?:near|nearest)\s+(\S+(?:\s+\S+)?)", clause, re.I)
+        m = (
+            re.search(NEAR_AFTER, clause)  # first: "सबसे नजदीक कस्बा बैरसिया" must not read "सबसे" as the place
+            or re.search(rf"(\S+(?:\s+\S+)?)\s*{NEAR_MARKERS}", clause)
+            or re.search(r"(?:near|nearest)\s+(\S+(?:\s+\S+)?)", clause, re.IGNORECASE)
+        )
         if m:
             nearest = _clean(m.group(1))
             break

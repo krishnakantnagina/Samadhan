@@ -16,5 +16,11 @@ def test_notes_are_readable_and_complete():
 
 
 def test_unknown_reason_is_shown_as_is_and_missing_parts_are_skipped():
-    assert intake_notes({"reason": "something_new"}) == ["**Why:** something_new"]
+    assert intake_notes({"reason": "something_new"}) == ["**Why:** something\_new"]  # escaped for Markdown (renders as "something_new")
     assert intake_notes({"jev": "not a list", "suggested_department": "x"}) == []
+
+
+def test_citizen_text_in_the_notes_cannot_inject_markdown():
+    notes = intake_notes({"location_details": {"tehsil": "[x](https://evil.example)", "nearest_place": "<img src=x onerror=alert(1)>"}})
+    joined = " ".join(notes)
+    assert "\\<img" in joined and "](https" not in joined  # the "<" is escaped, so Markdown shows it as text

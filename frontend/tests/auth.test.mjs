@@ -13,7 +13,7 @@ function load({ fetchImpl, blocked = false } = {}) {
     setItem: (k, v) => { if (blocked) throw new Error('blocked'); store.set(k, v); },
     removeItem: (k) => { if (blocked) throw new Error('blocked'); store.delete(k); },
   };
-  const sandbox = { window: { SAMADHAN_API_BASE: 'http://api.test' }, localStorage, fetch: fetchImpl, Date, JSON, console };
+  const sandbox = { window: { SAMADHAN_API_BASE: 'http://api.test' }, localStorage, fetch: fetchImpl, Date, JSON, console, AbortController, setTimeout, clearTimeout };
   sandbox.window.window = sandbox.window;
   vm.createContext(sandbox);
   vm.runInContext(source, sandbox);

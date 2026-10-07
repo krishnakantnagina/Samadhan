@@ -17,6 +17,9 @@ from dotenv import load_dotenv
 
 from dashboard import app as legacy
 from dashboard.cm import accounts, demo_data, home, pages, registry, theme
+from dashboard.safe import h
+from dashboard.throttle import LOGIN_THROTTLE, locked_message
+from dashboard.tickets import truncation_notice
 
 load_dotenv()
 
@@ -54,10 +57,16 @@ def _sign_in_dialog() -> None:
     user = st.text_input("Username")
     pw = st.text_input("Password", type="password")
     if st.button("Log in", type="primary", use_container_width=True):
+        wait = LOGIN_THROTTLE.seconds_locked(user)
+        if wait:  # locked: the password is not checked (no CPU spent) and a correct one does not unlock early
+            st.error(locked_message(wait))
+            return
         found = accounts.authenticate(user, pw, accounts.load_accounts(), legacy_password=os.environ.get("DASHBOARD_PASSWORD"))
         if found:
+            LOGIN_THROTTLE.record_success(user)
             st.session_state["cm_account"] = found
             st.rerun()
+        LOGIN_THROTTLE.record_failure(user)
         st.error("Wrong username or password.")
     if accounts.guest_allowed():
         st.caption("No account? Close this and press Demo to explore with sample data.")
@@ -104,8 +113,8 @@ def _login_screen() -> accounts.Account:
         st.markdown("### From the CM Helpline scheme directory")
         cards = st.columns(4)
         for col, s in zip(cards, home.spotlight(hd, 4, seed), strict=False):
-            col.markdown(f'<div class="cm-card"><div class="nm" title="{s["scheme"]}">{s["scheme"]}</div><small>{s["department"]}</small></div>', unsafe_allow_html=True)
-        st.markdown("".join(f'<span class="cm-chip">{d} · {n}</span>' for d, n in hd.by_department[:12]), unsafe_allow_html=True)
+            col.markdown(f'<div class="cm-card"><div class="nm" title="{h(s["scheme"])}">{h(s["scheme"])}</div><small>{h(s["department"])}</small></div>', unsafe_allow_html=True)
+        st.markdown("".join(f'<span class="cm-chip">{h(d)} · {n}</span>' for d, n in hd.by_department[:12]), unsafe_allow_html=True)
         st.caption(f"{len(hd.schemes)} schemes across {len(hd.by_department)} departments (cmhelpline.mp.gov.in, scraped 1 Oct 2026). Official details: {home.SCHEME_PAGE}")
     st.stop()
 
@@ -146,6 +155,10 @@ def main() -> None:
             st.rerun()
 
     all_tickets, error = _load_tickets(conn, account, demo)
+    if not demo and not error:
+        notice = truncation_notice(len(all_tickets), legacy._cached_ticket_count())
+        if notice:
+            st.warning(notice)
     df = accounts.scope_tickets(all_tickets, account) if not all_tickets.empty else all_tickets
     ctx = pages.Context(account=account, conn=conn, df=df, tickets_error=error, legacy=legacy, is_demo=demo)
 

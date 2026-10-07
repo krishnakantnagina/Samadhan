@@ -7,7 +7,7 @@ Citizens of Madhya Pradesh already have ways to complain: the CM Helpline, a tol
 Corporation (BMC) portal. What they lack is a way to **describe a problem in their own words and have it reach the right office
 without knowing how the government is organised**.
 
-### Evidence from Madhya Pradesh (Bhopal)
+### Evidence from Madhya Pradesh (Bhopal is our first example; the same pattern applies in every district)
 | Finding | Source | Confidence |
 |---|---|---|
 | BMC is the civic body for Bhopal; head office at Harshwardhan Complex, Mata Mandir, Bhopal 462001 | [bhopal.nic.in](https://bhopal.nic.in/en/public-utility/bhopal-municipal-corporation/) | High, official |
@@ -32,7 +32,7 @@ A voice-first AI chatbot **website** that turns a spoken or typed complaint into
 
 | Need | How Samadhan answers it |
 |---|---|
-| No need to know the department | The AI picks the department from the citizen's words; when unsure it asks "is this X or Y?" with questions we wrote |
+| No need to know the department | Jev, our decision model, picks the department from the citizen's words; when unsure it asks "is this X or Y?" with questions we wrote |
 | Own language | Hindi and Hinglish text and voice (Sarvam speech-to-text, Groq Whisper fallback) and spoken replies (Sarvam Bulbul) |
 | No need to know the ward | Ward name matched fuzzily to the ward office; GPS is captured for the officer map |
 | Wrong routing | Low confidence or unknown place goes to the district office as `needs_review`; officers can reassign, and every correction is logged |
@@ -40,9 +40,9 @@ A voice-first AI chatbot **website** that turns a spoken or typed complaint into
 | Officer workload | Tickets arrive classified, with department, office, a summary and the original audio, plus a review queue and a map |
 
 ## 3. Scope of the prototype
-- **Departments:** water supply (the original pilot) plus electricity, roads, sanitation and a general triage desk. **Office data for the
+- **Departments:** water supply (the original pilot) plus electricity, roads, sanitation and a Human Evaluation desk for unclear cases. **Office data for the
   last four is DEMO** and labelled so. Ward names are unverified.
-- **City:** Bhopal, 5 demo wards per department plus one district fallback office each.
+- **Coverage:** built for all of Madhya Pradesh. The demo data covers Bhopal (5 demo wards per department plus one district fallback office each). Adding a district means adding data rows, not code.
 - **Channels:** website (text, in-browser voice, GPS). WhatsApp, calls and a mobile app are out of scope for now.
 - **Information questions** ("how do I get an income certificate?"): a fixed honest reply, a validated `.gov.in` link and a disclaimer.
   Samadhan does **not** answer government-information questions itself and does **not** read or verify any document.

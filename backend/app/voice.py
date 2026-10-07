@@ -8,12 +8,15 @@ Either of us can change this file. If you do, update docs/specs/S12-voice.md and
 """
 
 import logging
+import os
 import uuid
 from dataclasses import dataclass
 
 import httpx
 from supabase import Client
 
+from app.asr.router import get_router
+from app.asr.types import AllProvidersFailed, ReadContext
 from app.config import VoiceConfig, get_voice_config
 from app.db import get_client
 
@@ -36,7 +39,9 @@ class VoiceUnavailable(RuntimeError):
 @dataclass(frozen=True)
 class VoiceResult:
     transcript: str  # possibly empty -- not a failure, S01 D-A6
-    audio_path: str
+    audio_path: str | None  # None when the recording could not be stored (the citizen is still understood)
+    plain_hindi: str | None = None  # S32: standard-Hindi version for officers (router pipeline only)
+    provider: str | None = None  # S32: which reader produced it (router pipeline only)
 
 
 def _upload(
@@ -61,12 +66,18 @@ def _filename(content_type: str) -> str:
     return f"audio.{EXT_BY_CONTENT_TYPE[content_type]}"
 
 
+def _language() -> str:
+    """Language sent to the readers. Hindi by default: with "unknown" Sarvam sometimes picks another script (a Gujarati-script transcript of a Hindi voice note
+    was seen on 2026-10-07) and Whisper turns dialect into gibberish. VOICE_LANGUAGE=unknown restores auto-detect."""
+    return os.environ.get("VOICE_LANGUAGE", "").strip() or "hi-IN"
+
+
 def _sarvam(audio_bytes: bytes, content_type: str, config: VoiceConfig) -> str:
     response = httpx.post(
         "https://api.sarvam.ai/speech-to-text",
         headers={"api-subscription-key": config.sarvam_api_key},
         files={"file": (_filename(content_type), audio_bytes, content_type)},
-        data={"model": config.sarvam_model, "language_code": "unknown", "mode": "transcribe"},
+        data={"model": config.sarvam_model, "language_code": _language(), "mode": "transcribe"},
         timeout=PROVIDER_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
@@ -78,11 +89,27 @@ def _groq_whisper(audio_bytes: bytes, content_type: str, config: VoiceConfig) ->
         "https://api.groq.com/openai/v1/audio/transcriptions",
         headers={"Authorization": f"Bearer {config.groq_api_key}"},
         files={"file": (_filename(content_type), audio_bytes, content_type)},
-        data={"model": config.groq_whisper_model},
+        data={"model": config.groq_whisper_model, **({"language": _language()[:2]} if _language() != "unknown" else {})},
         timeout=PROVIDER_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
     return response.json()["text"]
+
+
+def _transcribe_with_router(
+    audio_bytes: bytes, content_type: str, audio_path: str | None, context: str | None
+) -> VoiceResult:
+    """S32: Gemini-first reader with rate limiting, breakers, retries and fallback (app/asr)."""
+    try:
+        reading = get_router().read(audio_bytes, content_type, ReadContext(last_bot_question=context))
+    except AllProvidersFailed as exc:
+        raise VoiceUnavailable(f"audio readers failed: {exc}") from exc
+    return VoiceResult(
+        transcript=reading.transcript,
+        audio_path=audio_path,
+        plain_hindi=reading.plain_hindi,
+        provider=reading.provider,
+    )
 
 
 def transcribe(
@@ -92,9 +119,17 @@ def transcribe(
     message_id: uuid.UUID,
     *,
     client: Client | None = None,
+    context: str | None = None,
 ) -> VoiceResult:
     client = client or get_client()
-    audio_path = _upload(audio_bytes, content_type, session_id, message_id, client=client)
+    try:
+        audio_path = _upload(audio_bytes, content_type, session_id, message_id, client=client)
+    except Exception as exc:  # noqa: BLE001 -- storage down: the citizen's words matter more than the recording (audit M7)
+        logger.warning("audio upload failed (%s): transcribing without storing the recording", type(exc).__name__)
+        audio_path = None
+
+    if os.environ.get("ASR_PIPELINE", "legacy").strip().lower() == "router":
+        return _transcribe_with_router(audio_bytes, content_type, audio_path, context)
 
     config = get_voice_config()
     for attempt in (_sarvam, _groq_whisper):

@@ -76,11 +76,18 @@
     if (withToken && auth) headers.Authorization = `Bearer ${auth.token}`;
     let response;
     try {
-      response = await fetch(`${apiBase()}/api/v1${path}`, {
-        method: 'POST',
-        headers,
-        body: body ? JSON.stringify(body) : undefined,
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20000); // never leave the login screen waiting for ever
+      try {
+        response = await fetch(`${apiBase()}/api/v1${path}`, {
+          method: 'POST',
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
     } catch {
       throw new Error(GENERIC_ERROR); // never show the browser's own English network message
     }
@@ -152,6 +159,10 @@
         class: 'samadhan-auth-why',
         text: 'शिकायत दर्ज करने के लिए अपना मोबाइल नंबर दें। इसी नंबर पर संबंधित अधिकारी आपसे संपर्क करेंगे।',
       });
+      const privacyNote = el('p', { class: 'samadhan-auth-why' });
+      privacyNote.appendChild(document.createTextNode('आपका नंबर केवल इस शिकायत के सिलसिले में अधिकारी के संपर्क के लिए रखा जाएगा। '));
+      const privacyLink = el('a', { href: 'privacy.html', target: '_blank', rel: 'noopener', text: 'गोपनीयता नोटिस · Privacy notice' });
+      privacyNote.appendChild(privacyLink);
       const status = el('p', { class: 'samadhan-auth-status', role: 'alert' });
       const form = el('form', { novalidate: 'novalidate' });
       const label = el('label', { for: 'samadhan-auth-input', text: 'मोबाइल नंबर (10 अंक)' });
@@ -166,7 +177,7 @@
       const actions = el('div', { class: 'samadhan-auth-actions' });
       actions.append(submit, back, cancel);
       form.append(label, row, actions);
-      card.append(title, why, status, form);
+      card.append(title, why, privacyNote, status, form);
       overlay.appendChild(card);
 
       let step = 'phone';

@@ -1,0 +1,10 @@
+1. Samadhan lets any citizen of Madhya Pradesh file a civic complaint by speaking or typing in their own Hindi, Hinglish or local dialect, with no forms and no need to know which department to approach.
+2. Our main goal: language and dialect must never be a barrier between a citizen and their government.
+3. We do not need perfect transcription of every dialect. We only need to understand the complaint well enough to route it to the right department, and to ask for what is missing.
+4. The AI proposes and plain code verifies: every value is checked against a service specification, so the system cannot invent a department, field or office, and unsure cases go to a human review queue.
+5. The citizen gets a ticket number (SMD-xxxx) and can check status by voice or text. Officers get a ready-classified ticket on a dashboard with a review queue, reassignment and a map.
+6. It works today as a live prototype with five services, about 90% routing accuracy on 60 test messages, and 415 + 35 automated tests passing. We state our limits openly: demo office data and synthetic dialect test data.
+7. Next goal: verified ward and office data, phone verification by SMS OTP once we obtain the SMS licence, and rate limiting, so it is safe to open to the public.
+8. Then more channels on the same engine: WhatsApp and phone calls, so citizens without a smartphone or internet can simply speak to Samadhan.
+9. Then per-department officer accounts and more departments and districts across Madhya Pradesh: adding a department is a specification file, not a rewrite.
+10. Samadhan is a self-service channel that complements MPOnline's platform and can reduce call-centre load: a voice for every citizen, understood in their own words.

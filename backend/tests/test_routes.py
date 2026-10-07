@@ -551,3 +551,80 @@ def test_speak_provider_down_is_503(test_client, monkeypatch):
 
     assert response.status_code == 503
     assert response.json()["error_code"] == "SERVICE_UNAVAILABLE"
+
+
+def test_voice_reader_gets_the_last_bot_question_as_context(test_client, monkeypatch):
+    seen = {}
+
+    def fake_transcribe(*args, **kwargs):
+        seen.update(kwargs)
+        raise voice.VoiceUnavailable("stop here")
+
+    monkeypatch.setattr(
+        routes.session, "get_recent_messages", lambda sid, limit=4, **kw: [routes.turn_engine.Message("citizen", "paani"), routes.turn_engine.Message("bot", "आपका गाँव कौन सा है?")]
+    )
+    monkeypatch.setattr(routes.voice, "transcribe", fake_transcribe)
+    post(test_client, audio=b"\x1aE\xdf\xa3fake-audio")
+    assert seen["context"] == "आपका गाँव कौन सा है?"
+
+
+def test_last_bot_question_never_blocks_a_voice_note(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(routes.session, "get_recent_messages", boom)
+    assert routes._last_bot_question("sid") is None
+
+
+# --- scheme answers at the route (S36/S37) -------------------------------------------------------------------
+
+
+def _information_turn(monkeypatch, *, reply_calls):
+    monkeypatch.setattr(
+        routes.turn_engine, "run_turn", lambda **kw: turn_engine.TurnResult(service_id=None, fields={}, confirmed=False, intent="information")
+    )
+    monkeypatch.setattr(routes.scheme_answer, "reply", lambda question, **kw: (reply_calls.append((question, kw)), "योजना का उत्तर")[1])
+
+
+def test_an_information_question_gets_the_scheme_answer_when_the_lookup_is_on(test_client, monkeypatch):
+    calls = []
+    _information_turn(monkeypatch, reply_calls=calls)
+    monkeypatch.setenv("SCHEME_LOOKUP", "1")
+
+    body = post(test_client, text="लाडली बहना योजना क्या है").json()
+
+    assert body["action"] == "out_of_scope" and "योजना का उत्तर" in body["reply_text"]
+    assert calls and calls[0][1]["allow_llm"] is True
+
+
+def test_the_scheme_answer_is_never_asked_for_when_the_lookup_is_off(test_client, monkeypatch):
+    calls = []
+    _information_turn(monkeypatch, reply_calls=calls)
+    monkeypatch.delenv("SCHEME_LOOKUP", raising=False)
+
+    body = post(test_client, text="लाडली बहना योजना क्या है").json()
+
+    assert calls == [] and "योजना का उत्तर" not in body["reply_text"]
+
+
+def test_a_slow_request_skips_the_optional_llm_summary(test_client, monkeypatch):
+    calls = []
+    _information_turn(monkeypatch, reply_calls=calls)
+    monkeypatch.setenv("SCHEME_LOOKUP", "1")
+    monkeypatch.setattr(routes, "SLOW_REQUEST_SECONDS", -1.0)  # every request counts as already slow
+
+    post(test_client, text="लाडली बहना योजना क्या है")
+
+    assert calls[0][1]["allow_llm"] is False
+
+
+def test_nothing_matched_keeps_the_normal_information_reply(test_client, monkeypatch):
+    monkeypatch.setattr(
+        routes.turn_engine, "run_turn", lambda **kw: turn_engine.TurnResult(service_id=None, fields={}, confirmed=False, intent="information")
+    )
+    monkeypatch.setattr(routes.scheme_answer, "reply", lambda question, **kw: None)
+    monkeypatch.setenv("SCHEME_LOOKUP", "1")
+
+    body = post(test_client, text="passport kaise banta hai").json()
+
+    assert body["action"] == "out_of_scope" and body["reply_text"]  # the existing "no official information" reply

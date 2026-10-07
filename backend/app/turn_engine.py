@@ -10,6 +10,7 @@ other.
 
 import json
 import logging
+import re
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -27,6 +28,8 @@ PROVIDER_TIMEOUT_SECONDS = 6.0  # S04 section 5 / S05 provider table
 TURN_DEADLINE_SECONDS = 14.0  # S26 D-S26-4: stop starting new providers past this
 HUMAN_EVALUATION_SERVICE = "human_evaluation"  # S31: the Human Evaluation queue (specs/human_evaluation.yaml); was the S28 "general" triage service
 INTENTS = ("complaint", "information", "out_of_context", "status")
+FULL_BLOCK_LIMIT = 8  # more services than this and the prompt lists full field details only for the few that matter (see _services_text)
+FULL_BLOCKS_WHEN_MANY = 3  # the active service plus the best keyword matches; every other service gets a one-line entry
 
 SYSTEM_INSTRUCTIONS = """\
 You extract structured data from ONE message a citizen sent a government grievance chatbot.
@@ -49,6 +52,12 @@ Rules:
   torn between, else [].
 - fields: only the matched service's field names, only what the citizen gave or changed THIS turn, never a
   value outside the allowed values. Empty unless intent is "complaint".
+- Choose enum values by WHAT WENT WRONG, not by a scheme, fund or office that is only named as context or as where the money came from.
+  "MGNREGA ka paisa aaya par sadak nahi bani" is a road/construction problem (the road was not built), not an MGNREGA wages problem;
+  "pension ke paise se hand pump nahi laga" is a water-facility problem. Use a scheme's own value only when the scheme's benefit is what is missing.
+- Corrections: if the citizen corrects something they said earlier ("नहीं, ... है", "मतलब", "I meant", "not X, it is Y", or says what the problem
+  really is), put the corrected value in fields for that field THIS turn, even though it was already filled. Never repeat the old value
+  after a correction. If the correction fits no allowed value of that field, use the closest "other" value if there is one.
 - confirmed: true only if "awaiting confirmation" is true AND the citizen plainly agrees, with no correction.
 - location: only a specific place NAME (ward, colony, locality, village name). Generic words (village/गाँव,
   house/घर, hand pump/हैंडपंप, tap/नल, tank/टंकी, "our village"/"हमाए गाँव") name no place: omit the field.
@@ -135,8 +144,8 @@ class _ProviderError(RuntimeError):
 def _field_vocabulary(field: EnumField | IntegerField | StringField | LocationField) -> str:
     line = f"  - {field.name} ({field.type}, {'required' if field.required else 'optional'})"
     if isinstance(field, EnumField):
-        values = ", ".join(v.value for v in field.values)
-        line += f": allowed values = [{values}]"
+        values = ", ".join(f'{v.value} ("{v.en}")' if v.en and v.en != v.value else v.value for v in field.values)  # the meaning next to the id
+        line += f": allowed values = [{values}], answer with the id only"
     elif isinstance(field, IntegerField):
         line += f": whole number, {field.min}..{field.max}"
     elif isinstance(field, StringField):
@@ -155,6 +164,42 @@ def _service_block(spec: ServiceSpec) -> str:
     return "\n".join(lines)
 
 
+def _service_line(spec: ServiceSpec) -> str:
+    """One compact line: enough for the model to pick the service, without its field details (keeps the prompt small when there are dozens of services)."""
+    return f'- service_id "{spec.service}" ({spec.label.en})'
+
+
+_STOP = frozenset(
+    ["nahi", "nahin", "mil", "raha", "rahi", "rahe", "hai", "hain", "mere", "mera", "meri", "gaon", "gaaon", "gaanv", "aur", "koi", "bahut", "kar", "kiya", "kuch", "bhi", "the", "and", "not", "for", "with", "from", "that", "this", "have", "has", "hum", "aap", "hamare", "hamara", "apna", "ke", "ka", "ki", "me", "mein", "se", "ko", "par", "नहीं", "नही", "रहा", "रही", "रहे", "है", "हैं", "में", "के", "की", "का", "को", "से", "पर", "और", "हमारे", "हमारा", "हमारी", "मेरे", "मेरा", "मेरी", "गाँव", "गांव", "कर", "कुछ", "भी", "तो", "यह", "वह", "हो", "था", "थी", "बहुत", "आ", "रहा"]
+)
+
+
+def _tokens(text: str) -> set[str]:
+    # the explicit Devanagari range matters: \w alone splits Hindi words at every vowel sign
+    return {t for t in re.findall(r"[\wऀ-ॿ]+", text.lower()) if len(t) >= 3 and t not in _STOP}
+
+
+def _services_text(session: SessionState, specs: dict[str, ServiceSpec], text: str) -> str:
+    """The "Listed services" block. With a handful of services every one is listed in full (unchanged behaviour). With many (one spec per department),
+    a prompt with every field list is too large for the model providers (HTTP 413), so only the active service and the best keyword matches for what the citizen said
+    get full field details; the rest are one-line entries. If the model picks a one-line service, its fields are listed in full on the next turn (it is then active)."""
+    if len(specs) <= FULL_BLOCK_LIMIT:
+        return chr(10).join(_service_block(spec) for spec in specs.values())
+    words = _tokens(text)
+    vocab = {sp.service: _tokens(" ".join([sp.label.en, sp.label.hi, *sp.recognise])) for sp in specs.values()}
+    df = {w: sum(1 for toks in vocab.values() if w in toks) for w in set().union(*vocab.values())}
+    # a shared word counts for more the fewer services use it (a word used by 15 services, however common in speech, adds almost nothing)
+    score = {svc: sum(1.0 / df[w] for w in words & toks) for svc, toks in vocab.items()}
+    ranked = sorted(specs.values(), key=lambda sp: score[sp.service], reverse=True)
+    full = {session.service_id} if session.service_id in specs else set()
+    for spec in ranked:
+        if len(full) >= FULL_BLOCKS_WHEN_MANY:
+            break
+        if score[spec.service] > 0:
+            full.add(spec.service)
+    return chr(10).join(_service_block(spec) if spec.service in full else _service_line(spec) for spec in specs.values())
+
+
 def _recent_messages_block(recent_messages: Sequence[Message]) -> str:
     if not recent_messages:
         return "(none)"
@@ -169,7 +214,7 @@ def _build_prompt(
     lng: float | None,
     recent_messages: Sequence[Message],
 ) -> str:
-    services = "\n".join(_service_block(spec) for spec in specs.values())
+    services = _services_text(session, specs, text)
     gps_note = "yes" if lat is not None and lng is not None else "no"
     return f"""\
 {SYSTEM_INSTRUCTIONS}
@@ -226,15 +271,16 @@ class GroqProvider:
 class GeminiProvider:
     name = "gemini"
 
-    def __init__(self, api_key: str, model: str) -> None:
+    def __init__(self, api_key: str, model: str, name: str = "gemini") -> None:
         self._api_key = api_key
         self._model = model
+        self.name = name
 
     def complete(self, prompt: str) -> str:
         try:
             response = httpx.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{self._model}:generateContent",
-                params={"key": self._api_key},
+                headers={"x-goog-api-key": self._api_key},  # a header, never the URL: httpx puts the URL in its error text and these errors are logged
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {"responseMimeType": "application/json"},
@@ -242,8 +288,10 @@ class GeminiProvider:
                 timeout=PROVIDER_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise _ProviderError(f"gemini: {exc}") from exc
+        except httpx.HTTPStatusError as exc:
+            raise _ProviderError(f"{self.name}: HTTP {exc.response.status_code}") from exc
+        except httpx.HTTPError as exc:  # the message is left out on purpose: it carries the full URL
+            raise _ProviderError(f"{self.name}: {type(exc).__name__}") from exc
         return response.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 

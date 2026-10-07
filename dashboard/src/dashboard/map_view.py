@@ -10,7 +10,7 @@ from typing import Any
 
 import folium
 
-from dashboard.labels import ISSUE_TYPE_LABELS_EN
+from dashboard.labels import issue_label as _issue_label
 
 MP_CENTER = (23.4733, 77.9470)  # centre of Madhya Pradesh
 DEFAULT_ZOOM = 11
@@ -46,7 +46,7 @@ def issue_label(row: dict[str, Any]) -> str:
     fields = row.get("fields") or {}
     issue = fields.get("issue_type")
     if issue:
-        return ISSUE_TYPE_LABELS_EN.get(issue, str(issue))
+        return _issue_label(issue, row.get("service_id"))
     description = fields.get("description")  # S28 general triage tickets
     return str(description)[:60] if description else "-"
 

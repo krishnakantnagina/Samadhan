@@ -2,32 +2,12 @@
 
 **Samadhan (समाधान) · MPOnline Idea & Innovation Hackathon 2026 · Problem Statement 5**
 
-1. **It solves the real first step: getting the complaint to the right office.** The citizen speaks or types in their own words. Samadhan
-   picks the department, asks only what is missing, confirms, files `SMD-xxxx` and routes it to the ward office. No department or ward
-   knowledge is needed.
+**Every voice will be heard.**
 
-2. **It is built for how people in Madhya Pradesh speak.** Hindi and Hinglish, press-and-hold voice, spoken replies, and complaint numbers
-   understood when said aloud.
+Many people in Madhya Pradesh have a real problem but cannot write it down or explain it to the right office. So their complaint is lost or it goes to the wrong desk. Samadhan is built for them.
 
-3. **The AI is bounded, so it can be trusted in a government setting.** The model proposes; plain code checks every value against a
-   service specification file. It cannot invent a department, field or office. When it is unsure, the ticket goes to the district
-   office flagged `needs_review`, and every officer correction is logged.
+With Samadhan, a person just speaks in Hindi, in Hinglish, or in their own dialect. Sarvam speech recognition turns the voice into text, our LLM and engine understand the problem and Jev classifies it and sends it to the right department. The person gets a ticket number and a reply spoken back in their own language with Sarvam voice. They can check the status any time, by voice or by text. There are no forms and they do not need to know which office to go to. It already works: routing is about 90% correct on 60 test messages, and 450 automated tests pass. The same engine can also sit behind WhatsApp and phone calls so people without a smartphone can use it too.
 
-4. **It works end to end, and we show our numbers honestly.** Routing is about 90% exact on 60 test messages; 415 backend and 35
-   dashboard tests pass; five departments run on one engine; officers have a working dashboard with a review queue, reassignment and a
-   map. We state the limits openly: demo office data, no GPS ward matching yet, synthetic dialect data.
+We also keep each conversation in a clean and organised way: the voice, the words, the department and any correction an officer makes. This is real conversation data from real people and MP has very little of it today. The government is the legal authority so only the government would hold this data and only to improve public services. In the future it can help train language models that talk to citizens like a real person.
 
-5. **It scales by adding files and data, not by rewriting.** A new department is a YAML spec plus office rows. Offices and wards are
-   database rows. The core is not tied to the website, so other channels can sit in front of it.
-
-6. **It complements MPOnline's existing platform.** It is a self-service digital channel that can reduce call-centre load, not a
-   replacement for the Customer Solutions Hub. We have not verified that platform's own claims and make none about it.
-
-7. **It respects privacy by design.** Anonymous sessions, minimal stored data, a four-field status endpoint, a private audio bucket, and a
-   database closed to the public key. Documents and government records are deliberately out of scope until consent-based integration.
-
-8. **The path forward is concrete.** Verified ward data, phone-verified complaints (an SMS OTP already delivered to a real number in about
-   a second), rate limiting, per-department officer accounts, then integration with MPOnline's channels, in that order.
-
-9. **The work is transparent and reproducible.** Every module has a written spec and plan, every library and API is listed in the README,
-   and the whole build is in the repository under the `v1-mvp` tag.
+A citizen who is heard trusts the system. A system that is trusted attracts business. And business builds the future of Madhya Pradesh. We are a small team with very few resources but we want to build something that truly matters even if it is hard. Please give us the chance to advance and with the jury's guidance, we will make Samadhan better.

@@ -315,3 +315,28 @@ def test_get_status_found():
 def test_get_status_not_found():
     client = FakeClient([DISTRICT])
     assert get_status("SMD-9999", client=client) is None
+
+
+# --- district-aware routing: the citizen's district reaches the office lookup --------------------------
+
+
+def _district_desk(id, name):
+    return {**DISTRICT, "id": id, "name": name, "office_name": f"{name} desk", "district": name}
+
+
+def test_the_citizens_district_from_the_intake_notes_routes_the_ticket_to_that_districts_desk():
+    client = FakeClient([_district_desk(1, "Bhopal"), _district_desk(2, "Rajgarh")])
+    fields = {"issue_type": "no_supply", "location": "Kiloda", "_intake": {"location_details": {"district": "Rajgarh", "tehsil": "Gulana"}}}
+
+    ticket = call_create_ticket(client, validated_fields=fields)
+
+    assert ticket.office.name == "Rajgarh desk"
+    assert ticket.status == ComplaintStatus.NEW  # the right district desk is a confident route
+
+
+def test_no_district_given_keeps_the_default_desk_and_asks_for_review():
+    client = FakeClient([_district_desk(1, "Bhopal"), _district_desk(2, "Rajgarh")])
+
+    ticket = call_create_ticket(client, validated_fields={"issue_type": "no_supply", "location": "Kiloda"})
+
+    assert ticket.status == ComplaintStatus.NEEDS_REVIEW

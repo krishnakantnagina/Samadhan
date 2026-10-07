@@ -21,7 +21,7 @@ from typing import Any
 
 import yaml
 
-from app import jev, jurisdiction, location_details, validator
+from app import jev, jurisdiction, location_details, triage, validator
 from app.service_spec import ServiceSpec
 from app.turn_engine import HUMAN_EVALUATION_SERVICE, TurnResult
 
@@ -120,12 +120,21 @@ def prestep(*, row: Any, specs: dict[str, ServiceSpec], text: str, recent: list[
             active = specs.get(row.service_id)  # the LLM may read the answer as a NEW place: never let it replace the village the citizen named
             location_names = {f.name for f in active.fields if f.type == "location"} if active else set()
             turn_result = turn_result.model_copy(update={"fields": {k: v for k, v in turn_result.fields.items() if k not in location_names}})
+            turn_result = _pin_to_complaint(turn_result, row, keep_fields=True)
+        tri = meta.get(triage.STATE_KEY)
+        if tri and tri.get("pending") and triage.enabled():  # the answer to a triage question: read it, and never let it overwrite the story or the place
+            meta[triage.STATE_KEY] = triage.absorb_reply(tri, bank=_bank(), text=text, recent=recent)
+            turn_result = _pin_to_complaint(turn_result, row, keep_fields=False)  # no field changes: "हाँ" must not become the description or the place
+        if meta.pop("awaiting_duration", False):  # the answer to "how many days?": the turn engine still reads the number, but it is never chit-chat
+            turn_result = _pin_to_complaint(turn_result, row, keep_fields=True)
         pending = meta.get("pending_dept")
         if pending and pending in reg.by_id:  # the citizen's reply to our one yes/no question
             dept = reg.by_id[pending]
             yes = decider.agrees(_state(text, recent), f"The citizen agrees that their problem is about the {dept['name_en']} department.")
             meta["confirmed_by_citizen"] = yes >= AGREE_MIN
             return _route_to(turn_result, dept, specs, reg, meta, "confirmed_by_citizen" if yes >= AGREE_MIN else REASON_UNCONFIRMED)
+        if row.service_id is not None and turn_result.intent == "complaint" and not turn_result.confirmed and turn_result.service_id not in (None, row.service_id):
+            return _guard_switch(row=row, turn_result=turn_result, text=text, recent=recent, decider=decider, specs=specs, reg=reg, meta=meta)
         if row.service_id is not None or turn_result.intent != "complaint" or turn_result.confirmed:
             return Pre(turn_result, meta if meta else None)  # a complaint already in progress, or not a new complaint: keep the active service
         decision = decider.decide(_state(text, recent), reg.departments)
@@ -147,6 +156,36 @@ def prestep(*, row: Any, specs: dict[str, ServiceSpec], text: str, recent: list[
     return Pre(turn, meta, ask=validator._urgent(turn, ASK_PROBLEM_HI.format(dept=dept["name_hi"])), ask_for="service")  # keeps the fixed safety line if urgent
 
 
+def _guard_switch(*, row: Any, turn_result: TurnResult, text: str, recent: list[Any], decider: jev.Decider, specs: dict[str, ServiceSpec], reg: Registry,
+                  meta: dict[str, Any]) -> Pre:
+    """The turn engine wants to move a complaint already in progress to another service. It misreads words that appear in several services' hints ("नहीं आ रहा" fits
+    water AND "the teacher is not coming"), and a one-word answer such as a village name can flip it too. So only Jev, the department router, may move it, and only when it
+    is confident about a different department; otherwise the active service stays. If Jev is down this raises JevUnavailable and the caller fails open as before."""
+    decision = decider.decide(_state(text, recent), reg.departments)
+    dept = reg.by_id.get(decision.top[0][0]) if decision.top else None
+    if dept is not None and decision.confidence >= reg.route and reg.live_specs.get(dept["id"]) != row.service_id:
+        meta["jev_switch"] = [{"id": i, "p": round(p, 2)} for i, p in decision.top]
+        return _route_to(turn_result, dept, specs, reg, meta, "switched")
+    return Pre(_pin_to_complaint(turn_result, row, keep_fields=True), meta if meta else None)
+
+
+def _pin_to_complaint(turn_result: TurnResult, row: Any, *, keep_fields: bool) -> TurnResult:
+    """A reply to a question WE asked belongs to the complaint in progress, whatever the turn engine made of it. It has read "the child's arm is swollen"
+    and "I don't know" as chit-chat and sent the out-of-scope reply in the middle of a conversation. Same complaint, not a confirmation."""
+    update: dict[str, Any] = {"intent": "complaint", "service_id": row.service_id, "confidence": 1.0, "candidates": [], "confirmed": False}
+    if not keep_fields:
+        update["fields"] = {}
+    return turn_result.model_copy(update=update)
+
+
+def _bank() -> triage.Bank:
+    try:
+        return triage.load_bank()
+    except Exception:  # a missing or broken bank folder must never block a complaint
+        logger.exception("triage bank could not be loaded")
+        return {}
+
+
 def _has_gps(lat: float | None, lng: float | None, row: Any) -> bool:
     return (lat is not None and lng is not None) or (row.lat is not None and row.lng is not None)
 
@@ -155,7 +194,8 @@ def _weak_location(spec: ServiceSpec, fields: dict[str, Any]) -> bool:
     """True when the place the citizen named does not resolve to an office (so a person would have to guess the district)."""
     try:
         location = next(f for f in spec.fields if f.type == "location")
-        match = jurisdiction.resolve_office(spec.department, None, None, fields.get(location.name), spec.routing.max_match_distance_km)
+        loc = (fields.get(META_KEY) or {}).get("location_details") or {}
+        match = jurisdiction.resolve_office(spec.department, None, None, fields.get(location.name), spec.routing.max_match_distance_km, district=loc.get("district"))
         return match.matched_via == "fallback" or match.confidence < spec.routing.min_confidence
     except Exception:  # noqa: BLE001 -- a database hiccup must never block the citizen: skip the extra question
         return False
@@ -166,20 +206,57 @@ def _ask(result: validator.ValidationResult, fields: dict[str, Any], reply: str,
                                      "awaiting_confirmation": False, "collected_fields": fields})
 
 
+def _natural(plain: str, result: validator.ValidationResult, text: str | None, recent: Any, pre: Pre, meta: dict[str, Any], *, must: tuple[str, ...]) -> str:
+    """S33c: the district and duration questions in everyday talk (the plain line when triage is off, the LLM is slow, or the reply fails a check)."""
+    if not triage.enabled():
+        return plain
+    try:
+        story = str(result.collected_fields.get("description") or "")
+        concern = (meta.get(triage.STATE_KEY) or {}).get("severity") in ("high", "urgent")
+        return triage._talk().natural(question=plain, fallback=plain, turns=triage._story_turns(story, recent or [], text), concern=concern, index=1, total=3, must_contain=must)
+    except Exception:  # the plain line is always good enough
+        logger.exception("natural reply failed")
+        return plain
+
+
+def _urgent_line(pre: Pre, meta: dict[str, Any], reply: str) -> str:
+    """Triage found an emergency: keep the fixed safety line (S28 Q4) on every question from now on, like an urgent first message."""
+    if (meta.get(triage.STATE_KEY) or {}).get("severity") == "urgent":
+        return validator._urgent(pre.turn_result.model_copy(update={"urgent": True}), reply)
+    return reply
+
+
 def poststep(*, result: validator.ValidationResult, pre: Pre, specs: dict[str, ServiceSpec], lat: float | None, lng: float | None, row: Any,
-             weak_location: Any = None) -> validator.ValidationResult:
-    """After the validator: store the intake notes with the ticket, and ask the location detail and duration once each when everything else is in."""
+             weak_location: Any = None, text: str | None = None, recent: Any = None) -> validator.ValidationResult:
+    """After the validator: store the intake notes with the ticket, ask the triage questions (S33), then the location detail and duration once each."""
     if pre.meta is None:
         return result
     meta = dict(pre.meta)
     fields = {**result.collected_fields, META_KEY: meta}
     if result.action is validator.ValidatedAction.CONFIRM and result.service_id in specs:
         spec = specs[result.service_id]
+        if triage.enabled():
+            try:
+                reg = load_registry()
+                unconfirmed = meta.get("reason") == REASON_UNCONFIRMED
+                # an unconfirmed guess (the citizen said no or "don't know") must not pick the bank's questions: the LLM writes department-free ones instead (hybrid)
+                dept_id = None if unconfirmed else triage.dept_for(meta, result.service_id, reg.live_specs)
+                dept = reg.by_id.get(dept_id) if dept_id else None
+                state, reply, _urgent = triage.step(meta.get(triage.STATE_KEY), bank=_bank(), dept_id=dept_id,
+                                                    story=str(result.collected_fields.get("description") or ""), text=text, recent=recent or [],
+                                                    dept_name=(dept or {}).get("name_en"), reason=REASON_UNCONFIRMED if unconfirmed else "")
+                meta[triage.STATE_KEY] = state
+                if reply is not None:
+                    return _ask(result, fields, _urgent_line(pre, meta, reply), "triage")
+            except Exception:  # triage is an extra: any failure leaves the complaint flowing as before
+                logger.exception("triage step failed")
         probe = weak_location or _weak_location
         if not _has_gps(lat, lng, row) and not meta.get("asked_location_detail") and probe(spec, result.collected_fields):
             meta["asked_location_detail"] = meta["awaiting_location_detail"] = True
-            return _ask(result, fields, ASK_LOCATION_DETAIL_HI, "location_detail")
+            ask = _natural(ASK_LOCATION_DETAIL_HI, result, text, recent, pre, meta, must=("जिला", "तहसील"))
+            return _ask(result, fields, _urgent_line(pre, meta, ask), "location_detail")
         if spec.field("duration_days") is not None and "duration_days" not in result.collected_fields and not meta.get("asked_duration"):
-            meta["asked_duration"] = True
-            return _ask(result, fields, ASK_DURATION_HI, "duration_days")
+            meta["asked_duration"] = meta["awaiting_duration"] = True
+            ask = _natural(ASK_DURATION_HI, result, text, recent, pre, meta, must=("पता नहीं",))
+            return _ask(result, fields, _urgent_line(pre, meta, ask), "duration_days")
     return result.model_copy(update={"collected_fields": fields})

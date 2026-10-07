@@ -255,6 +255,20 @@ html, body {
 
 .vn-time { flex: none; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
+/* The citizen's own recording, inside their (blue) bubble */
+.voice-note-mine {
+  margin-top: 0;
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.voice-note-mine .vn-play { background: #fff; color: var(--accent); }
+.vn-expired { opacity: 0.55; }
+.vn-expired .vn-play { cursor: default; }
+.voice-note-mine .vn-track { background: rgba(255, 255, 255, 0.35); }
+.voice-note-mine .vn-fill { background: #fff; }
+.voice-note-mine .vn-time { color: #fff; }
+
 /* S23: yes/no chips under a location question */
 .location-choice {
   display: flex;
@@ -478,7 +492,7 @@ html, body {
   align-items: center;
   justify-content: center;
   position: relative;
-  touch-action: none; /* the browser's own scroll/pan gesture must never steal the hold */
+  touch-action: manipulation; /* tap-to-record: no double-tap zoom delay */
   -webkit-tap-highlight-color: transparent;
   box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
   animation: mic-idle-pulse 2.6s ease-in-out infinite;
@@ -495,6 +509,34 @@ html, body {
   opacity: 0.7;
 }
 
+/* Connecting: a ring spins around the button until the microphone is ready. */
+.mic-btn-starting::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: var(--accent);
+  animation: mic-connecting-spin 0.8s linear infinite;
+}
+
+/* Live voice wave while recording (drawn on a canvas by widget.js). */
+.mic-wave {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  color: var(--error-text);
+}
+
+.mic-wave[hidden] {
+  display: none;
+}
+
+@keyframes mic-connecting-spin {
+  to { transform: rotate(360deg); }
+}
+
 .mic-btn-recording {
   background: var(--error-text);
   animation: mic-recording-pulse 1.2s ease-in-out infinite;
@@ -505,10 +547,23 @@ html, body {
   animation: none;
 }
 
+.mic-live {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.mic-live[hidden] {
+  display: none;
+}
+
 .mic-timer {
-  position: absolute;
-  bottom: -22px;
-  font-size: 13px;
+  flex: none;
+  min-width: 34px;
+  font-size: 14px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--error-text);
@@ -1102,3 +1157,8 @@ body[data-hero] #samadhan-widget-panel {
   background: transparent; color: var(--header-text); font-size: 0.8rem; cursor: pointer; white-space: nowrap;
 }
 #samadhan-widget-auth:hover { background: rgba(255, 255, 255, 0.15); }
+
+/* privacy notice link and the consent line in the greeting (audit H2) */
+.privacy-link { text-align: center; font-size: 0.8rem; margin: 0.8rem 0 0.4rem; opacity: 0.85; }
+.privacy-link a, .greeting-privacy a { color: inherit; text-decoration: underline; }
+.greeting-privacy { font-size: 0.8rem; margin: 0.6rem 0 0; opacity: 0.85; }

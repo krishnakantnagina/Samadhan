@@ -3,9 +3,9 @@
 import uuid
 
 import pytest
+from test_ticketing import DISTRICT, SPEC, FakeClient, _Query
 
 from app.ticketing import create_ticket
-from test_ticketing import DISTRICT, SPEC, FakeClient, _Query
 
 NOTES = {"_intake": {"reason": "confident", "location_details": {"district": "Shajapur", "district_hi": "शाजापुर", "tehsil": "कालापीपल"}}}
 FIELDS = {"issue_type": "no_supply", "location": "किलोजा"}

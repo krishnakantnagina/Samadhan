@@ -44,3 +44,30 @@ BASE_URL=<url> CONTRACT_TARGET=real uv run pytest      # the real backend (skips
 ```bash
 uv run ruff check . && uv run ruff format --check .
 ```
+
+## Local test mode (private database, never the live Supabase)
+
+Test the real backend, every department and the whole route without touching the live server. It runs a private Postgres on port 5544
+(data in `local-research/devdb/`, git-excluded) and replaces the Supabase client with a small adapter. `SUPABASE_*` are overwritten with dummy
+values before the app starts, so the live database cannot be reached from this process.
+
+```bash
+python scripts/local_dev_db.py setup          # once: create + start the private DB, load schema, seeds, migrations 002..005 and DEMO desks for all 55 districts
+uv run --env-file ../.env --with "psycopg[binary]" python scripts/local_dev_server.py      # API on http://127.0.0.1:8000
+(cd ../frontend && python -m http.server 5500)                                              # website on http://localhost:5500
+uv run python scripts/try_complaint.py "mere gaon ke school me mid day meal nahi mil raha"  # talk to it from the terminal
+uv run python scripts/try_complaint.py --scenarios                                           # one complaint per department
+python scripts/local_dev_db.py tickets        # see what was filed;  stop | status | reset
+```
+
+All 49 registry departments have a spec (`scripts/gen_department_specs.py` generates them, the routes in `specs/registry/routes.yaml`
+and the offices in `database/migrations/004_all_department_offices.sql`). Migration 004 is **not** applied to the live database yet.
+The LLM providers are still called for real (Groq/Gemini free tiers answer 429 if turns come too fast; the test script pauses between turns).
+The dashboard still reads the live database, so use `local_dev_db.py tickets` to see local tickets.
+Voice: if Sarvam is out of credit (`/speak` answers 503, log shows `402`), start the server with `TTS_PROVIDERS=gemini,sarvam` (Gemini speech, may still
+answer 429 or return a glitched clip); the website widget then falls back to the browser's own Hindi voice when the server voice fails.
+No TTS credit? Open the website with `?voice=browser` (http://localhost:5500/?voice=browser) and replies are read in Hindi by the browser's own voice; the widget then never calls `/speak`.
+Needs a Hindi voice installed in the browser/OS (Windows: Settings > Time & language > Speech).
+
+Understand first (S35): start the local server with `UNDERSTAND_FIRST=1 uv run --env-file ../.env --with "psycopg[binary]" python scripts/local_dev_server.py` and Gemini translates the first
+message and decides complaint / question / document request / greeting / unclear before routing (docs/specs/S35-understand-first.md).

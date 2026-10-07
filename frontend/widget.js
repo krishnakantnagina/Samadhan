@@ -1,5 +1,5 @@
 // Samadhan floating chat widget -- T53/T54 (S19 REVISION 2). Real backend, full parity with
-// app.js: text, press-and-hold voice, GPS location, TTS speak buttons, restart/cancel, and the
+// app.js: text, tap-to-record voice with live waveform, GPS location, TTS speak buttons, restart/cancel, and the
 // bilingual greeting. Drop-in: add <script src="widget.js"> to any page that also loads style.css.
 // Self-mounting, no HTML placeholder needed. No business logic here: every action/reply comes from
 // the backend as-is, same posture as app.js. Deliberately does not import from app.js (D-S19-2):
@@ -12,7 +12,30 @@
   const SEEN_KEY = 'samadhan_widget_seen';
   const GENERIC_ERROR = 'सर्वर से संपर्क नहीं हो सका। कृपया दोबारा प्रयास करें।';
   const ACCEPTED_AUDIO_TYPES = new Set(['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/wav']);
-  const MIN_HOLD_MS = 400; // S18 D-S18-1
+  const MIN_HOLD_MS = 400; // S18 D-S18-1 (shortest recording that is sent)
+  const MAX_RECORD_MS = 60000; // tap-to-record stops by itself after one minute
+  const WAVE_BARS = 40;
+  const MIC_IDLE_CAPTION = '🎤 बोलने के लिए माइक दबाएँ · Tap to speak';
+  const MESSAGE_TIMEOUT_MS = 60000; // a slow server must not leave the citizen waiting for ever (the backend itself may take ~45 s on a bad day)
+  const SPEAK_TIMEOUT_MS = 25000;
+  const MAX_SPOKEN_CHARS = 320; // about 20 s of speech and 6-8 s to generate (Sarvam: 600 characters took 15 s and played 41 s); a long answer is read in part and shown in full on screen
+  // The confirm card's keys are the spec's field names; the citizen should read Hindi labels (the full list of names used by every department).
+  const SUMMARY_LABELS = {
+    issue_type: 'समस्या',
+    location: 'स्थान',
+    duration_days: 'कितने दिनों से',
+    address_detail: 'पता / लैंडमार्क',
+    description: 'शिकायत',
+    institution_name: 'संस्था का नाम',
+    school_name: 'स्कूल का नाम',
+  };
+
+  // fetch() that gives up after `ms` (a hung connection used to leave the typing dots on for ever).
+  function fetchWithTimeout(url, options, ms) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+  }
 
   function getSessionId() {
     let id = sessionStorage.getItem(SESSION_KEY);
@@ -126,16 +149,25 @@
   const micBtn = document.createElement('button');
   micBtn.type = 'button';
   micBtn.className = 'mic-btn';
-  micBtn.setAttribute('aria-label', 'आवाज़ रिकॉर्ड करने के लिए दबाकर रखें');
+  micBtn.setAttribute('aria-label', 'आवाज़ रिकॉर्ड करने के लिए दबाएँ');
   micBtn.appendChild(svgIcon(MIC_PATH.concat(MIC_STEM), 26));
   const micTimerEl = document.createElement('span');
   micTimerEl.className = 'mic-timer';
   micTimerEl.hidden = true;
   micTimerEl.textContent = '0:00';
-  micBtn.appendChild(micTimerEl);
+  const waveCanvas = document.createElement('canvas');
+  waveCanvas.className = 'mic-wave';
+  waveCanvas.hidden = true;
+  waveCanvas.setAttribute('aria-hidden', 'true');
+  const liveRow = document.createElement('div'); // timer + wave, shown only while recording
+  liveRow.className = 'mic-live';
+  liveRow.hidden = true;
+  liveRow.appendChild(micTimerEl);
+  liveRow.appendChild(waveCanvas);
   const micCaption = document.createElement('p');
   micCaption.className = 'mic-caption';
-  micCaption.textContent = '🎤 बोलने के लिए दबाकर रखें · Hold to speak';
+  micCaption.textContent = MIC_IDLE_CAPTION;
+  voiceRow.appendChild(liveRow);
   voiceRow.appendChild(micBtn);
   voiceRow.appendChild(micCaption);
 
@@ -202,11 +234,15 @@
   }
 
   function spokenTextOf(text) {
-    return text
+    const full = text
       .split('\n')
       .filter((line) => !/https?:\/\//.test(line))
       .join(' ')
       .trim();
+    if (full.length <= MAX_SPOKEN_CHARS) return full;
+    const cut = full.slice(0, MAX_SPOKEN_CHARS);
+    const stop = Math.max(cut.lastIndexOf('।'), cut.lastIndexOf('.'), cut.lastIndexOf('?'));
+    return `${stop > MAX_SPOKEN_CHARS * 0.5 ? cut.slice(0, stop + 1) : cut} पूरी जानकारी स्क्रीन पर लिखी है।`;
   }
 
   function appendMessage(role, text) {
@@ -232,30 +268,102 @@
     return button;
   }
 
+  // Last resort when the server voice (Sarvam / Gemini) is down, out of credit or rate limited: the browser's own Hindi voice. It exposes the few
+  // parts of the Audio API the voice note and the speaker button use, so they work unchanged. No duration or progress bar (the browser does not report them).
+  function browserHindiVoice() {
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') return null;
+    return window.speechSynthesis.getVoices().find((v) => /^hi\b/i.test(v.lang)) || null;
+  }
+
+  class BrowserVoice {
+    constructor(text, voice) {
+      this.text = text;
+      this.voice = voice;
+      this.paused = true;
+      this.duration = NaN;
+      this.currentTime = 0;
+      this.readyState = 0;
+      this.preload = '';
+      this.listeners = {};
+      this.started = false;
+    }
+    addEventListener(name, fn) { (this.listeners[name] = this.listeners[name] || []).push(fn); }
+    emit(name) { (this.listeners[name] || []).forEach((fn) => fn()); }
+    load() {}
+    play() {
+      const synth = window.speechSynthesis;
+      if (this.started && synth.paused) {
+        synth.resume();
+      } else {
+        synth.cancel();
+        const utterance = new SpeechSynthesisUtterance(this.text);
+        utterance.lang = 'hi-IN';
+        utterance.voice = this.voice;
+        utterance.onend = () => { this.paused = true; this.started = false; this.emit('ended'); };
+        utterance.onerror = () => { this.paused = true; this.started = false; this.emit('pause'); };
+        this.started = true;
+        synth.speak(utterance);
+      }
+      this.paused = false;
+      this.emit('play');
+      return Promise.resolve();
+    }
+    pause() {
+      window.speechSynthesis.pause();
+      this.paused = true;
+      this.emit('pause');
+    }
+  }
+
+  // 'browser' = never call the server voice (/speak, Sarvam): read replies with the browser's Hindi voice only. For testing while there is no TTS credit.
+  // Switch on with `?voice=browser` in the page address or `window.SAMADHAN_TTS_MODE = 'browser'` in config.js. Default 'server' (unchanged behaviour).
+  function ttsMode() {
+    let mode = window.SAMADHAN_TTS_MODE;
+    try {
+      mode = mode || new URLSearchParams(window.location.search).get('voice');
+    } catch {
+      // no address bar (tests, embedded views): keep the configured mode
+    }
+    return mode === 'browser' ? 'browser' : 'server';
+  }
+
   async function fetchHindiAudio(rawText) {
     const text = spokenTextOf(rawText); // never speak the URL line (S28 4.6)
     if (!text) throw new Error(GENERIC_ERROR);
-    let response;
+    if (ttsMode() === 'browser') {
+      const voice = browserHindiVoice();
+      if (!voice) throw new Error(GENERIC_ERROR); // no Hindi voice installed in this browser: the note shows "!"
+      return new BrowserVoice(text, voice);
+    }
     try {
-      response = await fetch(`${API_BASE}/api/v1/speak`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-    } catch {
-      throw new Error(GENERIC_ERROR);
+      let response;
+      try {
+        response = await fetchWithTimeout(
+          `${API_BASE}/api/v1/speak`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) },
+          SPEAK_TIMEOUT_MS,
+        );
+      } catch {
+        throw new Error(GENERIC_ERROR);
+      }
+      let body;
+      try {
+        body = await response.json();
+      } catch {
+        throw new Error(GENERIC_ERROR);
+      }
+      if (!response.ok) {
+        throw new Error(body.reply_text || GENERIC_ERROR);
+      }
+      return new Audio(`data:audio/wav;base64,${body.audio_base64}`);
+    } catch (error) {
+      const voice = browserHindiVoice();
+      if (voice) return new BrowserVoice(text, voice); // server voice unavailable: read it with the browser's Hindi voice
+      throw error;
     }
-    let body;
-    try {
-      body = await response.json();
-    } catch {
-      throw new Error(GENERIC_ERROR);
-    }
-    if (!response.ok) {
-      throw new Error(body.reply_text || GENERIC_ERROR);
-    }
-    return new Audio(`data:audio/wav;base64,${body.audio_base64}`);
   }
+
+  if ('speechSynthesis' in window) window.speechSynthesis.getVoices(); // some browsers load the voice list lazily: ask once so it is ready when needed
 
   async function speakText(text, button) {
     button.disabled = true;
@@ -341,9 +449,15 @@
       }
     });
 
-    load()
-      .then((a) => (autoPlay ? a.play() : undefined))
-      .catch(() => {}); // autoplay blocked or TTS down: the button is the fallback
+    // Only a reply to the citizen's OWN voice message is fetched and played at once. A typed reply costs a paid speech request only if the citizen taps play
+    // (it used to be requested for every reply, played or not, which spent the speech credit).
+    if (autoPlay) {
+      load()
+        .then((a) => a.play())
+        .catch(() => {}); // autoplay blocked or TTS down: the button is the fallback
+    } else {
+      btn.textContent = '▶';
+    }
     return box;
   }
 
@@ -356,7 +470,7 @@
     const dl = document.createElement('dl');
     for (const [key, value] of Object.entries(summary || {})) {
       const dt = document.createElement('dt');
-      dt.textContent = key;
+      dt.textContent = SUMMARY_LABELS[key] || key;
       const dd = document.createElement('dd');
       dd.textContent = value;
       dl.appendChild(dt);
@@ -421,11 +535,11 @@
     let response;
     try {
       // S31: the saved login (if any) rides along; the backend only needs it when a complaint is about to be filed.
-      response = await fetch(`${API_BASE}/api/v1/message`, {
-        method: 'POST',
-        body: form,
-        headers: window.SamadhanAuth ? window.SamadhanAuth.headers() : {},
-      });
+      response = await fetchWithTimeout(
+        `${API_BASE}/api/v1/message`,
+        { method: 'POST', body: form, headers: window.SamadhanAuth ? window.SamadhanAuth.headers() : {} },
+        MESSAGE_TIMEOUT_MS,
+      );
     } catch {
       throw new Error(GENERIC_ERROR);
     }
@@ -526,16 +640,94 @@
     }
   }
 
-  async function handleTurn(apiCall, citizenBubbleText, autoSpeak = false) {
+  // The citizen's own recording, shown as a playable voice note in their bubble (the speech text is never shown;
+  // the backend still transcribes it for routing). Falls back to a text bubble if the browser cannot make a URL for it.
+  function makeLocalVoiceNote(url, seconds) {
+    const box = document.createElement('div');
+    box.className = 'voice-note voice-note-mine';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'vn-play';
+    btn.setAttribute('aria-label', 'अपनी रिकॉर्डिंग सुनें');
+    btn.textContent = '▶';
+    const track = document.createElement('div');
+    track.className = 'vn-track';
+    const fill = document.createElement('div');
+    fill.className = 'vn-fill';
+    track.appendChild(fill);
+    const time = document.createElement('span');
+    time.className = 'vn-time';
+    const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    const total = Math.max(1, Math.round(seconds));
+    time.textContent = fmt(total);
+    box.append(btn, track, time);
+
+    const audio = new Audio(url);
+    audio.preload = 'auto';
+    audio.load(); // fetch the data now (same as the bot voice note), so the first tap plays at once
+    // A MediaRecorder file reports no duration, so progress is measured against the length we timed while recording.
+    audio.addEventListener('timeupdate', () => {
+      fill.style.width = `${Math.min(100, (audio.currentTime / total) * 100)}%`;
+    });
+    audio.addEventListener('play', () => { btn.textContent = '⏸'; });
+    audio.addEventListener('pause', () => { btn.textContent = '▶'; });
+    audio.addEventListener('ended', () => {
+      btn.textContent = '▶';
+      fill.style.width = '0%';
+    });
+    btn.addEventListener('click', () => {
+      if (audio.paused) audio.play().catch(() => {});
+      else audio.pause();
+    });
+    return box;
+  }
+
+  // Each recording is a Blob held by its object URL until revoked. Keep only the latest few playable so a long voice session
+  // on a low-end phone does not pile up audio in memory; older notes stay in the chat but can no longer be replayed.
+  const MAX_PLAYABLE_LOCAL_NOTES = 8;
+  const localVoiceUrls = [];
+  function keepLocalVoiceUrl(url, note) {
+    localVoiceUrls.push({ url, note });
+    while (localVoiceUrls.length > MAX_PLAYABLE_LOCAL_NOTES) {
+      const old = localVoiceUrls.shift();
+      URL.revokeObjectURL(old.url);
+      const btn = old.note.querySelector('.vn-play');
+      if (btn) btn.disabled = true;
+      old.note.classList.add('vn-expired');
+    }
+  }
+  window.addEventListener('pagehide', () => {
+    localVoiceUrls.splice(0).forEach((v) => URL.revokeObjectURL(v.url));
+  });
+
+  function appendVoiceBubble(blob, seconds) {
+    let url;
+    try {
+      url = URL.createObjectURL(blob);
+    } catch {
+      return null;
+    }
+    const el = document.createElement('div');
+    el.className = 'msg citizen msg-in';
+    const note = makeLocalVoiceNote(url, seconds);
+    el.appendChild(note);
+    keepLocalVoiceUrl(url, note);
+    messagesEl.appendChild(el);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return el;
+  }
+
+  async function handleTurn(apiCall, citizenBubbleText, autoSpeak = false, voice = null) {
     let needsLogin = false;
-    const citizenEl = appendMessage('citizen', citizenBubbleText);
+    const citizenEl = (voice && appendVoiceBubble(voice.blob, voice.seconds)) || appendMessage('citizen', citizenBubbleText);
+    const showsVoiceNote = Boolean(citizenEl.firstChild?.classList?.contains('voice-note'));
     setBusy(true);
     const waitingEl = appendTypingIndicator(); // three dots while the reply is on its way
     try {
       const result = await apiCall();
       waitingEl.remove();
-      if (result.transcript) {
-        citizenEl.textContent = result.transcript;
+      if (result.transcript && !showsVoiceNote) {
+        citizenEl.textContent = result.transcript; // only when the citizen's recording could not be shown as a voice note
       }
       setLocationHighlight(result.ask_for === 'location');
       const spokenChoice = awaitingLocationChoice ? locationChoiceOf(result.transcript) : null;
@@ -601,44 +793,133 @@
   restartBtn.addEventListener('click', () => send('restart'));
   cancelBtn.addEventListener('click', () => send('cancel'));
 
-  // --- Press-and-hold recording (mirrors app.js's S18 logic exactly) ------------------------
+  // --- Tap-to-record: tap the mic to start, tap again to send; stops by itself after 1 minute ---
 
   let mediaRecorder = null;
   let recordedChunks = [];
-  let holdStartedAt = 0;
-  let releaseRequested = false;
+  let recordingStartedAt = 0;
+  let stopRequested = false; // a tap that arrives while the mic is still connecting cancels it
   let recordingTimerInterval = null;
+  let autoStopTimeout = null;
+  let audioCtx = null;
+  let analyser = null;
+  let waveFrame = 0;
+  let waveLevels = [];
 
   function clearMicTimer() {
     if (recordingTimerInterval) {
       clearInterval(recordingTimerInterval);
       recordingTimerInterval = null;
     }
+    if (autoStopTimeout) {
+      clearTimeout(autoStopTimeout);
+      autoStopTimeout = null;
+    }
     micTimerEl.hidden = true;
     micTimerEl.textContent = '0:00';
+    liveRow.hidden = true;
+  }
+
+  // Live "pitch wave": newest loudness bar enters on the right and scrolls left, like a WhatsApp voice note.
+  function drawWave() {
+    const dpr = window.devicePixelRatio || 1;
+    const width = waveCanvas.clientWidth;
+    const height = waveCanvas.clientHeight;
+    if (!width || !height) return;
+    if (waveCanvas.width !== Math.round(width * dpr)) {
+      waveCanvas.width = Math.round(width * dpr);
+      waveCanvas.height = Math.round(height * dpr);
+    }
+    const ctx = waveCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = getComputedStyle(waveCanvas).color;
+    const slot = width / WAVE_BARS;
+    const barWidth = Math.max(2, slot * 0.6);
+    for (let i = 0; i < WAVE_BARS; i += 1) {
+      const level = waveLevels[waveLevels.length - WAVE_BARS + i] || 0;
+      const barHeight = Math.max(4, level * height);
+      const x = i * slot + (slot - barWidth) / 2;
+      const y = (height - barHeight) / 2;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, barWidth, barHeight, barWidth / 2);
+      else ctx.rect(x, y, barWidth, barHeight);
+      ctx.fill();
+    }
+  }
+
+  function startWave(stream) {
+    waveLevels = [];
+    waveCanvas.hidden = false;
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) {
+      drawWave(); // no analyser available: flat line, recording still works
+      return;
+    }
+    try {
+      audioCtx = new AudioCtx();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      audioCtx.createMediaStreamSource(stream).connect(analyser);
+    } catch {
+      audioCtx = null;
+      analyser = null;
+      drawWave();
+      return;
+    }
+    const samples = new Uint8Array(analyser.fftSize);
+    // A fixed timer, not requestAnimationFrame: the bar rate must not depend on the screen's frame rate.
+    waveFrame = setInterval(() => {
+      analyser.getByteTimeDomainData(samples);
+      let sum = 0;
+      for (const sample of samples) {
+        const v = (sample - 128) / 128;
+        sum += v * v;
+      }
+      // speech is quiet (RMS ~0.02-0.2): boost and curve it so ordinary talking fills most of the height
+      waveLevels.push(Math.pow(Math.min(1, Math.sqrt(sum / samples.length) * 7), 0.6));
+      if (waveLevels.length > WAVE_BARS) waveLevels.shift();
+      drawWave();
+    }, 55);
+  }
+
+  function stopWave() {
+    if (waveFrame) clearInterval(waveFrame);
+    waveFrame = 0;
+    if (audioCtx) audioCtx.close().catch(() => {});
+    audioCtx = null;
+    analyser = null;
+    waveLevels = [];
+    waveCanvas.hidden = true;
   }
 
   function setMicIdle() {
     micBtn.classList.remove('mic-btn-starting', 'mic-btn-recording', 'mic-btn-cancelled');
-    micBtn.setAttribute('aria-label', 'आवाज़ रिकॉर्ड करने के लिए दबाकर रखें');
+    micBtn.setAttribute('aria-label', 'आवाज़ रिकॉर्ड करने के लिए दबाएँ');
+    micCaption.textContent = MIC_IDLE_CAPTION;
     clearMicTimer();
+    stopWave();
   }
 
   function setMicStarting() {
     micBtn.classList.add('mic-btn-starting');
-    micBtn.setAttribute('aria-label', 'शुरू हो रहा है…');
+    micBtn.setAttribute('aria-label', 'माइक जुड़ रहा है…');
+    micCaption.textContent = 'माइक जुड़ रहा है… · Connecting…';
   }
 
   function setMicRecording() {
     micBtn.classList.remove('mic-btn-starting');
     micBtn.classList.add('mic-btn-recording');
-    micBtn.setAttribute('aria-label', 'रिकॉर्ड हो रहा है… छोड़ने पर भेजा जाएगा');
+    micBtn.setAttribute('aria-label', 'रिकॉर्ड हो रहा है… भेजने के लिए दोबारा दबाएँ');
+    micCaption.textContent = 'सुन रहे हैं… भेजने के लिए दोबारा दबाएँ · Tap to send';
     micTimerEl.hidden = false;
+    liveRow.hidden = false;
     const startedAt = Date.now();
     recordingTimerInterval = setInterval(() => {
       const elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
       micTimerEl.textContent = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, '0')}`;
     }, 250);
+    autoStopTimeout = setTimeout(stopRecording, MAX_RECORD_MS);
   }
 
   function flashMicCancelled() {
@@ -646,12 +927,12 @@
     micBtn.classList.remove('mic-btn-recording', 'mic-btn-starting');
     micBtn.classList.add('mic-btn-cancelled');
     micBtn.setAttribute('aria-label', 'रद्द');
+    micCaption.textContent = 'बहुत छोटी रिकॉर्डिंग, रद्द · Too short';
     setTimeout(setMicIdle, 900);
   }
 
-  async function beginHold() {
-    holdStartedAt = performance.now();
-    releaseRequested = false;
+  async function beginRecording() {
+    stopRequested = false;
     setMicStarting();
 
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -669,39 +950,53 @@
       return;
     }
 
-    if (releaseRequested) {
+    if (stopRequested) {
       stream.getTracks().forEach((track) => track.stop());
       setMicIdle();
       return;
     }
 
     recordedChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) recordedChunks.push(event.data);
-    };
-    mediaRecorder.onstop = () => {
+    try {
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+      };
+      mediaRecorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        stopWave();
+        const recordedMs = performance.now() - recordingStartedAt;
+        if (recordedMs < MIN_HOLD_MS) {
+          flashMicCancelled();
+          return;
+        }
+        setMicIdle();
+        void sendRecording(mediaRecorder.mimeType, recordedMs / 1000);
+      };
+      mediaRecorder.start();
+    } catch {
+      // A recorder that cannot start (unsupported browser/format) must not leave the mic stuck on "connecting".
       stream.getTracks().forEach((track) => track.stop());
-      const held = performance.now() - holdStartedAt;
-      if (held < MIN_HOLD_MS) {
-        flashMicCancelled();
-        return;
-      }
+      mediaRecorder = null;
+      appendMessage('error', 'आवाज़ रिकॉर्ड नहीं हो सकी। कृपया लिखकर भेजें।');
       setMicIdle();
-      void sendRecording(mediaRecorder.mimeType);
-    };
-    mediaRecorder.start();
+      return;
+    }
+    recordingStartedAt = performance.now();
     setMicRecording();
-
-    if (releaseRequested) mediaRecorder.stop();
+    startWave(stream);
   }
 
-  function endHold() {
-    releaseRequested = true;
+  function stopRecording() {
+    stopRequested = true;
     if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
   }
 
-  async function sendRecording(mimeType) {
+  function isMicRecording() {
+    return Boolean(mediaRecorder && mediaRecorder.state === 'recording');
+  }
+
+  async function sendRecording(mimeType, seconds) {
     const type = normaliseAudioType(mimeType);
     if (!ACCEPTED_AUDIO_TYPES.has(type)) {
       appendMessage('error', 'यह ऑडियो प्रारूप समर्थित नहीं है। कृपया लिखकर भेजें।');
@@ -712,20 +1007,15 @@
       () => postToApi((form) => form.append('audio', blob, `recording.${type.split('/')[1]}`)),
       '🎤 आवाज़ भेजी जा रही है…',
       true, // S17 D-S17-4: auto-speak the reply to a voice message
+      { blob, seconds },
     );
   }
 
-  micBtn.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    try {
-      micBtn.setPointerCapture(event.pointerId); // S18 D-S18-3 (guarded, G-S18-4)
-    } catch {
-      // Capture is a reliability nicety; recording must still proceed if it isn't granted.
-    }
-    beginHold();
+  micBtn.addEventListener('click', () => {
+    if (isMicRecording()) stopRecording();
+    else if (micBtn.classList.contains('mic-btn-starting')) stopRequested = true; // tap while connecting = cancel
+    else void beginRecording();
   });
-  micBtn.addEventListener('pointerup', endHold);
-  micBtn.addEventListener('pointercancel', endHold);
   micBtn.addEventListener('contextmenu', (event) => event.preventDefault());
 
   // --- Location ------------------------------------------------------------------------------
@@ -805,6 +1095,17 @@
     );
     greetingLine(en, 'You can ', 'speak your message or type it', ". We'll do our best to help you.");
 
+    // Notice and consent (audit H2): said before anything is sent. Continuing to use the chat is the agreement; the page says what is used and who handles it.
+    const privacy = document.createElement('p');
+    privacy.className = 'greeting-privacy';
+    privacy.appendChild(document.createTextNode('आगे बढ़ने पर आप सहमत हैं कि आपकी बात AI सेवाओं से समझी जाएगी। '));
+    const privacyLink = document.createElement('a');
+    privacyLink.href = 'privacy.html';
+    privacyLink.target = '_blank';
+    privacyLink.rel = 'noopener';
+    privacyLink.textContent = 'गोपनीयता नोटिस · Privacy notice';
+    privacy.appendChild(privacyLink);
+
     const listenBtn = document.createElement('button');
     listenBtn.type = 'button';
     listenBtn.className = 'greeting-listen-btn';
@@ -814,6 +1115,7 @@
     card.appendChild(hi);
     card.appendChild(divider);
     card.appendChild(en);
+    card.appendChild(privacy);
     card.appendChild(listenBtn);
 
     const spokenHi =

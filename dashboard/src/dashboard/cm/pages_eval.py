@@ -13,6 +13,7 @@ import streamlit as st
 
 from dashboard.cm import theme, ui
 from dashboard.cm.departments import ALL_DEPARTMENTS
+from dashboard.safe import h
 
 REASON_LABEL = {
     "department_unconfirmed": "Department not confirmed after the follow-up question",
@@ -102,8 +103,8 @@ def page_human_eval(ctx) -> None:
         row = queue.iloc[rows[0]]
         st.divider()
         st.subheader(row["complaint_id"])
-        st.markdown(f'<div class="cm-card"><b>Citizen said</b><br><span style="font-size:1.15rem">“{row["citizen_message"]}”</span><br>'
-                    f'<small>{row["summary_en"]} · {row["district"]} district ({row["division"]} division) · location precision: {row["location_quality"]} · '
+        st.markdown(f'<div class="cm-card"><b>Citizen said</b><br><span style="font-size:1.15rem">“{h(row["citizen_message"])}”</span><br>'
+                    f'<small>{h(row["summary_en"])} · {h(row["district"])} district ({h(row["division"])} division) · location precision: {h(row["location_quality"])} · '
                     f'duration: {"%d days" % row["duration_days"] if pd.notna(row["duration_days"]) else "not given"}</small></div>', unsafe_allow_html=True)
         c1, c2 = st.columns(2)
         c1.write("**Why a person is needed**")

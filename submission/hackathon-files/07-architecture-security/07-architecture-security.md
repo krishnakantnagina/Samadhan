@@ -13,11 +13,11 @@ FastAPI core ----> [voice] Sarvam ASR -> Groq Whisper fallback  (audio + transcr
    |  command ("cancel", "रद्द करो") -> handled here, no LLM
    |  complaint number in the message -> status answered here, no LLM
    v
-Turn Engine (ONE LLM call, strict JSON): intent, department, confidence, fields
+Turn Engine: Jev (TypeSafe) decides the department + confidence; the LLM extracts the fields (strict JSON)
    |   Groq gpt-oss-120b -> qwen3.8-27b -> gpt-oss-20b -> Gemini
    v
 Validator (pure code): checks every value against the service spec, then decides
-   route / reconfirm / clarify / general triage / information reply / decline
+   route / reconfirm / clarify / Human Evaluation / information reply / decline
    v
 Jurisdiction (fuzzy ward match) -> Ticket SMD-xxxx -> Supabase (Postgres + private audio bucket)
                                                             ^
@@ -35,12 +35,13 @@ Officer dashboard (Streamlit) reads and writes the DB directly, never calls the 
 | Layer | Choice |
 |---|---|
 | Backend | Python 3.12, uv, FastAPI, Uvicorn, Pydantic, httpx, PyYAML, RapidFuzz |
+| Decision model | Jev (TypeSafe): picks the department from a registry of 49 departments; falls back to the LLM path if unreachable |
 | LLM | Groq (`openai/gpt-oss-120b`, `qwen/qwen3.8-27b`, `openai/gpt-oss-20b`), Gemini as last fallback |
 | Voice | Sarvam `saaras:v4` (speech-to-text), `bulbul:v3` (text-to-speech); Groq `whisper-large-v3-turbo` fallback |
 | Data | Supabase Postgres with Row Level Security; private Storage bucket `audio` |
 | Website | HTML, CSS, vanilla JavaScript; MediaRecorder and Geolocation browser APIs; no framework or third-party scripts |
 | Dashboard | Streamlit, pandas, folium and streamlit-folium (OpenStreetMap tiles) |
-| Tooling and hosting | pytest, Ruff, Docker; Railway or Render (API), Vercel or Render (website), Streamlit Community Cloud (dashboard) |
+| Tooling and hosting | pytest, Ruff, Docker; Render (API, website and dashboard) |
 
 **Contracts.** The API (`docs/specs/S01`), database (`S02`) and service spec format (`S03`) are written specs matched by code
 (`backend/app/schemas.py`, `database/schema.sql`, `specs/*.yaml`). Endpoints: `POST /api/v1/message`, `GET /api/v1/status/{complaint_id}`,
@@ -56,14 +57,14 @@ Officer dashboard (Streamlit) reads and writes the DB directly, never calls the 
 | Audio | Private bucket, reached only through short-lived signed URLs |
 | CORS | Only origins in `ALLOWED_ORIGINS` |
 | Status endpoint | Returns only complaint ID, status, department and updated time. Never the transcript, audio, location or collected details |
-| Citizen data | Anonymous sessions; no name or phone stored; original audio and transcript kept unchanged |
+| Citizen data | Mobile-number login before filing (a demo PIN stands in for SMS OTP for now); the number lets the officer call back; original audio and transcript kept unchanged |
 | LLM safety | Output validated with Pydantic and against the service spec; unknown values dropped; information replies are fixed text plus a link that must be an https `.gov.in` host that resolves in DNS |
 | Duplicates | A repeated message ID returns the stored response (database key), so retries never create a second ticket |
 | Dashboard | Password login |
 
-**Known gaps (honest).** One shared officer password (no per-department accounts); no rate limit or login on the citizen endpoints; no
+**Known gaps (honest).** One shared officer password (no per-department accounts); no rate limit on the citizen endpoints and no real SMS OTP yet (the mobile login uses a demo PIN); no
 push notification to officers; no formal DPDP Act review. Phone verification and rate limiting are Phase 2 of the roadmap
-(`06-implementation-plan`); a real SMS OTP was tested successfully, but it is not in the product.
+(`06-implementation-plan`); SMS OTP is not in the product and is planned once the SMS licence is obtained.
 
 ## 3. Scalability
 

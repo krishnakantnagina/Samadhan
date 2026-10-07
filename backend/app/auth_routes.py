@@ -10,10 +10,10 @@ Plain sync routes (the stores are synchronous). When AUTH_PROVIDER is not set ev
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Depends, Header
 from pydantic import Field
 
-from app import auth
+from app import auth, ratelimit
 from app import schemas as api
 from mock.errors import ApiError
 
@@ -53,7 +53,7 @@ def _service() -> auth.AuthService:
         raise ApiError(api.ErrorCode.SERVICE_UNAVAILABLE, f"Login is not enabled: {exc}") from exc
 
 
-@router.post("/start", response_model=StartResponse)
+@router.post("/start", response_model=StartResponse, dependencies=[Depends(ratelimit.limiter("auth_start"))])
 def start(body: StartRequest) -> StartResponse:
     try:
         result = _service().start(body.phone)
@@ -62,7 +62,7 @@ def start(body: StartRequest) -> StartResponse:
     return StartResponse(challenge_id=result.challenge_id, provider=result.provider, hint=result.hint)
 
 
-@router.post("/verify", response_model=LoginResponse)
+@router.post("/verify", response_model=LoginResponse, dependencies=[Depends(ratelimit.limiter("auth_verify"))])
 def verify(body: VerifyRequest) -> LoginResponse:
     try:
         result = _service().verify(body.challenge_id, body.code)

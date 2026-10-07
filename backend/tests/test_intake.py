@@ -1,5 +1,6 @@
 """S30 intake v2: the Lead's flow, tested with a fake Jev (no network). Real specs and the real registry file are used."""
 
+import dataclasses
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -104,10 +105,22 @@ def test_confident_live_department_uses_its_spec():
     assert out.meta["jev"][0] == {"id": "phe", "p": 0.95}
 
 
+def _registry_without(dept_id):
+    """Every department now has a spec; this registry pretends one does not, to keep the department_not_live path tested."""
+    return dataclasses.replace(REG, live_specs={k: v for k, v in REG.live_specs.items() if k != dept_id})
+
+
 def test_confident_department_without_a_spec_goes_to_general_triage_with_the_suggestion():
-    out = pre(FakeDecider(top=(("school_education", 0.93), ("higher_education", 0.05))))
+    out = intake.prestep(row=row(), specs=SPECS, text="x", recent=[], turn_result=turn(), registry=_registry_without("school_education"),
+                         decider=FakeDecider(top=(("school_education", 0.93), ("higher_education", 0.05))))
     assert out.turn_result.service_id == "human_evaluation" and out.ask is None
     assert out.meta["reason"] == "department_not_live" and out.meta["suggested_department"]["name_en"] == "School Education"
+
+
+def test_confident_school_education_routes_to_its_own_spec():
+    out = pre(FakeDecider(top=(("school_education", 0.93), ("higher_education", 0.05))), text="mere gaon ke school me mid day meal nahi mil raha")
+    assert out.turn_result.service_id == "school_education" and out.ask is None
+    assert out.meta["reason"] == "confident" and out.meta["suggested_department"]["id"] == "school_education"
 
 
 def test_unsure_asks_one_question_about_the_top_department():
@@ -294,6 +307,7 @@ def test_route_confident_live_department_flows_through_the_real_validator(client
 
 def test_route_confident_department_without_a_spec_lands_in_general_with_the_suggestion(client, monkeypatch):
     monkeypatch.setattr(intake, "default_decider", lambda: FakeDecider(top=(("school_education", 0.93), ("higher_education", 0.05))))
+    monkeypatch.setattr(intake, "load_registry", lambda *a, **k: _registry_without("school_education"))
     body = send(client).json()
     assert body["action"] == "ask" and body["ask_for"] == "description"  # Human Evaluation asks for the description first
     saved = client.saved["session_update"]
@@ -310,3 +324,33 @@ def test_the_llm_prompt_never_contains_the_internal_notes():
     prompt = turn_engine._build_prompt(
         turn_engine.SessionState("water_supply", {"issue_type": "no_supply", intake.META_KEY: {"pending_dept": "energy"}}, False), SPECS, "x", None, None, [])
     assert "no_supply" in prompt and "pending_dept" not in prompt and intake.META_KEY not in prompt
+
+
+# --- a complaint in progress is not moved to another service by the turn engine alone ---------------------------------------------------------------
+
+def test_turn_engine_cannot_flip_a_complaint_in_progress_when_jev_is_not_sure():
+    r = row(service_id="panchayat_rural_development", collected_fields={intake.META_KEY: {"suggested_department": {"id": "panchayat_rural_development"}}})
+    out = pre(FakeDecider(top=(("phe", 0.5), ("school_education", 0.4)), confidence=0.55), r=r, t=turn(service_id="water_supply"), text="हमारे गाँव में मारसाब नहीं आ रहा")
+    assert out.turn_result.service_id == "panchayat_rural_development"  # the model's switch to water is refused
+    assert out.turn_result.confirmed is False and out.ask is None
+
+
+def test_a_confident_jev_may_move_a_complaint_to_the_right_department():
+    r = row(service_id="panchayat_rural_development")
+    out = pre(FakeDecider(top=(("school_education", 0.96), ("phe", 0.02)), confidence=0.95), r=r, t=turn(service_id="water_supply"), text="हमारे गाँव में मारसाब नहीं आ रहा")
+    assert out.turn_result.service_id == "school_education"  # Jev's department, not the model's water guess
+    assert out.meta["reason"] == "switched" and out.meta["suggested_department"]["id"] == "school_education"
+
+
+def test_same_service_or_no_switch_does_not_ask_jev_again():
+    d = FakeDecider()
+    r = row(service_id="water_supply")
+    pre(d, r=r, t=turn(service_id="water_supply"), text="Misrod")
+    pre(d, r=r, t=turn(service_id=None), text="Misrod")
+    assert d.decide_calls == 0
+
+
+def test_jev_down_during_a_switch_fails_open_to_the_models_choice():
+    r = row(service_id="panchayat_rural_development")
+    out = pre(FakeDecider(fail=True), r=r, t=turn(service_id="water_supply"), text="x")
+    assert out.turn_result.service_id == "water_supply" and out.meta is None

@@ -297,3 +297,25 @@ def test_prompt_includes_field_vocabulary_and_recent_messages():
     assert "no_supply" in prompt  # already-collected field surfaced in session state
     assert "no water since 3 days" in prompt  # recent message surfaced
     assert "ward 12" in prompt  # this turn's text
+
+
+def test_prompt_tells_the_model_to_pick_by_what_went_wrong_and_to_apply_corrections():
+    # ticket SMD-0024: "MGNREGA money came but the road was not built" was filed as MGNREGA wages and the citizen's correction was ignored
+    from app import turn_engine
+
+    text = turn_engine.SYSTEM_INSTRUCTIONS
+    assert "WHAT WENT WRONG" in text and "sadak nahi bani" in text
+    assert "Corrections:" in text and "THIS turn" in text
+
+
+def test_enum_values_are_listed_with_their_meaning_so_the_model_can_tell_them_apart():
+    # the model used to see [mgnrega, awas, panchayat_conduct, village_works, other] and could not know village_works means road/drain work
+    from pathlib import Path
+
+    from app import service_spec
+    from app.turn_engine import _field_vocabulary
+
+    spec = service_spec.load_specs(Path(__file__).resolve().parents[2] / "specs")["panchayat_rural_development"]
+    line = _field_vocabulary(spec.field("issue_type"))
+    assert 'village_works ("Village works, drain or road")' in line
+    assert "answer with the id only" in line
