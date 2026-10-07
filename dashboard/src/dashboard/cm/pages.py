@@ -480,6 +480,9 @@ def page_accounts(ctx: Context) -> None:
     st.markdown("- **cm_admin**: everything, including this page.\n- **dept_head**: one department's tickets and page; can reassign only inside the department.\n"
                 "- **office_officer**: one office's tickets; can change status, cannot reassign.\n- **evaluator**: the Human Evaluation queue plus every ticket needing review; can reassign to any department.")
     st.caption("Plain-text demo passwords are in local-research/DEMO_ACCOUNTS.md (git-excluded).")
+    from dashboard.cm.pages_access import desk_access_section
+
+    desk_access_section(ctx)
 
 
 from dashboard.cm.pages_eval import page_human_eval  # noqa: E402,F401

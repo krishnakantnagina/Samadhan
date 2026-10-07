@@ -56,6 +56,7 @@ class OfficeLevel(StrEnum):
     GRAM_PANCHAYAT = "gram_panchayat"
     BLOCK = "block"
     DISTRICT = "district"
+    STATE = "state"  # a department that has no office in the districts (state-level only): one state desk for every complaint
 
 
 class Command(StrEnum):

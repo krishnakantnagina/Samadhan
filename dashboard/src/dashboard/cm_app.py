@@ -7,6 +7,7 @@ The sidebar switches between the DEMO dataset (360 invented tickets, default) an
 Design and limits: local-research/CM_OFFICE_DASHBOARD_DESIGN.md. The older officer dashboard (app.py) still runs unchanged.
 """
 
+import dataclasses
 import os
 import random
 from functools import partial
@@ -16,7 +17,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from dashboard import app as legacy
-from dashboard.cm import accounts, demo_data, home, pages, registry, theme
+from dashboard.cm import accounts, demo_data, desk_access, home, pages, registry, theme
 from dashboard.safe import h
 from dashboard.throttle import LOGIN_THROTTLE, locked_message
 from dashboard.tickets import truncation_notice
@@ -51,6 +52,46 @@ def _home_data() -> home.HomeData:
     return home.load()
 
 
+def _db_client():
+    from dashboard.db import get_client
+
+    return get_client()
+
+
+def _password_form(account: accounts.Account, *, forced: bool) -> None:
+    """A holder of a desk login chooses their own password (forced after a temporary one)."""
+    with st.form("pw-forced" if forced else "pw-optional"):
+        old = st.text_input("Current (temporary) password" if forced else "Current password", type="password")
+        new1 = st.text_input(f"New password (at least {desk_access.MIN_PASSWORD} characters)", type="password")
+        new2 = st.text_input("New password again", type="password")
+        done = st.form_submit_button("Save new password", type="primary")
+    if not done:
+        return
+    if new1 != new2:
+        st.error("The two new passwords are not the same.")
+        return
+    try:
+        desk_access.change_password(_db_client(), account.username, old, new1)
+    except desk_access.DeskAccessError as exc:
+        st.error(str(exc))
+        return
+    except Exception:  # noqa: BLE001 -- database unreachable
+        st.error("The password could not be saved right now. Try again in a moment.")
+        return
+    st.session_state["cm_account"] = dataclasses.replace(account, extra={**account.extra, "must_change": False})
+    st.success("Password changed.")
+    st.rerun()
+
+
+def _password_gate(account: accounts.Account) -> None:
+    """A desk login made or reset by the CM office carries a temporary password: nothing else opens until the holder has chosen their own."""
+    if account.extra.get("source") == "db" and account.extra.get("must_change"):
+        st.title("Choose your own password")
+        st.info("You signed in with a temporary password. Choose your own now; you will use it from the next login.")
+        _password_form(account, forced=True)
+        st.stop()
+
+
 @st.dialog("Sign in")
 def _sign_in_dialog() -> None:
     """Pop-up so the login is reachable from the very top of the home page, including on a phone."""
@@ -61,9 +102,11 @@ def _sign_in_dialog() -> None:
         if wait:  # locked: the password is not checked (no CPU spent) and a correct one does not unlock early
             st.error(locked_message(wait))
             return
-        found = accounts.authenticate(user, pw, accounts.load_accounts(), legacy_password=os.environ.get("DASHBOARD_PASSWORD"))
+        found = accounts.authenticate(user, pw, accounts.all_accounts(), legacy_password=os.environ.get("DASHBOARD_PASSWORD"))
         if found:
             LOGIN_THROTTLE.record_success(user)
+            if found.extra.get("source") == "db":
+                desk_access.touch_login(_db_client(), found.username)
             st.session_state["cm_account"] = found
             st.rerun()
         LOGIN_THROTTLE.record_failure(user)
@@ -135,6 +178,7 @@ def main() -> None:
     st.set_page_config(page_title="Samadhan — CM Office", layout="wide", page_icon="🏛️")
     account = _login_screen()
     theme.inject()
+    _password_gate(account)
     conn = _registry()
     if not conn.execute("SELECT 1 FROM departments LIMIT 1").fetchone():
         st.warning("The department and service registry is not loaded on this server. Build it with `uv run python -m dashboard.cm.build_cli` from dashboard/, then reload.")
@@ -143,6 +187,9 @@ def main() -> None:
     with st.sidebar:
         st.markdown("### 🏛️ Samadhan")
         st.caption(f"**{account.username}** · {account.role}")
+        if account.extra.get("source") == "db":
+            with st.expander("Change my password"):
+                _password_form(account, forced=False)
         st.text_input("🔍 Search everything", key="global_q_input", placeholder="bijli, पानी, SMD-0007 …", on_change=lambda: st.session_state.update(go_search=True, global_q=st.session_state["global_q_input"]))
         if account.demo_only:
             demo = True

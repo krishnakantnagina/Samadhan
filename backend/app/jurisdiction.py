@@ -26,6 +26,7 @@ NAME_MATCH_MIN_SCORE = 80.0  # S09 BEHAVIOR 2
 NAME_TIE_BREAK_POINTS = 3.0  # S09 BEHAVIOR 2
 EARTH_RADIUS_KM = 6371.0
 DISTRICT_CONFIDENCE = 0.7  # the citizen's own district has an office for this department: right desk, not the exact ward (matches routing.min_confidence)
+STATE_CONFIDENCE = 0.7  # a state-level desk for a department that works from the state capital: the right (only) desk, so not marked for review
 
 
 @dataclass(frozen=True)
@@ -39,7 +40,7 @@ class OfficeRef:
 class JurisdictionMatch:
     office: OfficeRef
     confidence: float
-    matched_via: Literal["gps", "name", "district", "fallback"]
+    matched_via: Literal["gps", "name", "district", "state", "fallback"]
 
 
 # S31: General Triage was renamed Human Evaluation. Until migration 002 (new desk) / 003 (cutover) has run on a database, the old desk still serves, so a
@@ -135,8 +136,9 @@ def resolve_office(
         offices = _fetch_offices(LEGACY_DEPARTMENTS[department], client=client)
     all_wards = [o for o in offices if o["level"] == "ward"]
     districts = [o for o in offices if o["level"] == "district"]
-    if not districts:
-        raise JurisdictionError(f"no active district office for department {department!r}")
+    states = [o for o in offices if o["level"] == "state"]
+    if not districts and not states:
+        raise JurisdictionError(f"no active district or state office for department {department!r}")
     want = _norm(district)
     present = {_norm(o.get("district")) for o in offices if o.get("district")}
     if want:
@@ -145,7 +147,7 @@ def resolve_office(
     else:
         wards = all_wards if len(present) <= 1 else []
         own = []
-    fallback = next((d for d in districts if not d.get("district")), districts[0])  # the department's default desk
+    fallback = next((d for d in districts if not d.get("district")), districts[0]) if districts else None  # the department's default desk
 
     gps_wards = wards or (all_wards if lat is not None and lng is not None and not want else [])
     if lat is not None and lng is not None and gps_wards:
@@ -161,4 +163,8 @@ def resolve_office(
 
     if own:
         return JurisdictionMatch(_office_ref(own[0]), DISTRICT_CONFIDENCE, "district")
+    if states and (want or not districts):
+        # A state-level department (or a district that has no desk of its own): the state desk is the right place. With the district still unknown and district
+        # desks existing, we fall through instead, so the bot asks for the district first.
+        return JurisdictionMatch(_office_ref(states[0]), STATE_CONFIDENCE, "state")
     return JurisdictionMatch(_office_ref(fallback), 0.0, "fallback")

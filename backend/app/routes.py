@@ -380,8 +380,8 @@ def message(
             session_id=session_id,
             spec=spec,
             validated_fields=result.collected_fields,
-            lat=lat,
-            lng=lng,
+            lat=lat if lat is not None else row.lat,  # a location shared in an earlier message still counts at the confirm turn
+            lng=lng if lng is not None else row.lng,
             original_text=original_text,
             audio_path=audio_path,
             user_id=user.id if user else None,

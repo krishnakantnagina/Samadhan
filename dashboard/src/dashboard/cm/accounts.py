@@ -91,6 +91,23 @@ def load_accounts(path: Path | str | None = None) -> list[dict[str, Any]]:
     return json.loads(p.read_text(encoding="utf-8"))["accounts"]
 
 
+def all_accounts(path: Path | str | None = None, client: Any = None) -> list[dict[str, Any]]:
+    """The accounts file plus the active logins kept in the database (desk access, migration 008). A database that cannot be reached or has no such table adds nothing: the file accounts and the
+    shared admin login always work. A file account is never shadowed by a database login of the same name."""
+    file_accounts = load_accounts(path)
+    try:
+        from dashboard.cm import desk_access
+
+        if client is None:
+            from dashboard.db import get_client
+
+            client = get_client()
+        names = {a["username"].lower() for a in file_accounts}
+        return file_accounts + [a for a in desk_access.active_accounts(client) if a["username"].lower() not in names]
+    except Exception:  # noqa: BLE001 -- no database configured (local), table not created yet, or a network error
+        return file_accounts
+
+
 def authenticate(username: str, password: str, accounts: list[dict[str, Any]], legacy_password: str | None = None) -> Account | None:
     """The account for these credentials, or None. Same work is done for unknown users so timing does not reveal which exist."""
     username = username.strip().lower()
@@ -103,7 +120,10 @@ def authenticate(username: str, password: str, accounts: list[dict[str, Any]], l
     ok = verify_password(password, record if record else dummy)
     if record is None or not ok or record["role"] not in ROLES:
         return None
-    return Account(record["username"], record["role"], record.get("department"), record.get("office_name"), record.get("dept_id"), record.get("label", ""))
+    return Account(
+        record["username"], record["role"], record.get("department"), record.get("office_name"), record.get("dept_id"), record.get("label", ""),
+        extra={"source": record.get("source", "file"), "must_change": bool(record.get("must_change"))},
+    )
 
 
 def scope_tickets(df: pd.DataFrame, account: Account) -> pd.DataFrame:
