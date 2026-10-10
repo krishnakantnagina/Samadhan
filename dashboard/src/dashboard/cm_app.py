@@ -184,9 +184,19 @@ def main() -> None:
         st.warning("The department and service registry is not loaded on this server. Build it with `uv run python -m dashboard.cm.build_cli` from dashboard/, then reload.")
         st.stop()
 
+    parts = [p for p in account.username.replace("_", " ").split() if p]
+    initials = ("".join(p[0] for p in parts[:2]) or account.username[:2]).upper()
     with st.sidebar:
-        st.markdown("### 🏛️ Samadhan")
-        st.caption(f"**{account.username}** · {account.role}")
+        st.markdown(
+            '<div class="cm-side-brand"><div class="mark">स</div>'
+            '<div><div class="nm">Samadhan</div><div class="sub">CM OFFICE</div></div></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<div class="cm-side-user"><div class="av">{h(initials)}</div>'
+            f'<div><b>{h(account.username)}</b><span>{h(account.role)}</span></div></div>',
+            unsafe_allow_html=True,
+        )
         if account.extra.get("source") == "db":
             with st.expander("Change my password"):
                 _password_form(account, forced=False)

@@ -12,7 +12,8 @@ import streamlit as st
 from dotenv import load_dotenv
 from streamlit_folium import st_folium
 
-from dashboard.analytics import DEFAULT_SLA_DAYS, ageing, daily_trend, department_summary, totals
+from dashboard.analytics import DEFAULT_SLA_DAYS, ageing, daily_received_resolved, department_summary, totals
+from dashboard.cm import charts, theme, ui
 from dashboard.cm.ui import table as ui_table
 from dashboard.config import get_dashboard_config
 from dashboard.db import get_client
@@ -128,25 +129,32 @@ def _render_overview_tab(df: pd.DataFrame) -> None:
     now = pd.Timestamp.now(tz="UTC")
     summary = department_summary(df, now, sla_days)
     kpi = totals(summary)
+    rr = daily_received_resolved(df, now)
 
-    cols = st.columns(5)
-    cols[0].metric("Received", kpi["received"])
-    cols[1].metric("Resolved", kpi["resolved"])
-    cols[2].metric("Pending", kpi["pending"])
-    cols[3].metric("Overdue", kpi["overdue"], help=f"pending for more than {sla_days} days")
-    cols[4].metric("Resolution rate", f"{kpi['resolution_rate']}%")
+    st.markdown(ui.kpi_cards([
+        {"label": "Received", "value": f"{kpi['received']:,}", "icon": charts.ICON_INBOX, "spark": rr["received"].tail(14).tolist(), "color": theme.BLUE},
+        {"label": "Resolved", "value": f"{kpi['resolved']:,}", "icon": charts.ICON_CHECK, "spark": rr["resolved"].tail(14).tolist(), "color": theme.NAVY, "delta": f"{kpi['resolution_rate']}% rate"},
+        {"label": "Pending", "value": f"{kpi['pending']:,}", "icon": charts.ICON_CLOCK},
+        {"label": f"Overdue > {sla_days}d", "value": f"{kpi['overdue']:,}", "icon": charts.ICON_ALERT, "delta": "needs follow-up" if kpi["overdue"] else "on track"},
+    ]), unsafe_allow_html=True)
+
+    c_trend, c_donut = st.columns([1.7, 1])
+    with c_trend:
+        st.subheader("Received vs resolved · 30 days")
+        st.altair_chart(charts.trend_chart(df, now), use_container_width=True)
+    with c_donut:
+        st.subheader("Open by department")
+        if (summary["pending"] > 0).any():
+            st.altair_chart(charts.donut_open_by_dept(summary), use_container_width=True)
+        else:
+            st.caption("Nothing pending — all clear.")
 
     st.subheader("Departments")
     st.caption("Most overdue first. Click a department in the All Tickets tab to work its tickets.")
     ui_table(summary, use_container_width=True, hide_index=True)
 
-    left, right = st.columns(2)
-    with left:
-        st.subheader("Pending by age")
-        st.bar_chart(ageing(df, now).set_index("age"))
-    with right:
-        st.subheader("Received, last 30 days")
-        st.line_chart(daily_trend(df, now))
+    st.subheader("Pending by age")
+    st.bar_chart(ageing(df, now).set_index("age"), color=theme.BLUE)
 
 
 def _render_structure_tab(df: pd.DataFrame) -> None:
@@ -351,6 +359,7 @@ def _ticket_table(df: pd.DataFrame, *, key: str, **detail_options) -> None:
 
 def main() -> None:
     st.set_page_config(page_title="Samadhan — Officer Dashboard", layout="wide")  # inside main() so cm_app can import this module
+    theme.inject()  # government blue theme + KPI-card styling (cm_app injects its own; this is for running app.py standalone)
     _require_login()
 
     with st.sidebar:

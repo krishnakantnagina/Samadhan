@@ -1,23 +1,39 @@
-# Go-live checklist (Render), written 2026-10-07
+# Go-live checklist (Render), written 2026-10-07, state re-checked 2026-10-10
 
 For putting the post-submission work (49 departments, district routing, scheme answers, audit fixes, Sarvam speech) on the live site. Read with `docs/DEPLOY_RENDER.md` (how the three
-services are set up) and `docs/specs/S38-audit-fixes.md` (what changed). **Nothing here has been run on the live site.** Tests passed locally: backend 880, dashboard 173, frontend 33.
+services are set up) and `docs/specs/S38-audit-fixes.md` (what changed).
+
+**State on 2026-10-10 (read-only probe of the live Supabase database, see section 2):** every migration up to `008` **is already applied**. What is still outstanding is the *code*
+(uncommitted, not merged to `main`, so nothing in it is deployed) and the *desk logins* (`dashboard_accounts` is empty). The earlier note here saying "nothing has been run on the
+live site" was out of date and has been corrected.
+
+Tests passing locally on 2026-10-10: **backend 907 passed / 1 skipped, dashboard 206, frontend 38**. Both dashboards also render with zero exceptions
+(`streamlit.testing.v1.AppTest` on `cm_app.py` and `app.py`).
 
 > The hackathon handbook says changes after submission are real (`reference_hackathon-handbook`). Check that deploying is allowed before you push to `main`.
 
-## 1. Before anything: the code
-- [ ] The work is on branch `post-submission`; most of it is still uncommitted. Commit it in one go (several tracked files import the new modules).
+## 1. Before anything: the code  ← **this is now the real blocker**
+- [ ] The work is on branch `post-submission`; most of it is still uncommitted (22 changed/untracked paths on 2026-10-10). Commit it in one go (several tracked files import the new modules).
+      Untracked modules that tracked files now need: `dashboard/src/dashboard/cm/charts.py` (imported by `cm/pages.py` **and** `app.py`), `dashboard/src/dashboard/cm/make_desk_accounts.py`,
+      `dashboard/src/dashboard/local_app.py`, `dashboard/src/dashboard/local_client.py`. Committing the modified files **without** `charts.py` would break both dashboards on the server.
 - [ ] `main` is what Render builds. Merge `post-submission` into `main` only when you decide to go live (pushing `main` redeploys the three services).
+- [ ] Nothing in the post-submission work is deployed yet: the live site still runs the pre-submission code, even though the database is already migrated past it.
 
-## 2. Database (Supabase SQL editor), in this order, once
-Already on the live database: `002`, `003`. **Still to run (in this order):**
-| # | File | Why it must run | If you skip it |
+## 2. Database (Supabase SQL editor) — ALL APPLIED, nothing left to run
+
+`002`–`008` are **all on the live database**. Verified 2026-10-10 by a read-only probe (counts below); re-running any of them is safe but unnecessary.
+
+| # | File | Status | Evidence on the live database |
 |---|---|---|---|
-| 1 | `database/migrations/004_all_department_offices.sql` | Offices (DEMO) for the 45 new departments. | Complaints for those departments go to the Human Evaluation desk for review (they are not lost), so nothing works as designed for them. |
-| 2 | `database/migrations/005_district_offices.sql` | `offices.district`, one desk per district per department. Existing rows become `Bhopal`. | Every complaint still goes to the one desk (as today). |
-| 3 | `database/migrations/006_ticket_events.sql` | Audit trail of dashboard actions. | The dashboards skip the audit write (a warning in the log). |
-| 4 | `database/migrations/007_district_desks.sql` | **The desks:** one office per department in each of the 55 districts (38 departments, 2,090 desks) and 11 state desks. Needs 005 first. | Complaints from outside Bhopal still go to the single Bhopal desk, marked "needs review". |
-| 5 | `database/migrations/008_dashboard_accounts.sql` | Logins that belong to a desk (give, hand over, reset, switch off) kept in the database. | The "Desk access" screen says to run it; the shared admin login and the accounts file keep working. |
+| 1 | `004_all_department_offices.sql` | **applied** | the new departments have offices (e.g. `AYUSH Department` = 60 offices) |
+| 2 | `005_district_offices.sql` | **applied** | `offices.district` column present and readable |
+| 3 | `006_ticket_events.sql` | **applied** | `ticket_events` table exists, 13 rows |
+| 4 | `007_district_desks.sql` | **applied** | **2,103 district desks + 11 state desks** |
+| 5 | `008_dashboard_accounts.sql` | **applied (but empty)** | `dashboard_accounts` table exists, **0 rows** — no desk login has been issued yet |
+
+Live totals on 2026-10-10: **2,359 offices** (2,103 district + 11 state + 245 ward), **59 tickets**.
+
+> The one thing still to do here is **not a migration**: `dashboard_accounts` is empty, so on the live dashboard only `admin` + `DASHBOARD_PASSWORD` can log in. See section 4.
 
 The desks in 007 are **designations without officers** (for example "Chief Medical and Health Officer (CMHO), Rajgarh"), taken from the official district portals; see `docs/DISTRICT_DESKS.md`
 for the source and the confidence of each. Send each department its line to confirm, and add the officer and contact when it replies. Re-running 007 is safe.
@@ -37,10 +53,16 @@ Leave these **off** for the first go-live (they need free-tier quota that will n
 Set the Render **Health Check Path** to `/health/ready` (it checks the database; `/health` only checks the process). API docs are hidden on Render on purpose (`ENABLE_API_DOCS=1` brings them back).
 
 ## 4. Dashboard service (`samadhan-dashboard`)
-- [ ] After migration 008: log in as `admin`, open **Accounts and Roles**, scroll to **Desk access**, choose a department and a desk, and give the officer a login. The temporary password is shown once; the officer must choose their own at the first login. When an officer is transferred use **Hand over this desk** (design: `docs/specs/S40-desk-access.md`).
+- [ ] **Issue the desk logins — none exist yet.** Migration 008 is applied but `dashboard_accounts` has **0 rows**, so today only `admin` + `DASHBOARD_PASSWORD` can sign in to the live
+      dashboard. Log in as `admin`, open **Accounts and Roles** → **Desk access**, choose a department and a desk, and give the officer a login. The temporary password is shown once; the
+      officer must choose their own at the first login. When an officer is transferred use **Hand over this desk** (design: `docs/specs/S40-desk-access.md`).
 - [ ] Redeploy so it installs the new `pyyaml` (the build command exports from `dashboard/uv.lock`, which is already updated).
 - [ ] Keep `DASHBOARD_PASSWORD` strong: five wrong tries now lock the username for 10 minutes.
-- [ ] After migration 006, status changes and phone views appear under "Activity on this ticket".
+- [x] Migration 006 is applied, so status changes and phone views already appear under "Activity on this ticket".
+
+> **Do not rely on `local-research/demo_accounts.json` for the live site.** That file (the demo logins, plus the 2,101 generated desk logins in `local-research/DESK_ACCOUNTS.md`) is
+> **git-excluded**, so it is never deployed. It is for local work only. Live desk logins must come from the **Desk access** screen, which writes to `dashboard_accounts`.
+> `DESK_ACCOUNTS.md` holds those 2,101 passwords in plain text: delete it once the real logins are issued, and never commit or paste it.
 
 ## 5. Website service
 Nothing new to set. It now has `privacy.html` (a DRAFT notice: the retention period and the contact line are placeholders to fill in before real citizens use it).
@@ -52,9 +74,11 @@ curl -s -o /dev/null -w "%{http_code}\n" https://samadhan-kx8b.onrender.com/docs
 curl -s -X POST https://samadhan-kx8b.onrender.com/api/v1/speak -H "Content-Type: application/json" -d '{"text":"नमस्ते"}' | head -c 80   # audio_base64 ...
 ```
 - [ ] On a phone: open the website, speak a complaint in Hindi, hear the reply (a reply to your voice plays by itself; a typed reply plays when you tap the speaker).
-- [ ] Give a district (for example "राजगढ़ जिला") and check the ticket in the dashboard: once real desks exist for that district it lands there; until then it is marked "needs review".
+- [ ] Give a district (for example "राजगढ़ जिला") and check the ticket in the dashboard: the real desks for all 55 districts **are** on the database (007 applied), so it should land on that
+      district's desk, not on "needs review". A "needs review" here means the department could not be decided, not a missing desk.
 - [ ] File the same complaint twice quickly: one ticket.
-- [ ] Watch the Render logs for the first day: `audit event not recorded`, `offices.district is missing`, `no office for department` all mean a migration or office data is missing.
+- [ ] Watch the Render logs for the first day: `audit event not recorded`, `offices.district is missing`, `no office for department` all mean a migration or office data is missing — none of
+      these should appear now that 004–008 are applied, so treat any of them as a real regression.
 
 ## 7. Rolling back
 - Code: redeploy the previous commit in Render. The migrations are additive, so the old code keeps working with them applied.

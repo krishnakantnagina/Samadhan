@@ -84,3 +84,21 @@ def daily_trend(df: pd.DataFrame, now: pd.Timestamp, days: int = 30) -> pd.DataF
     created = pd.to_datetime(df["created_at"], utc=True, format="ISO8601").dt.normalize()
     counts = created.value_counts().reindex(index, fill_value=0).sort_index()
     return counts.rename("received").to_frame()
+
+
+def daily_received_resolved(df: pd.DataFrame, now: pd.Timestamp, days: int = 30) -> pd.DataFrame:
+    """Received (by created_at) and resolved (by updated_at) per day for the last `days` days, zero-filled, indexed by date.
+
+    Resolved is dated by the ticket's last update, which is the status change that closed it (same approximation as
+    `department_summary`'s avg-days-to-resolve)."""
+    index = pd.date_range(end=now.normalize(), periods=days, freq="D", tz="UTC")
+    out = pd.DataFrame({"received": 0, "resolved": 0}, index=index)
+    if df.empty:
+        return out
+    created = pd.to_datetime(df["created_at"], utc=True, format="ISO8601").dt.normalize()
+    out["received"] = created.value_counts().reindex(index, fill_value=0).sort_index()
+    done = df[df["status"] == "resolved"]
+    if not done.empty:
+        closed = pd.to_datetime(done["updated_at"], utc=True, format="ISO8601").dt.normalize()
+        out["resolved"] = closed.value_counts().reindex(index, fill_value=0).sort_index()
+    return out

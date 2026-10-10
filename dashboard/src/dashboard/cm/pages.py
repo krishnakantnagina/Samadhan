@@ -14,7 +14,8 @@ import httpx
 import pandas as pd
 import streamlit as st
 
-from dashboard.analytics import DEFAULT_SLA_DAYS, ageing, daily_trend, department_summary, totals
+from dashboard.analytics import DEFAULT_SLA_DAYS, ageing, daily_received_resolved, department_summary, totals
+from dashboard.cm import charts
 from dashboard.cm import registry as R
 from dashboard.cm import ui
 from dashboard.cm import theme  # noqa: F401  (used by pages_extra)
@@ -110,17 +111,27 @@ def page_command(ctx: Context) -> None:
     now = pd.Timestamp.now(tz="UTC")
     summary = department_summary(ctx.df, now, sla)
     k = totals(summary)
-    cols = st.columns(5)
-    for col, (label, key) in zip(cols, (("Received", "received"), ("Resolved", "resolved"), ("Pending", "pending"), ("Overdue", "overdue")), strict=False):
-        col.metric(label, k[key])
-    cols[4].metric("Resolution rate", f"{k['resolution_rate']}%")
+    rr = daily_received_resolved(ctx.df, now)
+    st.markdown(ui.kpi_cards([
+        {"label": "Received", "value": f"{k['received']:,}", "icon": charts.ICON_INBOX, "spark": rr["received"].tail(14).tolist(), "color": theme.BLUE},
+        {"label": "Resolved", "value": f"{k['resolved']:,}", "icon": charts.ICON_CHECK, "spark": rr["resolved"].tail(14).tolist(), "color": theme.NAVY, "delta": f"{k['resolution_rate']}% rate"},
+        {"label": "Pending", "value": f"{k['pending']:,}", "icon": charts.ICON_CLOCK},
+        {"label": f"Overdue > {sla}d", "value": f"{k['overdue']:,}", "icon": charts.ICON_ALERT, "delta": "needs follow-up" if k["overdue"] else "on track"},
+    ]), unsafe_allow_html=True)
+    c_trend, c_donut = st.columns([1.7, 1])
+    with c_trend:
+        st.subheader("Received vs resolved · 30 days")
+        st.altair_chart(charts.trend_chart(ctx.df, now), use_container_width=True)
+    with c_donut:
+        st.subheader("Open by department")
+        if (summary["pending"] > 0).any():
+            st.altair_chart(charts.donut_open_by_dept(summary), use_container_width=True)
+        else:
+            st.caption("Nothing pending — all clear.")
     st.subheader("By department")
     ui.table(summary, width="stretch", hide_index=True)
-    left, right = st.columns(2)
-    left.subheader("Pending by age")
-    left.bar_chart(ageing(ctx.df, now).set_index("age"))
-    right.subheader("Received, last 30 days")
-    right.line_chart(daily_trend(ctx.df, now))
+    st.subheader("Pending by age")
+    st.bar_chart(ageing(ctx.df, now).set_index("age"), color=theme.BLUE)
 
 
 # --- 2. Departments ---------------------------------------------------------------------------------------------
