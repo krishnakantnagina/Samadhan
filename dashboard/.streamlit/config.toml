@@ -1,12 +1,12 @@
-# Government-style theme: blue / white / grey only: light-grey page, white panels and inputs, dark borders (see src/dashboard/cm/theme.py).
+# Government-style theme: blue / white / grey only: cool light-grey page, white panels, light hairline borders (see src/dashboard/cm/theme.py).
 # Applies to every dashboard app started from this folder, including the older officer dashboard (app.py).
 [theme]
 primaryColor = "#0b5cab"
-backgroundColor = "#eceff3"
+backgroundColor = "#eef2f7"
 secondaryBackgroundColor = "#ffffff"
 textColor = "#0b1f33"
 font = "sans serif"
-borderColor = "#0b2e59"
+borderColor = "#dfe6ef"
 showWidgetBorder = true
-dataframeBorderColor = "#0b2e59"
-dataframeHeaderBackgroundColor = "#dde4ec"
+dataframeBorderColor = "#dfe6ef"
+dataframeHeaderBackgroundColor = "#eef3fa"

@@ -503,3 +503,60 @@ test('a server that never answers ends with the Hindi error after the timeout, n
   assert.ok(errors.length >= 1, 'an error message is shown');
   assert.equal(byClassAll(w.root, 'input')[0].disabled, false, 'the citizen can type again');
 });
+
+// --- Send a pre-recorded audio file ---------------------------------------------------------
+
+const fakeFile = (name, type, size = 1000) => ({ name, type, size });
+
+async function pickFile(w, file) {
+  const input = findAll(w.root, (e) => e.tag === 'input' && e.type === 'file')[0];
+  input.files = [file];
+  input.dispatch('change');
+  w.clock.advance(4001); // audioFileDuration's metadata timeout, so the clip is sent
+  for (let i = 0; i < 8; i += 1) await flush();
+  return input;
+}
+
+test('the audio-file chip opens the hidden file picker', () => {
+  const w = load();
+  const input = findAll(w.root, (e) => e.tag === 'input' && e.type === 'file')[0];
+  let clicked = 0;
+  input.click = () => { clicked += 1; };
+  byClassAll(w.root, 'audio-file-btn')[0].dispatch('click');
+  assert.equal(clicked, 1);
+});
+
+test('a supported audio file is sent like a recording and shown as a voice note', async () => {
+  const w = load();
+  await pickFile(w, fakeFile('clip.wav', 'audio/wav'));
+  assert.equal(w.state.messagePosts.length, 1);
+  const audio = w.state.messagePosts[0].entries.find(([k]) => k === 'audio');
+  assert.ok(audio, 'audio field posted');
+  assert.equal(audio[2], 'recording.wav');
+  const citizen = w.messages().filter((m) => m.classes.has('citizen'));
+  assert.equal(citizen.length, 1);
+  assert.ok(citizen[0].firstChild.classes.has('voice-note-mine'), 'shown as the citizen\'s voice note');
+  assert.equal(w.state.speakCalls, 1, 'the reply to the clip is auto-spoken');
+});
+
+test('a file whose type the browser left blank is sent using the extension', async () => {
+  const w = load();
+  const input = await pickFile(w, fakeFile('recording.m4a', ''));
+  assert.equal(input.value, '', 'the input is cleared so the same file can be picked again');
+  const audio = w.state.messagePosts[0].entries.find(([k]) => k === 'audio');
+  assert.equal(audio[2], 'recording.mp4', 'audio/mp4 inferred from .m4a');
+});
+
+test('an unsupported audio file (mp3) is rejected with a message, nothing sent', async () => {
+  const w = load();
+  await pickFile(w, fakeFile('song.mp3', 'audio/mpeg'));
+  assert.equal(w.state.messagePosts.length, 0);
+  assert.ok(w.messages().some((m) => m.classes.has('error')));
+});
+
+test('an oversized audio file is rejected, nothing sent', async () => {
+  const w = load();
+  await pickFile(w, fakeFile('big.wav', 'audio/wav', 3 * 1024 * 1024));
+  assert.equal(w.state.messagePosts.length, 0);
+  assert.ok(w.messages().some((m) => m.classes.has('error')));
+});

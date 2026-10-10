@@ -1,6 +1,6 @@
 import pandas as pd
 
-from dashboard.analytics import ageing, daily_trend, department_summary, totals
+from dashboard.analytics import ageing, daily_received_resolved, daily_trend, department_summary, totals
 
 NOW = pd.Timestamp("2026-10-01T12:00:00Z")
 
@@ -58,11 +58,22 @@ def test_daily_trend_is_zero_filled_and_right_length():
     assert t.index[-1] == NOW.normalize()
 
 
+def test_daily_received_resolved_totals_and_dates():
+    rr = daily_received_resolved(_frame(ROWS), NOW)
+    assert list(rr.columns) == ["received", "resolved"]
+    assert int(rr["received"].sum()) == 4  # the 30-day-old ticket falls just outside the window
+    assert int(rr["resolved"].sum()) == 2  # two resolved tickets, dated by their updated_at
+    assert int(rr.loc[pd.Timestamp("2026-09-23", tz="UTC"), "resolved"]) == 1  # Water resolved 8 days ago
+    assert int(rr.loc[pd.Timestamp("2026-09-28", tz="UTC"), "resolved"]) == 1  # Roads resolved 3 days ago
+
+
 def test_empty_frames_do_not_crash():
     empty = _frame([])
     assert department_summary(empty, NOW).empty
     assert ageing(empty, NOW)["tickets"].sum() == 0
     assert daily_trend(empty, NOW)["received"].sum() == 0
+    rr = daily_received_resolved(empty, NOW)
+    assert len(rr) == 30 and int(rr["received"].sum()) == 0 and int(rr["resolved"].sum()) == 0
 
 
 def test_mixed_timestamp_formats_from_the_live_database_parse():

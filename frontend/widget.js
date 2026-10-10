@@ -12,6 +12,12 @@
   const SEEN_KEY = 'samadhan_widget_seen';
   const GENERIC_ERROR = 'सर्वर से संपर्क नहीं हो सका। कृपया दोबारा प्रयास करें।';
   const ACCEPTED_AUDIO_TYPES = new Set(['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/wav']);
+  const AUDIO_MAX_BYTES = 2 * 1024 * 1024; // mirrors the backend's AUDIO_MAX_BYTES (schemas.py)
+  // Picking a pre-recorded file: the browser may not fill file.type, so fall back to the extension.
+  const AUDIO_EXT_TO_TYPE = {
+    wav: 'audio/wav', webm: 'audio/webm', ogg: 'audio/ogg', oga: 'audio/ogg',
+    m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/mp4',
+  };
   const MIN_HOLD_MS = 400; // S18 D-S18-1 (shortest recording that is sent)
   const MAX_RECORD_MS = 60000; // tap-to-record stops by itself after one minute
   const WAVE_BARS = 40;
@@ -132,9 +138,20 @@
   locationBtn.type = 'button';
   locationBtn.className = 'chip-btn';
   locationBtn.textContent = '📍 लोकेशन भेजें';
+  // Send a pre-recorded audio file (handy for testing dialect clips without speaking live). The hidden
+  // file input is opened by the chip; the file is validated and sent exactly like a mic recording.
+  const audioFileBtn = document.createElement('button');
+  audioFileBtn.type = 'button';
+  audioFileBtn.className = 'chip-btn audio-file-btn';
+  audioFileBtn.textContent = '🎵 ऑडियो भेजें';
+  const audioFileInput = document.createElement('input');
+  audioFileInput.type = 'file';
+  audioFileInput.accept = 'audio/*';
+  audioFileInput.hidden = true;
   actionsRow.appendChild(restartBtn);
   actionsRow.appendChild(cancelBtn);
   actionsRow.appendChild(locationBtn);
+  actionsRow.appendChild(audioFileBtn);
   // Status check: opens the existing status page in a new tab, so the chat stays open (same session).
   const statusLink = document.createElement('a');
   statusLink.className = 'chip-btn chip-link';
@@ -190,6 +207,7 @@
   composer.appendChild(actionsRow);
   composer.appendChild(voiceRow);
   composer.appendChild(textRow);
+  composer.appendChild(audioFileInput);
 
   panel.appendChild(header);
   panel.appendChild(messagesEl);
@@ -520,6 +538,7 @@
     cancelBtn.disabled = busy;
     micBtn.disabled = busy;
     locationBtn.disabled = busy;
+    audioFileBtn.disabled = busy;
   }
 
   function normaliseAudioType(mimeType) {
@@ -996,20 +1015,86 @@
     return Boolean(mediaRecorder && mediaRecorder.state === 'recording');
   }
 
+  // Shared by the mic recording and the "send audio file" chip: post the audio, show it as the
+  // citizen's own voice note, and auto-speak the reply (S17 D-S17-4).
+  async function sendAudioBlob(blob, type, seconds) {
+    await handleTurn(
+      () => postToApi((form) => form.append('audio', blob, `recording.${type.split('/')[1]}`)),
+      '🎤 आवाज़ भेजी जा रही है…',
+      true,
+      { blob, seconds },
+    );
+  }
+
   async function sendRecording(mimeType, seconds) {
     const type = normaliseAudioType(mimeType);
     if (!ACCEPTED_AUDIO_TYPES.has(type)) {
       appendMessage('error', 'यह ऑडियो प्रारूप समर्थित नहीं है। कृपया लिखकर भेजें।');
       return;
     }
-    const blob = new Blob(recordedChunks, { type });
-    await handleTurn(
-      () => postToApi((form) => form.append('audio', blob, `recording.${type.split('/')[1]}`)),
-      '🎤 आवाज़ भेजी जा रही है…',
-      true, // S17 D-S17-4: auto-speak the reply to a voice message
-      { blob, seconds },
-    );
+    await sendAudioBlob(new Blob(recordedChunks, { type }), type, seconds);
   }
+
+  // --- Send a pre-recorded audio file ---------------------------------------------------------
+  // The browser does not always report a file's MIME type, so fall back to its extension.
+  function audioTypeOfFile(file) {
+    const fromMime = normaliseAudioType(file.type);
+    if (fromMime) return fromMime;
+    const ext = (file.name || '').split('.').pop().toLowerCase();
+    return AUDIO_EXT_TO_TYPE[ext] || '';
+  }
+
+  // Read the clip's length so the citizen's voice note shows a sensible time. Resolves 0 (unknown)
+  // if the browser never reports metadata -- the note then falls back to a 1-second placeholder.
+  function audioFileDuration(file) {
+    return new Promise((resolve) => {
+      let url;
+      try {
+        url = URL.createObjectURL(file);
+      } catch {
+        resolve(0);
+        return;
+      }
+      let done = false;
+      const finish = (value) => {
+        if (done) return;
+        done = true;
+        URL.revokeObjectURL(url);
+        resolve(Number.isFinite(value) && value > 0 ? value : 0);
+      };
+      const probe = new Audio();
+      probe.preload = 'metadata';
+      probe.addEventListener('loadedmetadata', () => finish(probe.duration));
+      probe.addEventListener('error', () => finish(0));
+      setTimeout(() => finish(0), 4000); // metadata never arrived: send anyway
+      probe.src = url;
+    });
+  }
+
+  async function sendAudioFile(file) {
+    const type = audioTypeOfFile(file);
+    if (!ACCEPTED_AUDIO_TYPES.has(type)) {
+      appendMessage('error', 'यह ऑडियो प्रारूप समर्थित नहीं है। कृपया WAV, WEBM, OGG या M4A फ़ाइल भेजें।');
+      return;
+    }
+    if (file.size > AUDIO_MAX_BYTES) {
+      appendMessage('error', 'ऑडियो फ़ाइल बहुत बड़ी है। कृपया 2MB से छोटी फ़ाइल भेजें।');
+      return;
+    }
+    const seconds = await audioFileDuration(file);
+    // Re-wrap only when the browser left the type blank, so the backend receives the right content type.
+    const blob = normaliseAudioType(file.type) ? file : new Blob([file], { type });
+    await sendAudioBlob(blob, type, seconds);
+  }
+
+  audioFileBtn.addEventListener('click', () => {
+    if (!audioFileBtn.disabled) audioFileInput.click();
+  });
+  audioFileInput.addEventListener('change', () => {
+    const file = audioFileInput.files && audioFileInput.files[0];
+    audioFileInput.value = ''; // let the citizen pick the same file again
+    if (file) void sendAudioFile(file);
+  });
 
   micBtn.addEventListener('click', () => {
     if (isMicRecording()) stopRecording();
